@@ -93,7 +93,7 @@ proc maybeResetFittest[T](pop: var Population[T]; p: Program[T]) =
       if p.score > pop.fittest.score:
         pop.fittest = p
 
-proc lengthPenalty(pop: Population; score: float; length: int): Score =
+proc penalizeSize(pop: Population; score: float; length: int): Score =
   # apply some pressure on program size
   var s = score
   block:
@@ -109,7 +109,8 @@ proc score*[T](pop: Population[T]; p: var Program[T]): Score =
   if not p.zombie:
     if not p.score.isValid:
       p.score = pop.fitness(pop.platform, p)
-      p.score = pop.lengthPenalty(p.score.float, p.len)
+      if p.score.isValid:
+        p.score = pop.penalizeSize(p.score.float, p.len)
   result = p.score
 
 proc score*[T](pop: Population[T]; p: Program[T]): Score =
