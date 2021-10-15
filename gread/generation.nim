@@ -7,7 +7,6 @@ import gread/mutation
 import gread/spec
 import gread/ast
 import gread/fertilizer
-import gread/tableau
 
 proc generation*[T](pop: var Population[T]): Program[T] =
   ## try to make something amazing
