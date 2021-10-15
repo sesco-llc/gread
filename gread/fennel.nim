@@ -245,7 +245,7 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
     dumpScore p
 
 proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
-                gen: RunningStat) =
+                gen: var RunningStat) =
   var lengths = newSeqOfCap[int](pop.len)
   var scores = newSeqOfCap[float](pop.len)
   var validity = newSeqOfCap[float](pop.len)
@@ -288,6 +288,7 @@ proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
   clearStats fnl
   if pop.generations mod 10_000 == 0:
     clearCache fnl
+  clear genTime
 
 when compileOption"threads":
   import gread/tableau
