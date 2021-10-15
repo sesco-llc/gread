@@ -288,7 +288,7 @@ proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
   clearStats fnl
   if pop.generations mod 10_000 == 0:
     clearCache fnl
-  clear genTime
+  clear gen
 
 when compileOption"threads":
   import gread/tableau
