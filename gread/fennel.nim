@@ -1,3 +1,4 @@
+import std/times
 import std/strformat
 import std/sequtils
 import std/math
@@ -242,3 +243,105 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
         results.add s.float
     checkpoint stddev(results)
     dumpScore p
+
+proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
+                gen: RunningStat) =
+  var lengths = newSeqOfCap[int](pop.len)
+  var scores = newSeqOfCap[float](pop.len)
+  var validity = newSeqOfCap[float](pop.len)
+  var ages = newSeqOfCap[int](pop.len)
+  for p in pop.mitems:
+    let s = pop.score(p)
+    lengths.add p.len
+    ages.add pop.generations - p.generation
+    if s.isValid:
+      scores.add: s
+      validity.add 1.0
+    else:
+      validity.add 0.0
+  let bestSize =
+    if pop.fittest.isNil:
+      "n/a"
+    else:
+      $pop.fittest.len
+  let threaded = when compileOption"threads": $getThreadId() else: "n/a"
+  checkpoint fmt"""
+                        thread: {threaded}
+          virtual machine runs: {fnl.runs}
+         total population size: {pop.len}
+            average age in pop: {avg(ages)}
+          validity rate in pop: {avg(validity).percent}
+         program size variance: {variance(lengths)}
+           average valid score: {Score avg(scores)}
+             best score in pop: {Score pop.best}
+          average program size: {avg(lengths)}
+          size of best program: {bestSize}
+         parsimony coefficient: {Score pop.pcoeff}
+            insufficiency rate: {fnl.nans.mean.percent}
+           semantic error rate: {fnl.errors.mean.percent}
+              total cache hits: {int fnl.hits.sum}
+                cache hit rate: {fnl.hits.mean.percent}
+             total generations: {pop.generations}
+               generation time: {Score gen.mean} ms
+                evolution time: {(getTime() - evo).inSeconds} sec
+  """
+  clearStats fnl
+  if pop.generations mod 10_000 == 0:
+    clearCache fnl
+
+when compileOption"threads":
+  import gread/tableau
+  import gread/generation
+
+  import pkg/loony
+
+  type
+    Work* = object
+      stats*: int
+      sharing*: int
+      fitness*: Fitness[Fennel]
+      poff*: float
+      tableau*: Tableau
+      primitives*: Primitives[Fennel]
+      io*: tuple[inputs: LoonyQueue[FProg], outputs: LoonyQueue[FProg]]
+
+  proc initWork*(tab: Tableau; prims: Primitives[Fennel]; poff = 10000.0;
+                 sharing = 2; stats = 1000): Work =
+    Work(tableau: tab, primitives: prims, stats: stats,
+         poff: poff, sharing: sharing)
+
+  proc share*(work: Work; p: FProg) =
+    for copies in 1..max(1, work.sharing):
+      var transit = clone p
+      transit.source = getThreadId()
+      push(work.io.outputs, transit)
+
+  proc worker*(args: Work) {.thread, gcsafe.} =
+    {.gcsafe.}:
+      let fnl = newFennel()
+      var pop = randomPop(fnl, args.tableau, args.primitives)
+      pop.fitness = args.fitness
+
+      var leader: Hash
+      var transit: FProg
+      var evoTime = getTime()
+      var genTime: RunningStat
+      while true:
+        transit = pop args.io.inputs
+        if not transit.isNil:
+          pop.add transit
+
+        let clock = getTime()
+        let p = generation pop
+        genTime.push (getTime() - clock).inMilliseconds.float
+
+        if not pop.fittest.isNil:
+          if pop.fittest.hash != leader:
+            leader = pop.fittest.hash
+            share(args, pop.fittest)
+
+        if p.generation mod args.stats == 0:
+          dumpStats(fnl, pop, evoTime, genTime)
+
+        if args.tableau.useParsimony and p.generation mod 10 == 0:
+          discard pop.parsimony(args.poff)
