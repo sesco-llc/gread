@@ -167,6 +167,10 @@ when isMainModule:
       var evoTime = getTime()
       var genTime: RunningStat
       while true:
+        transit = pop inputs
+        if not transit.isNil:
+          pop.add transit
+
         let clock = getTime()
         let p = generation pop
         genTime.push (getTime() - clock).inMilliseconds.float
@@ -174,18 +178,16 @@ when isMainModule:
         if not pop.fittest.isNil:
           if pop.fittest.hash != leader:
             leader = pop.fittest.hash
-            transit = clone pop.fittest
-            transit.source = getThreadId()
-            push(outputs, transit)
 
-        transit = pop inputs
-        if not transit.isNil:
-          pop.add transit
+            for copies in 1..2:
+              transit = clone pop.fittest
+              transit.source = getThreadId()
+              push(outputs, transit)
 
         if p.generation mod statFrequency == 0:
           dumpStats pop
 
-        if tab.useParsimony:
+        if tab.useParsimony and rand(10) == 0:
           discard pop.parsimony(poff)
 
         if pop.generations mod (statFrequency*10) == 0:
