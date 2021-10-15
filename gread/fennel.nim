@@ -23,7 +23,7 @@ const
 
 type
   Fennel* = ref object
-    vm: PState
+    vm*: PState
     runs*: uint
     cache: Table[Hash, Score]
     nans*: RunningStat
