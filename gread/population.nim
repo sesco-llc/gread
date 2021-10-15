@@ -1,0 +1,255 @@
+import std/heapqueue
+import std/options
+import std/random
+import std/hashes
+import std/sets
+
+import gread/tableau
+import gread/fertilizer
+import gread/spec
+
+type
+  Population*[T: ref] = ref object
+    platform: T
+    tableau: Tableau
+    cache: HashSet[Hash]
+    primitives: Primitives[T]
+    programs: seq[Program[T]]
+    pcoeff: float
+    fitness: Fitness[T]
+    fittest: Program[T]
+    generation: int
+
+func tableau*(pop: Population): Tableau = pop.tableau
+
+template ignore(pop: var Population; p: Program) {.used.} =
+  pop.cache.incl p.hash
+
+template forget(pop: var Population; p: Program) {.used.} =
+  pop.cache.excl p.hash
+
+proc primitives*[T](pop: Population[T]): Primitives[T] = pop.primitives
+
+template withInitialized*(pop: Population; logic: untyped): untyped =
+  if pop.isNil:
+    raise Defect.newException "initialize your population first"
+  else:
+    if pop.primitives.isNil:
+      raise Defect.newException "initialize your primitives first"
+    else:
+      logic
+
+template withPopulated*(pop: Population; logic: untyped): untyped =
+  withInitialized pop:
+    if pop.len == 0:
+      raise ValueError.newException "population is empty"
+    else:
+      logic
+
+proc newPopulation*[T](platform: T; tab: Tableau; primitives: Primitives[T];
+                       size = 0): Population[T] =
+  if primitives.isNil:
+    raise ValueError.newException "initialize your primitives"
+  else:
+    result = Population[T](tableau: tab, primitives: primitives,
+                           platform: platform,
+                           programs: newSeqOfCap[Program[T]](size))
+    result.pcoeff =
+      if tab.useParsimony:
+        NaN
+      else:
+        0.02
+
+func len*[T](p: Population[T]): int =
+  ## the number of programs in the population
+  p.programs.len
+
+proc fitness*[T](pop: Population[T]): Fitness[T] =
+  ## get the current fitness function associated with the population
+  pop.fitness
+
+proc `fitness=`*[T](pop: var Population[T]; fitter: Fitness[T]) =
+  ## assign a new fitness function for the population
+  pop.fitness = fitter
+
+func best*(pop: Population): Score =
+  ## the score of the fittest program in the population, or NaN
+  if not pop.fittest.isNil:
+    if pop.fittest.score.isValid:
+      return pop.fittest.score
+  return NaN.Score
+
+func fittest*[T](pop: Population[T]): Program[T] =
+  pop.fittest
+
+proc maybeResetFittest[T](pop: var Population[T]; p: Program[T]) =
+  ## reset the fittest pointer if the argument is actually superior
+  if p.score.isValid:
+    if pop.fittest.isNil:
+      pop.fittest = p
+    elif not pop.fittest.score.isValid:
+      pop.fittest = p
+    elif p.score.isValid:  # i know.
+      if p.score > pop.fittest.score:
+        pop.fittest = p
+
+proc lengthPenalty(pop: Population; score: float; length: int): Score =
+  # apply some pressure on program size
+  var s = score
+  block:
+    if pop.tableau.useParsimony and not pop.pcoeff.isNaN:
+      s = max(-8000.0, s)
+      s -= max(0.0, pop.pcoeff * length.float)
+      break
+    s -= pop.pcoeff * length.float
+  result = Score s
+
+proc score*[T](pop: Population[T]; p: var Program[T]): Score =
+  ## assert the score on an individual program using the population
+  if not p.zombie:
+    if not p.score.isValid:
+      p.score = pop.fitness(pop.platform, p)
+      p.score = pop.lengthPenalty(p.score.float, p.len)
+  result = p.score
+
+proc score*[T](pop: Population[T]; p: Program[T]): Score =
+  ## fetch or produce the score on an individual program using the population
+  if p.zombie:
+    NaN
+  elif p.score.isValid:
+    p.score
+  else:
+    var s = pop.fitness(pop.platform, p)
+    pop.lengthPenalty(s.float, p.len)
+
+proc add*[T](pop: var Population[T]; p: Program[T]) =
+  ## add a new program to the population
+  if not pop.cache.containsOrIncl p.hash:
+    pop.programs.add p
+    maybeResetFittest(pop, p)
+
+proc randomPop*[T](p: T; tab: Tableau; c: Primitives[T]): Population[T] =
+  ## produce a random population from the given tableau and primitives
+  result = newPopulation(p, tab, c, tab.seedPopulation)
+  while result.len < tab.seedPopulation:
+    result.add:
+      randProgram(c, tab.seedProgramSize)
+
+when false:
+  proc sort[T](pop: var Population[T]; fitness: Fitness[T];
+               order = Descending) {.deprecated.} =
+    ## too expensive
+    for p in pop.programs.mitems:
+      discard score(pop, p)
+    proc fittest(a, b: Program[T]): int {.closure.} =
+      cmp(a.score, b.score)
+    sort(pop.programs, fittest, order = order)
+
+type
+  TopPop[T] = tuple[score: Score, program: Program[T]]
+
+iterator top*[T](pop: Population[T]; n: int): TopPop[T] =
+  ## iterate through the best performers, low-to-high
+  var queue: HeapQueue[TopPop[T]]
+  for i in 0..<pop.programs.len:
+    var p = pop.programs[i]
+    # handling missing scores
+    queue.push (score: score(pop, p), program: p)
+    while queue.len > n:
+      discard queue.pop()
+  while queue.len > 0:
+    yield queue.pop()
+
+proc first*[T](pop: Population[T]): Program[T] =
+  ## return the fittest individual in the population
+  withPopulated pop:
+    if pop.fittest.isNil:
+      # i guess
+      for program in pop.top(1):
+        return program
+    else:
+      result = pop.fittest
+
+iterator items*[T](pop: Population[T]): Program[T] =
+  for p in pop.programs.items:
+    yield p
+
+iterator mitems*[T](pop: var Population[T]): var Program[T] =
+  for p in pop.programs.mitems:
+    yield p
+
+type
+  IndexedProgram[T] = tuple
+    index: int
+    program: Program[T]
+
+proc randomMember*[T](pop: Population[T]): IndexedProgram[T] =
+  ## return a random member of the population
+  withPopulated pop:
+    let index = rand pop.programs.len-1
+    result = (index: index, program: pop.programs[index])
+
+proc del*[T](pop: var Population[T]; index: int) =
+  ## remove a specific member of the population
+  withPopulated pop:
+    pop.forget pop.programs[index]
+    del(pop.programs, index)
+
+proc randomRemoval*[T](pop: var Population[T]): Program[T] =
+  ## remove a random member of the population
+  withPopulated pop:
+    del(pop, rand pop.programs.len-1)
+
+proc refit*(pop: var Population) =
+  ## re-score all members of the population
+  for p in pop.mitems:
+    p.score = NaN
+    discard score(pop, p)
+
+proc unfit*(pop: var Population) =
+  ## mark all members of the population as unscored
+  for p in pop.mitems:
+    p.score = NaN
+  # critically, when you reset everyone's scores, make sure
+  # you at least try to reset the score of the fittest program
+  if not pop.fittest.isNil:
+    discard score(pop, pop.fittest)
+
+proc parsimony*(pop: Population; n: float): float =
+  ## compure parsimony for members of the population with valid scores
+  var lengths = newSeqOfCap[float](pop.len)
+  var scores = newSeqOfCap[float](pop.len)
+  for p in pop.items:
+    let s = p.score #score(pop, p)
+    if s.isValid:
+      lengths.add p.len.float
+      scores.add s.float
+  result =
+    if scores.len > 0:
+      covariance(lengths, scores) / variance(lengths) / n
+    else:
+      -0.02
+  #echo covariance(lengths, scores).Score, " ", variance(lengths).Score, " ", result.Score
+
+proc parsimony*(pop: var Population; n: float): float =
+  ## calculate the parsimony and store it in the population; mark
+  ## all members of the population as needing a new fitness score
+  let p = pop
+  for p in pop.mitems:
+    discard score(pop, p)
+  result = p.parsimony(n)
+  pop.pcoeff = result
+  unfit pop
+
+proc nextGeneration*(pop: var Population): int =
+  ## inform the population that we're entering a new generation
+  inc pop.generation
+  result = pop.generation
+
+func generations*(pop: Population): int =
+  ## return the number of generations run on the population
+  pop.generation
+
+func pcoeff*(pop: Population): float =
+  ## return the current parsimony coefficient
+  pop.pcoeff
