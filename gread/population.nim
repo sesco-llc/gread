@@ -123,6 +123,12 @@ proc score*[T](pop: Population[T]; p: Program[T]): Score =
     var s = pop.fitness(pop.platform, p)
     pop.lengthPenalty(s.float, p.len)
 
+proc introduce*[T](pop: var Population[T]; p: Program[T]) =
+  ## introduce a foreign program to the local pop without
+  ## setting it as the fittest individual, etc.
+  if not pop.cache.containsOrIncl p.hash:
+    pop.programs.add p
+
 proc add*[T](pop: var Population[T]; p: Program[T]) =
   ## add a new program to the population
   if not pop.cache.containsOrIncl p.hash:

@@ -312,10 +312,19 @@ when compileOption"threads":
          poff: poff, sharing: sharing)
 
   proc share*(work: Work; p: FProg) =
+    ## send a better program to other threads
     for copies in 1..max(1, work.sharing):
       var transit = clone p
       transit.source = getThreadId()
       push(work.io.outputs, transit)
+
+  proc search*(work: Work; pop: var FPop) =
+    ## try to get some fresh genes from another thread
+    var transit = pop work.io.inputs
+    if not transit.isNil:
+      transit.score = NaN
+      discard pop.score transit
+      pop.introduce transit
 
   proc worker*(args: Work) {.thread, gcsafe.} =
     {.gcsafe.}:
@@ -328,9 +337,7 @@ when compileOption"threads":
       var evoTime = getTime()
       var genTime: RunningStat
       while true:
-        transit = pop args.io.inputs
-        if not transit.isNil:
-          pop.add transit
+        search(args, pop)   # fresh meat from other threads
 
         let clock = getTime()
         let p = generation pop
@@ -339,7 +346,7 @@ when compileOption"threads":
         if not pop.fittest.isNil:
           if pop.fittest.hash != leader:
             leader = pop.fittest.hash
-            share(args, pop.fittest)
+            share(args, pop.fittest)  # send it to other threads
 
         if p.generation mod args.stats == 0:
           dumpStats(fnl, pop, evoTime, genTime)
