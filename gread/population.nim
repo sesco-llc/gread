@@ -23,10 +23,10 @@ type
 func tableau*(pop: Population): Tableau = pop.tableau
 
 template ignore(pop: var Population; p: Program) {.used.} =
-  pop.cache.incl p.hash
+  pop.cache.incl p.h
 
 template forget(pop: var Population; p: Program) {.used.} =
-  pop.cache.excl p.hash
+  pop.cache.excl p.h
 
 proc primitives*[T](pop: Population[T]): Primitives[T] = pop.primitives
 
@@ -58,7 +58,7 @@ proc newPopulation*[T](platform: T; tab: Tableau; primitives: Primitives[T];
       if tab.useParsimony:
         NaN
       else:
-        0.02
+        -0.02
 
 func len*[T](p: Population[T]): int =
   ## the number of programs in the population
@@ -82,26 +82,15 @@ func best*(pop: Population): Score =
 func fittest*[T](pop: Population[T]): Program[T] =
   pop.fittest
 
-proc maybeResetFittest[T](pop: var Population[T]; p: Program[T]) =
-  ## reset the fittest pointer if the argument is actually superior
-  if p.score.isValid:
-    if pop.fittest.isNil:
-      pop.fittest = p
-    elif not pop.fittest.score.isValid:
-      pop.fittest = p
-    elif p.score.isValid:  # i know.
-      if p.score > pop.fittest.score:
-        pop.fittest = p
-
 proc penalizeSize(pop: Population; score: float; length: int): Score =
   # apply some pressure on program size
   var s = score
   block:
-    if pop.tableau.useParsimony and not pop.pcoeff.isNaN:
-      s = max(-8000.0, s)
-      s -= max(0.0, pop.pcoeff * length.float)
-      break
-    s -= pop.pcoeff * length.float
+    when false:
+      if pop.tableau.useParsimony and not pop.pcoeff.isNaN:
+        s += min(0.0, pop.pcoeff * length.float)
+        break
+    s += min(0.0, pop.pcoeff * length.float)
   result = Score s
 
 proc score*[T](pop: Population[T]; p: var Program[T]): Score =
@@ -123,15 +112,29 @@ proc score*[T](pop: Population[T]; p: Program[T]): Score =
     var s = pop.fitness(pop.platform, p)
     pop.lengthPenalty(s.float, p.len)
 
+proc maybeResetFittest[T](pop: var Population[T]; p: Program[T]) =
+  ## reset the fittest pointer if the argument is actually superior
+  if p.score.isValid:
+    if pop.fittest.isNil:
+      pop.fittest = p
+    else:
+      if not pop.fittest.score.isValid:
+        pop.fittest.score = score(pop, pop.fittest)
+      if not pop.fittest.score.isValid:
+        pop.fittest = p
+      elif p.score.isValid:  # i know.
+        if pop.fittest.score < p.score:
+          pop.fittest = p
+
 proc introduce*[T](pop: var Population[T]; p: Program[T]) =
   ## introduce a foreign program to the local pop without
   ## setting it as the fittest individual, etc.
-  if not pop.cache.containsOrIncl p.hash:
+  if not pop.cache.containsOrIncl p.h:
     pop.programs.add p
 
 proc add*[T](pop: var Population[T]; p: Program[T]) =
   ## add a new program to the population
-  if not pop.cache.containsOrIncl p.hash:
+  if not pop.cache.containsOrIncl p.h:
     pop.programs.add p
     maybeResetFittest(pop, p)
 
@@ -233,10 +236,10 @@ proc parsimony*(pop: Population; n: float): float =
       scores.add s.float
   result =
     if scores.len > 0:
-      covariance(lengths, scores) / variance(lengths) / n
+      #covariance(lengths, scores) / variance(lengths)
+      -correlation(lengths, scores)
     else:
       -0.02
-  #echo covariance(lengths, scores).Score, " ", variance(lengths).Score, " ", result.Score
 
 proc parsimony*(pop: var Population; n: float): float =
   ## calculate the parsimony and store it in the population; mark

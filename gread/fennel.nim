@@ -344,12 +344,12 @@ when compileOption"threads":
         genTime.push (getTime() - clock).inMilliseconds.float
 
         if not pop.fittest.isNil:
-          if pop.fittest.hash != leader:
-            leader = pop.fittest.hash
+          if pop.fittest.h != leader:
+            leader = pop.fittest.h
             share(args, pop.fittest)  # send it to other threads
 
         if p.generation mod args.stats == 0:
           dumpStats(fnl, pop, evoTime, genTime)
 
-        if args.tableau.useParsimony and p.generation mod 10 == 0:
+        if args.tableau.useParsimony: # and p.generation mod 10 == 0:
           discard pop.parsimony(args.poff)

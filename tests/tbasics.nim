@@ -78,6 +78,6 @@ suite "basic machinery":
     check "is stats.nim really worse?":
       variance(a) == 2.0
       variance(b) == 2.0
-      covariance(a, b) == 10.0
+      covariance(a, b) == 2.0
       stddev(a) == r2
-      correlation(a, b) == (10.0 / (r2*r2))
+      correlation(a, b) == (2.0 / (r2*r2))

@@ -15,7 +15,7 @@ type
   Program*[T] = ref object
     source*: int
     generation*: int
-    hash*: Hash
+    h*: Hash
     score*: Score
     zombie*: bool
     ast*: Ast[T]
@@ -59,14 +59,16 @@ proc `==`*[T](a, b: Program[T]): bool =
 proc `<=`*[T](a, b: Program[T]): bool =
   a.score < b.score or a.score == b.score
 
+proc hash*[T](p: Program[T]): Hash = p.h
+
 proc newProgram*[T](a: Ast[T]): Program[T] =
-  Program[T](ast: a, hash: hash a, score: NaN)
+  Program[T](ast: a, h: hash a, score: NaN)
 
 proc newProgram*[T](a: Ast[T]; score: Score): Program[T] =
-  Program[T](ast: a, hash: hash a, score: score)
+  Program[T](ast: a, h: hash a, score: score)
 
 proc clone*[T](p: Program[T]): Program[T] =
-  Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
+  Program[T](ast: p.ast, h: p.h, score: p.score, source: p.source,
              zombie: p.zombie, generation: p.generation)
 
 proc avg*[T: SomeOrdinal](a: openArray[T]): T {.inline.} =
@@ -81,6 +83,7 @@ proc covariance*(a, b: openArray[float]): float =
     let b1 = avg b
     for index in 0..<a.len:
       result += (a[index] - a1) * (b[index] - b1)
+    result /= a.len.float
   else:
     raise ValueError.newException "inputs have unequal girth"
 
@@ -98,6 +101,14 @@ proc stddev*(a: openArray[float]): float {.inline.} =
 
 proc correlation*(a, b: openArray[float]): float {.inline.} =
   covariance(a, b) / (stddev(a) * stddev(b))
+
+proc ss*[T](a, b: openArray[T]): T {.inline.} =
+  ## sum of squares
+  if a.len == b.len:
+    for i in 0..<a.len:
+      result += (a[i] - b[i]) * (a[i] - b[i])
+  else:
+    raise ValueError.newException "inputs have unequal girth"
 
 proc isValid*(s: Score): bool =
   ## the score is a value we can get useful comparisons from
