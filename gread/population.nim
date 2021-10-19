@@ -243,10 +243,17 @@ type
 iterator top*[T](pop: Population[T]; n: int): TopPop[T] =
   ## iterate through the best performers, low-to-high
   var queue: HeapQueue[TopPop[T]]
+  var valid = false
   for i in 0..<pop.programs.len:
     var p = pop.programs[i]
-    # handling missing scores
-    queue.push (score: score(pop, p), program: p)
+    if score(pop, p).isValid or not valid:
+      valid = valid or p.score.isValid
+      # handling missing scores
+      queue.push (score: p.score, program: p)
+    # discard invalid stuff if we have valid scores in the queue
+    while valid and queue.len > 0 and not queue[0].score.isValid:
+      discard queue.pop()
+    # discard excess queue members
     while queue.len > n:
       discard queue.pop()
   while queue.len > 0:
