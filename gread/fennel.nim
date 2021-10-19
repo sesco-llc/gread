@@ -2,9 +2,7 @@ import std/times
 import std/strformat
 import std/sequtils
 import std/math
-import std/stats except variance
 import std/hashes
-import std/tables
 import std/options
 import std/strutils
 
@@ -19,20 +17,45 @@ import gread/maths
 import gread/primitives
 
 export lunacy
-export stats except variance
 
 const
   semanticErrorsAreFatal = false
+  initialCacheSize = 32*1024
+  useAdix = true
+
+when useAdix:
+  import pkg/adix/lptabz
+  import pkg/adix/stat except variance
+  export stat except variance
+
+  type
+    Fennel* = ref object
+      vm*: PState
+      runs*: uint
+      cache: LPTab[Hash, Score]
+      nans*: MovingStat[float32]
+      errors*: MovingStat[float32]
+      hits*: MovingStat[float32]
+
+    FennelStat* = MovingStat[float32]
+
+else:
+  import std/tables
+  import std/stats except variance
+  export stats except variance
+
+  type
+    Fennel* = ref object
+      vm*: PState
+      runs*: uint
+      cache: Table[Hash, Score]
+      nans*: RunningStat
+      errors*: RunningStat
+      hits*: RunningStat
+
+    FennelStat* = RunningStat
 
 type
-  Fennel* = ref object
-    vm*: PState
-    runs*: uint
-    cache: Table[Hash, Score]
-    nans*: RunningStat
-    errors*: RunningStat
-    hits*: RunningStat
-
   Term* = Terminal[Fennel]
   Fun* = Function[Fennel]
 
@@ -54,6 +77,7 @@ proc initLocals*(values: openArray[(string, LuaValue)]): Locals =
   result.hash = hash result.values
 
 proc clearStats*(fnl: Fennel) =
+  ## reset the MovingStat values in the Fennel object
   clear fnl.nans
   clear fnl.errors
   clear fnl.hits
@@ -88,6 +112,8 @@ const
 proc newFennel*(): Fennel =
   ## reset a Fennel instance and prepare it for running programs
   new result
+  when useAdix:
+    init(result.cache, initialSize = initialCacheSize)
   result.vm = newState()
   result.vm.openLibs()
   result.vm.checkLua result.vm.doString """fennel = require("fennel")""":
@@ -96,7 +122,6 @@ proc newFennel*(): Fennel =
     result.vm.checkLua result.vm.doString sham.cstring:
       discard
   clearStats result
-  clear result.cache
   result.runs = 0
 
 proc clearCache*(fnl: Fennel) =
@@ -234,14 +259,33 @@ proc dumpScore*(p: FProg) =
   else:
     checkpoint fmt"... [{p.len}] at #{p.generation} from {p.source} for {p}"
 
+proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
+                      fenfit: FenFit; samples = 8) =
+  ## dumps the performance of a program across `samples` training inputs;
+  ## the stddev and sum of squares are provided
+  if not p.isNil:
+    var results: seq[float]
+    for index, value in training.pairs:
+      let s = evaluate(fnl, p, value, fenfit)
+      if index < samples:
+        checkpoint $value, "->", s
+      if s.isValid:
+        results.add s.float
+    checkpoint "stddev:", stddev(results)
+    checkpoint "ss: ", ss(results)
+    dumpScore p
+
 proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
-                      fenfit: FenFit) =
+                      fenfit: FenFit; samples = 8) =
+  ## as in the prior overload, but consumes training data with associated
+  ## ideal result values for each set of symbolic inputs; correlation is
+  ## additionally provided
   if not p.isNil:
     var results: seq[float]
     var ideals: seq[float]
     for index, value in training.pairs:
       let s = evaluate(fnl, p, value[0], fenfit)
-      if index < 8:
+      if index < samples:
         checkpoint $value[0], "->", s, "vs", Score(value[1])
       if s.isValid:
         results.add s.float
@@ -251,22 +295,9 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
     checkpoint "ss: ", ss(results, ideals)
     dumpScore p
 
-proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
-                      fenfit: FenFit) =
-  if not p.isNil:
-    var results: seq[float]
-    for index, value in training.pairs:
-      let s = evaluate(fnl, p, value, fenfit)
-      if index < 8:
-        checkpoint $value, "->", s
-      if s.isValid:
-        results.add s.float
-    checkpoint "stddev:", stddev(results)
-    checkpoint "ss: ", ss(results)
-    dumpScore p
-
 proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
-                gen: var RunningStat) =
+                gen: var FennelStat) =
+  ## a threadsafe echo of some statistics regarding the vm and population
   var lengths = newSeqOfCap[int](pop.len)
   var scores = newSeqOfCap[float](pop.len)
   var validity = newSeqOfCap[float](pop.len)
@@ -302,6 +333,7 @@ proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
            semantic error rate: {fnl.errors.mean.percent}
               total cache hits: {int fnl.hits.sum}
                 cache hit rate: {fnl.hits.mean.percent}
+                    cache size: {fnl.cache.len}
              total generations: {pop.generations}
                generation time: {Score gen.mean} ms
                 evolution time: {(getTime() - evo).inSeconds} sec
@@ -364,7 +396,7 @@ when compileOption"threads":
       var leader: Hash
       var transit: FProg
       var evoTime = getTime()
-      var genTime: RunningStat
+      var genTime: FennelStat
       while true:
         search(args, pop)   # fresh meat from other threads
 

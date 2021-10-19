@@ -1,6 +1,5 @@
 import std/strformat
 import std/json
-import std/tables
 import std/hashes
 import std/times
 import std/random
@@ -15,6 +14,7 @@ import gread/fennel
 import pkg/balls
 import pkg/lunacy
 import pkg/lunacy/json as shhh
+import pkg/adix/lptabz
 
 randomize()
 
@@ -80,7 +80,8 @@ else:
 
 # convert the json into lua values;
 var training: seq[(Locals, Score)]
-var targets: Table[Hash, LuaValue]
+var targets: LPTab[Hash, LuaValue]
+init(targets, initialSize = inputData.len)
 for (js, ideal) in inputData.items:
   var pairs: seq[(string, LuaValue)]
   for name, value in js.pairs:
@@ -115,58 +116,14 @@ proc fitness(fnl: Fennel; p: FProg): Score =
   result = Score: s
 
 template dumpStats() {.dirty.} =
-  var lengths = newSeqOfCap[int](pop.len)
-  var scores = newSeqOfCap[float](pop.len)
-  var validity = newSeqOfCap[float](pop.len)
-  var ages = newSeqOfCap[int](pop.len)
-  for p in pop.mitems:
-    p.score = fitness(fnl, p)
-    lengths.add p.len
-    ages.add pop.generations - p.generation
-    if p.score.isValid:
-      scores.add: p.score
-      validity.add 1.0
-    else:
-      validity.add 0.0
-  let bestSize =
-    if pop.fittest.isNil:
-      "n/a"
-    else:
-      $pop.fittest.len
-  checkpoint fmt"""
-          virtual machine runs: {fnl.runs}
-         total population size: {pop.len}
-            average age in pop: {avg(ages)}
-          validity rate in pop: {avg(validity).percent}
-         program size variance: {variance(lengths)}
-           average valid score: {Score avg(scores)}
-             best score in pop: {Score pop.best}
-          average program size: {avg(lengths)}
-          size of best program: {bestSize}
-         parsimony coefficient: {Score pop.pcoeff}
-            insufficiency rate: {fnl.nans.mean.percent}
-           semantic error rate: {fnl.errors.mean.percent}
-              total cache hits: {int fnl.hits.sum}
-                cache hit rate: {fnl.hits.mean.percent}
-             total generations: {pop.generations}
-                evolution time: {(getTime() - genTime).inSeconds} sec
-  """
-  clearStats fnl
+  dumpStats(fnl, pop, evo, genTime)
 
-proc dumpScore(p: FProg) =
-  if p.score.isValid:
-    checkpoint fmt"{p.score} [{p.len}] at #{p.generation} for {p}"
-  else:
-    checkpoint fmt"... [{p.len}] at #{p.generation} for {p}"
-
-proc dumpPerformance(p: FProg) =
-  if not p.isNil:
-    for index, value in training.pairs:
-      checkpoint inputData[index][0], "->", fitone(p, value[0])
-    dumpScore p
+template dumpPerformance(p: FProg) {.dirty.} =
+  dumpPerformance(fnl, p, training, fenfit)
 
 suite "simulation":
-  var genTime = getTime()
+  var evo = getTime()
+  var genTime: FennelStat
 
   block:
     ## created a random population of programs
@@ -179,17 +136,18 @@ suite "simulation":
     ## dumped some statistics
     dumpStats()
 
-  genTime = getTime()
+  evo = getTime()
   var best = Score NaN
   block:
     ## ran until we can average two numbers
     while pop.generations < tab.maxGenerations:
       if pop.best.isValid and pop.best >= goodEnough:
         break
+      let clock = getTime()
       let p = generation pop
+      genTime.push (getTime() - clock).inMilliseconds.float
       if p.score > best:
         best = pop.best
-        checkpoint pop.best, "at #" & $p.generation, "for", $p
         dumpPerformance p
 
       if pop.generations mod statFrequency == 0:

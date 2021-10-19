@@ -1,7 +1,6 @@
 import std/os
 import std/osproc
 import std/strformat
-import std/tables
 import std/hashes
 import std/random
 import std/math
@@ -12,6 +11,7 @@ import gread/fennel
 import pkg/balls
 import pkg/lunacy
 import pkg/loony
+import pkg/adix/lptabz
 
 const
   goodEnough = -0.0
@@ -38,7 +38,8 @@ const
 
 prims.inputs.add [sym"x"]
 var training: seq[Locals]
-var targets: Table[Hash, LuaValue]
+var targets: LPTab[Hash, LuaValue]
+init(targets, initialSize = data.len)
 for (x, y) in data.items:
   var locals = initLocals [("x", x.toLuaValue)]
   targets[hash locals] = y.toLuaValue

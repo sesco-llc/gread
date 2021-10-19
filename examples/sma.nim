@@ -1,7 +1,6 @@
 import std/os
 import std/osproc
 import std/strformat
-import std/tables
 import std/hashes
 import std/random
 import std/math
@@ -12,6 +11,7 @@ import gread/fennel
 import pkg/balls
 import pkg/lunacy
 import pkg/loony
+import pkg/adix/lptabz
 
 const
   goodEnough = -0.0
@@ -44,7 +44,8 @@ for i in 0..<length:
 
 # turn the input data into forms we can consume in fitness()
 var training: seq[(Locals, Score)]
-var targets: Table[Hash, LuaValue]
+var targets: LPTab[Hash, LuaValue]
+init(targets, initialSize = inputData.len)
 for arr in inputData.items:
   var pairs: seq[(string, LuaValue)]
   let ideal = avg(arr[^5..^1]).float
