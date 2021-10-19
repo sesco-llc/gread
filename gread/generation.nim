@@ -1,13 +1,9 @@
 import std/options
-import std/random
 
 import gread/tournament
 import gread/population
-import gread/crossover
-import gread/mutation
 import gread/spec
 import gread/ast
-import gread/fertilizer
 import gread/programs
 
 proc generation*[T](pop: var Population[T]): Program[T] =

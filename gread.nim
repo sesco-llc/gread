@@ -1,9 +1,7 @@
 import gread/ast
-import gread/crossover
 import gread/fertilizer
 import gread/generation
 import gread/maths
-import gread/mutation
 import gread/operators
 import gread/population
 import gread/primitives
