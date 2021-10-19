@@ -1,11 +1,12 @@
+import std/strutils
+import std/sequtils
 import std/math
 
 import pkg/balls
 
-import gread/ast
-import gread/spec
-import gread/fennel
+import gread
 
+include glang
 
 suite "basic machinery":
   block:
