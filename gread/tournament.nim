@@ -5,6 +5,7 @@ export SortOrder
 
 import gread/spec
 import gread/population
+import gread/programs
 
 type
   Competitor*[T] = tuple  # sorting by

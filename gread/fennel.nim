@@ -14,6 +14,9 @@ import pkg/balls
 import gread/spec
 import gread/ast
 import gread/population
+import gread/programs
+import gread/maths
+import gread/primitives
 
 export lunacy
 export stats except variance
@@ -235,13 +238,31 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
                       fenfit: FenFit) =
   if not p.isNil:
     var results: seq[float]
+    var ideals: seq[float]
     for index, value in training.pairs:
       let s = evaluate(fnl, p, value[0], fenfit)
       if index < 8:
-        checkpoint $value[0], "->", s
+        checkpoint $value[0], "->", s, "vs", Score(value[1])
       if s.isValid:
         results.add s.float
-    checkpoint stddev(results)
+        ideals.add value[1].float
+    checkpoint "stddev:", stddev(results),
+               "corr:", correlation(results, ideals)
+    checkpoint "ss: ", ss(results, ideals)
+    dumpScore p
+
+proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
+                      fenfit: FenFit) =
+  if not p.isNil:
+    var results: seq[float]
+    for index, value in training.pairs:
+      let s = evaluate(fnl, p, value, fenfit)
+      if index < 8:
+        checkpoint $value, "->", s
+      if s.isValid:
+        results.add s.float
+    checkpoint "stddev:", stddev(results)
+    checkpoint "ss: ", ss(results)
     dumpScore p
 
 proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
@@ -304,12 +325,16 @@ when compileOption"threads":
       poff*: float
       tableau*: Tableau
       primitives*: Primitives[Fennel]
+      operators*: seq[OperatorWeight[Fennel]]
       io*: tuple[inputs: LoonyQueue[FProg], outputs: LoonyQueue[FProg]]
 
-  proc initWork*(tab: Tableau; prims: Primitives[Fennel]; poff = 10000.0;
-                 sharing = 2; stats = 1000): Work =
-    Work(tableau: tab, primitives: prims, stats: stats,
-         poff: poff, sharing: sharing)
+  proc initWork*(tab: Tableau; prims: Primitives[Fennel];
+                 ops: openArray[OperatorWeight[Fennel]] = @[];
+                 poff = 10000.0; sharing = 2; stats = 1000): Work =
+    result = Work(tableau: tab, primitives: prims, stats: stats,
+                  poff: poff, sharing: sharing)
+    for item in ops.items:
+      result.operators.add item
 
   proc share*(work: Work; p: FProg) =
     ## send a better program to other threads
@@ -331,6 +356,7 @@ when compileOption"threads":
       let fnl = newFennel()
       var pop = randomPop(fnl, args.tableau, args.primitives)
       pop.fitness = args.fitness
+      pop.operators = args.operators
 
       var leader: Hash
       var transit: FProg

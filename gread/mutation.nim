@@ -4,6 +4,7 @@ import std/random
 import gread/spec
 import gread/ast
 import gread/fertilizer
+import gread/primitives
 
 proc pointMutation*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
   # FIXME: make sure we don't swap nodes with varied arity

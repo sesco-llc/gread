@@ -13,10 +13,13 @@ import gread/spec
 import gread/population
 import gread/fertilizer
 import gread/tournament
-import gread/crossover
 import gread/generation
 import gread/tableau
 import gread/ast
+import gread/primitives
+import gread/maths
+import gread/programs
+import gread/operators
 
 import gread/fennel
 
@@ -45,6 +48,14 @@ var
   fnl: Fennel
   pop: FPop
   prims = newPrimitives[Fennel]()
+
+let operatorWeights = {
+  randomCrossover[Fennel]: 0.01,
+  pointPromotion[Fennel]: 0.02,
+  addOrRemoveLeaves[Fennel]: 0.04,
+  pointMutation[Fennel]: 0.10,
+  subtreeCrossover[Fennel]: 0.90,
+}
 
 prims.functions = @[
   fun("+", args=2..manyArgs), fun("-", args=2..manyArgs),
@@ -188,6 +199,7 @@ suite "simulation":
     ## created a random population of programs
     checkpoint "creating", tab.seedPopulation, "random programs..."
     pop = randomPop(fnl, tab, prims)
+    pop.operators = operatorWeights
     pop.fitness = fitness
 
   block:

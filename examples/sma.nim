@@ -6,10 +6,7 @@ import std/hashes
 import std/random
 import std/math
 
-import gread/spec
-import gread/population
-import gread/tableau
-
+import gread
 import gread/fennel
 
 import pkg/balls
@@ -27,6 +24,14 @@ prims.functions = @[
   fun("/", args=2..10),
 ]
 prims.constants = @[term 1.0]
+
+let operatorWeights = {
+  randomCrossover[Fennel]: 0.01,
+  pointPromotion[Fennel]: 0.02,
+  addOrRemoveLeaves[Fennel]: 0.04,
+  pointMutation[Fennel]: 0.10,
+  subtreeCrossover[Fennel]: 0.90,
+}
 
 const
   width = 8
@@ -75,11 +80,14 @@ proc fitness(fnl: Fennel; p: FProg): Score =
 
 when isMainModule:
 
+  randomize()
+
   proc main(tab: Tableau; inputs, outputs: LoonyQueue[FProg]) =
 
     let fnl = newFennel()
     var pop = newPopulation(fnl, tab, prims)
     pop.fitness = fitness
+    pop.operators = operatorWeights
 
     var best = Score NaN
     while not best.isValid or best < goodEnough:
@@ -92,15 +100,14 @@ when isMainModule:
           dumpPerformance(fnl, p, training, fenfit)
         push(outputs, p)
 
-  randomize()
-
   let
     tab =
       Tableau(seedPopulation:   1000, maxPopulation: 1000,
               maxGenerations: 500_000, seedProgramSize: 5,
               tournamentSize: 6, useParsimony: on)
 
-  var args = initWork(tab, prims, stats = statFrequency, poff = poff)
+  var args = initWork(tab, prims, operators,
+                      stats = statFrequency, poff = poff)
   args.fitness = fitness
   args.io = (newLoonyQueue[FProg](), newLoonyQueue[FProg]())
 

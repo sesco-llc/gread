@@ -20,9 +20,3 @@ proc subtreeCrossover*[T](a, b: Ast[T]): Ast[T] =
     ## XXX: treewalk would be faster, right
     discard count result
   auditLength result
-
-proc subtreeCrossover*[T](a, b: Program[T]): Ast[T] =
-  auditLength a
-  auditLength b
-  result = subtreeCrossover(a.ast, b.ast)
-  auditLength result

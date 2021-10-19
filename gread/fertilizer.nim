@@ -2,6 +2,8 @@ import std/random
 
 import gread/spec
 import gread/ast
+import gread/primitives
+import gread/programs
 
 proc randAst*[T](c: Primitives[T]; size: var int;
                  kinds = {Node, Leaf}): Ast[T] =

@@ -1,3 +1,4 @@
+import std/deques
 import std/heapqueue
 import std/options
 import std/random
@@ -7,6 +8,9 @@ import std/sets
 import gread/tableau
 import gread/fertilizer
 import gread/spec
+import gread/programs
+import gread/primitives
+import gread/maths
 
 type
   Population*[T: ref] = ref object
@@ -19,6 +23,16 @@ type
     fitness: Fitness[T]
     fittest: Program[T]
     generation: int
+    operators: AliasMethod[Operator[T]]
+
+  AliasMethod*[T] = object
+    prob: seq[float]
+    alias: seq[int]
+    data: seq[T]
+
+  Operator*[T] = proc(pop: var Population[T]): Option[Program[T]] {.nimcall.}
+  Weight = float or float64
+  OperatorWeight*[T] = tuple[operator: Operator[T]; weight: float64]
 
 func tableau*(pop: Population): Tableau = pop.tableau
 
@@ -46,6 +60,66 @@ template withPopulated*(pop: Population; logic: untyped): untyped =
     else:
       logic
 
+# vose alias method per https://en.wikipedia.org/wiki/Alias_method
+proc initAliasMethod[T](am: var AliasMethod; input: openArray[(Operator[T], Weight)]) =
+  var n = input.len
+  setLen(am.prob, n)
+  setLen(am.alias, n)
+  setLen(am.data, n)
+
+  # rescale the probabilities according to the quantity
+  var operators = newSeqOfCap[OperatorWeight[T]](n)
+  for (op, weight) in input.items:
+    operators.add (op, weight * n.float)
+
+  # sort the ops into deques of indices, according probability
+  var small, large: Deque[int]
+  for i, pair in operators.pairs:
+    am.data[i] = pair.operator
+    if pair.weight < 1.0:
+      small.addLast i
+    else:
+      large.addLast i
+
+  # consume and accumulate weights
+  while small.len > 0 and large.len > 0:
+    # consume
+    let (l, g) = (popFirst small, popFirst large)
+    am.prob[l] = operators[l].weight
+    am.alias[l] = g
+    # accumulate remainder
+    operators[g].weight += operators[l].weight-1.0
+    if operators[g].weight < 1.0:
+      small.addLast g
+    else:
+      large.addLast g
+
+  # consume the remaining
+  while large.len > 0:
+    let g = popFirst large
+    am.prob[g] = 1.0
+
+  while small.len > 0:
+    let l = popFirst small
+    am.prob[l] = 1.0
+
+proc len(am: AliasMethod): int = am.data.len
+
+proc choose[T](am: AliasMethod[T]): T =
+  ## weighted random choice from the list of operators
+  let i = rand(am.prob.len-1)
+  `[]`(am.data):
+    if rand(1.0) < am.prob[i]:
+      i
+    else:
+      am.alias[i]
+
+proc randomOperator*[T](pop: Population[T]): Operator[T] =
+  if pop.operators.len == 0:
+    raise ValueError.newException "population needs operators assigned"
+  else:
+    choose pop.operators
+
 proc newPopulation*[T](platform: T; tab: Tableau; primitives: Primitives[T];
                        size = 0): Population[T] =
   if primitives.isNil:
@@ -59,6 +133,14 @@ proc newPopulation*[T](platform: T; tab: Tableau; primitives: Primitives[T];
         NaN
       else:
         -0.02
+
+proc `operators=`*[T](pop: var Population[T];
+                      weighted: openArray[(Operator[T], float64)]) =
+  when false:
+    setLen(pop.operators, weighted.len)
+    for index, pair in weighted.pairs:
+      pop.operators[index] = pair[0]
+  initAliasMethod(pop.operators, weighted)
 
 func len*[T](p: Population[T]): int =
   ## the number of programs in the population
