@@ -136,10 +136,6 @@ proc newPopulation*[T](platform: T; tab: Tableau; primitives: Primitives[T];
 
 proc `operators=`*[T](pop: var Population[T];
                       weighted: openArray[(Operator[T], float64)]) =
-  when false:
-    setLen(pop.operators, weighted.len)
-    for index, pair in weighted.pairs:
-      pop.operators[index] = pair[0]
   initAliasMethod(pop.operators, weighted)
 
 func len*[T](p: Population[T]): int =
@@ -167,11 +163,7 @@ func fittest*[T](pop: Population[T]): Program[T] =
 proc penalizeSize(pop: Population; score: float; length: int): Score =
   # apply some pressure on program size
   var s = score
-  block:
-    when false:
-      if pop.tableau.useParsimony and not pop.pcoeff.isNaN:
-        s += min(0.0, pop.pcoeff * length.float)
-        break
+  if not pop.pcoeff.isNaN:
     s += min(0.0, pop.pcoeff * length.float)
   result = Score s
 
@@ -314,7 +306,7 @@ proc unfit*(pop: var Population) =
   if not pop.fittest.isNil:
     discard score(pop, pop.fittest)
 
-proc parsimony*(pop: Population; n: float): float =
+proc parsimony*(pop: Population): float =
   ## compure parsimony for members of the population with valid scores
   var lengths = newSeqOfCap[float](pop.len)
   var scores = newSeqOfCap[float](pop.len)
@@ -330,13 +322,13 @@ proc parsimony*(pop: Population; n: float): float =
     else:
       -0.02
 
-proc parsimony*(pop: var Population; n: float): float =
+proc parsimony*(pop: var Population): float =
   ## calculate the parsimony and store it in the population; mark
   ## all members of the population as needing a new fitness score
   let p = pop
   for p in pop.mitems:
     discard score(pop, p)
-  result = p.parsimony(n)
+  result = p.parsimony
   pop.pcoeff = result
   unfit pop
 

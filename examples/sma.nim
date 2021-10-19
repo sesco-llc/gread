@@ -16,7 +16,6 @@ import pkg/loony
 const
   goodEnough = -0.0
   statFrequency = 2000
-  poff = 8_000.0
 
 var prims = newPrimitives[Fennel]()
 prims.functions = @[
@@ -25,7 +24,7 @@ prims.functions = @[
 ]
 prims.constants = @[term 1.0]
 
-let operatorWeights = {
+let operators = {
   randomCrossover[Fennel]: 0.01,
   pointPromotion[Fennel]: 0.02,
   addOrRemoveLeaves[Fennel]: 0.04,
@@ -43,7 +42,7 @@ for i in 0..<length:
     value[j] = float(rand 99)  # truncate
   inputData.add value
 
-# convert the json into lua values
+# turn the input data into forms we can consume in fitness()
 var training: seq[(Locals, Score)]
 var targets: Table[Hash, LuaValue]
 for arr in inputData.items:
@@ -58,6 +57,7 @@ for arr in inputData.items:
   training.add (locals, Score ideal)
   targets[hash locals] = luaIdeal
 
+# fenfit lets us short-circuit when an individual datapoint fails
 proc fenfit(inputs: Locals; output: LuaValue): Score =
   if output.kind == TNumber:
     # delta between output and the target for the given inputs
@@ -65,6 +65,7 @@ proc fenfit(inputs: Locals; output: LuaValue): Score =
   else:
     NaN
 
+# compute the fitness as stddev across all datapoints
 proc fitness(fnl: Fennel; p: FProg): Score =
   var results = newSeq[float](training.len)
   var s = NaN
@@ -82,13 +83,9 @@ when isMainModule:
 
   randomize()
 
+  # the main loop monitors inventions
   proc main(tab: Tableau; inputs, outputs: LoonyQueue[FProg]) =
-
     let fnl = newFennel()
-    var pop = newPopulation(fnl, tab, prims)
-    pop.fitness = fitness
-    pop.operators = operatorWeights
-
     var best = Score NaN
     while not best.isValid or best < goodEnough:
       let p = pop inputs
@@ -100,17 +97,14 @@ when isMainModule:
           dumpPerformance(fnl, p, training, fenfit)
         push(outputs, p)
 
+  # now setup the workers with their unique populations, etc.
   let
     tab =
       Tableau(seedPopulation:   1000, maxPopulation: 1000,
               maxGenerations: 500_000, seedProgramSize: 5,
               tournamentSize: 6, useParsimony: on)
 
-  var args = initWork(tab, prims, operators,
-                      stats = statFrequency, poff = poff)
-  args.fitness = fitness
-  args.io = (newLoonyQueue[FProg](), newLoonyQueue[FProg]())
-
+  var args = initWork(tab, prims, operators, fitness, stats = statFrequency)
   var threads: seq[Thread[Work]]
   newSeq(threads, countProcessors())
 

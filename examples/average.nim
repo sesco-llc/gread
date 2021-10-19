@@ -9,18 +9,7 @@ import std/math
 import std/algorithm
 import std/strutils
 
-import gread/spec
-import gread/population
-import gread/fertilizer
-import gread/tournament
-import gread/generation
-import gread/tableau
-import gread/ast
-import gread/primitives
-import gread/maths
-import gread/programs
-import gread/operators
-
+import gread
 import gread/fennel
 
 import pkg/balls
@@ -29,42 +18,37 @@ import pkg/lunacy/json as shhh
 
 randomize()
 
-var
-  tab =
-    Tableau(seedPopulation:   500, maxPopulation:   2000,
-            maxGenerations: 500_000, seedProgramSize: 5,
-            tournamentSize: 6, useParsimony: false)
-
 const
-  goodEnough = -0.5
-  dataInaccurate = false
-  sizePenalty = 0.02
-  statFrequency = 5000
-  manyArgs = 2
-  poff = 8_000.0
+  goodEnough = -0.5          ## quit when you reach this score
+  dataInaccurate = false     ## use faulty data
+  statFrequency = 1000       ## how often to output statistics
 
-var
-  parsimonyCoefficient = -sizePenalty
-  fnl: Fennel
-  pop: FPop
-  prims = newPrimitives[Fennel]()
-
-let operatorWeights = {
-  randomCrossover[Fennel]: 0.01,
-  pointPromotion[Fennel]: 0.02,
-  addOrRemoveLeaves[Fennel]: 0.04,
-  pointMutation[Fennel]: 0.10,
-  subtreeCrossover[Fennel]: 0.90,
-}
-
+# define the symbols in our evolved code
+var prims = newPrimitives[Fennel]()
 prims.functions = @[
-  fun("+", args=2..manyArgs), fun("-", args=2..manyArgs),
-  fun("*", args=2..manyArgs), fun("/", args=2..manyArgs),
+  fun("+", args=2..2), fun("-", args=2..2),
+  fun("*", args=2..2), fun("/", args=2..2),
 ]
 prims.constants = @[term 0.0, term 1.0, term 2.0]
 prims.inputs.add @[sym"hi", sym"lo"]
 
+# no point in slowing down this simple example
+var tab = defaultTableau
+tab.useParsimony = false
+
+# define the different ways in which we evolve, and their weights
+let
+  operators = {
+    randomCrossover[Fennel]: 0.01,
+    pointPromotion[Fennel]: 0.02,
+    addOrRemoveLeaves[Fennel]: 0.04,
+    pointMutation[Fennel]: 0.10,
+    subtreeCrossover[Fennel]: 0.90,
+  }
+
 var
+  fnl = newFennel()
+  pop: FPop
   # we want to make a function that returns the median of `lo` and `hi` inputs
   inputData = @[
     # the training data is also the test data; no hold-outs, everybody fights
@@ -75,8 +59,8 @@ var
   ]
 
 when dataInaccurate:
+  # not quite perfect data doesn't matter; we'll find the best approximation
   inputData.add @[
-    # not quite perfect data doesn't matter; we'll find the best approximation
     (%* {"hi": 298,    "lo": 171},     244.5),
     (%* {"hi": 65,     "lo": 60},       63.0),
     (%* {"hi": 9000,   "lo": 7000},   8017.0),
@@ -128,13 +112,6 @@ proc fitness(fnl: Fennel; p: FProg): Score =
       results.add s
   if results.len > 0:
     s = -(stddev results)
-    # apply some pressure on program size
-    block:
-      if tab.useParsimony and not parsimonyCoefficient.isNaN:
-        s = max(-poff, s)
-        s -= max(0.0, parsimonyCoefficient * p.len.float)
-        break
-      s -= sizePenalty * p.len.float
   result = Score: s
 
 template dumpStats() {.dirty.} =
@@ -166,7 +143,7 @@ template dumpStats() {.dirty.} =
              best score in pop: {Score pop.best}
           average program size: {avg(lengths)}
           size of best program: {bestSize}
-         parsimony coefficient: {Score parsimonyCoefficient}
+         parsimony coefficient: {Score pop.pcoeff}
             insufficiency rate: {fnl.nans.mean.percent}
            semantic error rate: {fnl.errors.mean.percent}
               total cache hits: {int fnl.hits.sum}
@@ -175,8 +152,6 @@ template dumpStats() {.dirty.} =
                 evolution time: {(getTime() - genTime).inSeconds} sec
   """
   clearStats fnl
-
-var genTime = getTime()
 
 proc dumpScore(p: FProg) =
   if p.score.isValid:
@@ -191,21 +166,20 @@ proc dumpPerformance(p: FProg) =
     dumpScore p
 
 suite "simulation":
-  block:
-    ## initialize fennel
-    fnl = newFennel()
+  var genTime = getTime()
 
   block:
     ## created a random population of programs
     checkpoint "creating", tab.seedPopulation, "random programs..."
     pop = randomPop(fnl, tab, prims)
-    pop.operators = operatorWeights
+    pop.operators = operators
     pop.fitness = fitness
 
   block:
     ## dumped some statistics
     dumpStats()
 
+  genTime = getTime()
   var best = Score NaN
   block:
     ## ran until we can average two numbers
@@ -222,18 +196,15 @@ suite "simulation":
         dumpStats()
         dumpPerformance pop.fittest
 
-      if tab.useParsimony:
-        parsimonyCoefficient = pop.parsimony(poff)
-
   block:
     ## showed the top-10 programs
     for score, p in pop.top(10):
       dumpScore p
 
   block:
-    ## performance of best program
-    dumpPerformance pop.fittest
-
-  block:
     ## dumped some statistics
     dumpStats()
+
+  block:
+    ## performance of best program
+    dumpPerformance pop.fittest

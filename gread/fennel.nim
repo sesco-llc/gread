@@ -322,7 +322,6 @@ when compileOption"threads":
       stats*: int
       sharing*: int
       fitness*: Fitness[Fennel]
-      poff*: float
       tableau*: Tableau
       primitives*: Primitives[Fennel]
       operators*: seq[OperatorWeight[Fennel]]
@@ -330,9 +329,13 @@ when compileOption"threads":
 
   proc initWork*(tab: Tableau; prims: Primitives[Fennel];
                  ops: openArray[OperatorWeight[Fennel]] = @[];
-                 poff = 10000.0; sharing = 2; stats = 1000): Work =
+                 fitness: Fitness[Fennel] = nil;
+                 sharing = 2; stats = 1000): Work =
+    ## create a work object suitable for passing setup instructions
+    ## to worker threads
     result = Work(tableau: tab, primitives: prims, stats: stats,
-                  poff: poff, sharing: sharing)
+                  fitness: fitness, sharing: sharing)
+    result.io = (newLoonyQueue[FProg](), newLoonyQueue[FProg]())
     for item in ops.items:
       result.operators.add item
 
@@ -378,4 +381,4 @@ when compileOption"threads":
           dumpStats(fnl, pop, evoTime, genTime)
 
         if args.tableau.useParsimony: # and p.generation mod 10 == 0:
-          discard pop.parsimony(args.poff)
+          discard pop.parsimony
