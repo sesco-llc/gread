@@ -19,7 +19,7 @@ import gread/primitives
 export lunacy
 
 const
-  semanticErrorsAreFatal = true
+  semanticErrorsAreFatal = false
   initialCacheSize = 32*1024
   useAdix = true
 
@@ -45,6 +45,7 @@ else:
 
 type
   Fennel* = ref object
+    core*: Option[int]
     primitives: Primitives[Fennel]
     vm*: PState
     runs*: uint
@@ -128,9 +129,9 @@ const
       )
     )
   """
-proc newFennel*(c: Primitives[Fennel]): Fennel =
+proc newFennel*(c: Primitives[Fennel]; core = none int): Fennel =
   ## reset a Fennel instance and prepare it for running programs
-  result = Fennel(vm: newState(), primitives: c)
+  result = Fennel(vm: newState(), primitives: c, core: core)
   when useAdix:
     init(result.cache, initialSize = initialCacheSize)
   clearStats result
@@ -230,6 +231,7 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
     result = popStack vm
 
 proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
+  if p.zombie: return NaN
   var h = hash(p, locals)
   try:
     # try to fetch the score from cache
@@ -260,6 +262,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
     # any failure to produce a scorable value
     fnl.nans.push:
       if result.isNaN:
+        p.zombie = true
         1.0
       else:
         # if it's valid, we'll cache it
@@ -336,9 +339,12 @@ proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
       "n/a"
     else:
       $pop.fittest.len
-  let threaded = when compileOption"threads": $getThreadId() else: "n/a"
+  let threaded = when compileOption"threads": $getThreadId() else: "-"
+  let coreid = if fnl.core.isSome: $fnl.core.get else: "-"
+  if not pop.fittest.isNil:
+    fnl.dumpScore pop.fittest
   checkpoint fmt"""
-                        thread: {threaded}
+               core and thread: {coreid}/{threaded}
           virtual machine runs: {fnl.runs}
          total population size: {pop.len}
             average age in pop: {avg(ages)}
@@ -362,8 +368,6 @@ proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
   #if pop.generations mod 100_000 == 0:
   #  clearCache fnl
   clear gen
-  if not pop.fittest.isNil:
-    fnl.dumpScore pop.fittest
 
 when compileOption"threads":
   import gread/tableau
@@ -373,6 +377,7 @@ when compileOption"threads":
 
   type
     Work* = object
+      core*: Option[int]
       stats*: int
       sharing*: int
       fitness*: Fitness[Fennel]
@@ -384,11 +389,11 @@ when compileOption"threads":
   proc initWork*(tab: Tableau; prims: Primitives[Fennel];
                  ops: openArray[OperatorWeight[Fennel]] = @[];
                  fitness: Fitness[Fennel] = nil;
-                 sharing = 2; stats = 1000): Work =
+                 sharing = 2; stats = 1000; core = none int): Work =
     ## create a work object suitable for passing setup instructions
     ## to worker threads
     result = Work(tableau: tab, primitives: prims, stats: stats,
-                  fitness: fitness, sharing: sharing)
+                  fitness: fitness, sharing: sharing, core: core)
     result.io = (newLoonyQueue[FProg](), newLoonyQueue[FProg]())
     for item in ops.items:
       result.operators.add item
@@ -410,7 +415,7 @@ when compileOption"threads":
 
   proc worker*(args: Work) {.thread, gcsafe.} =
     {.gcsafe.}:
-      let fnl = newFennel(args.primitives)
+      let fnl = newFennel(args.primitives, core = args.core)
       var pop = randomPop(fnl, args.tableau, args.primitives)
       pop.fitness = args.fitness
       pop.operators = args.operators
