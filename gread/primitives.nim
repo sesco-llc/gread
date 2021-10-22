@@ -126,3 +126,8 @@ proc toTerminal*[T](c: Primitives[T]; a: Ast; index: int): Terminal[T] =
                 boolVal: cast[bool](c.numbers[LitId n.operand]))
   else:
     raise Defect.newException "unsupported form: " & $n
+
+proc isFunctionSymbol*(a: Ast; index: int): bool =
+  if index > 0 and index < a.high:
+    if not a[index].isParent:
+      result = a[index].kind == akIdent and a[index-1].kind == akCall
