@@ -10,7 +10,7 @@ import gread/crossover
 proc pointPromotion*[T](pop: var Population[T]): Option[Program[T]] =
   template size: int = pop.tableau.tournamentSize
   let a = tournament(pop, size).program
-  result = some: newProgram pointPromotion(a.ast)
+  result = some: newProgram pointPromotion(pop.primitives, a.ast)
 
 proc pointMutation*[T](pop: var Population[T]): Option[Program[T]] =
   template size: int = pop.tableau.tournamentSize

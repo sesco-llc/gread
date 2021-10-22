@@ -21,7 +21,7 @@ randomize()
 const
   goodEnough = -0.5          ## quit when you reach this score
   dataInaccurate = false     ## use faulty data
-  statFrequency = 1000       ## how often to output statistics
+  statFrequency = 2000       ## how often to output statistics
 
 # define the symbols in our evolved code
 var prims = newPrimitives[Fennel]()
@@ -41,13 +41,12 @@ let
   operators = {
     randomCrossover[Fennel]: 0.01,
     pointPromotion[Fennel]: 0.02,
-    addOrRemoveLeaves[Fennel]: 0.04,
     pointMutation[Fennel]: 0.10,
     subtreeCrossover[Fennel]: 0.90,
   }
 
 var
-  fnl = newFennel()
+  fnl = newFennel(prims)
   pop: FPop
   # we want to make a function that returns the median of `lo` and `hi` inputs
   inputData = @[
@@ -157,7 +156,7 @@ suite "simulation":
   block:
     ## showed the top-10 programs
     for score, p in pop.top(10):
-      dumpScore p
+      fnl.dumpScore p
 
   block:
     ## dumped some statistics

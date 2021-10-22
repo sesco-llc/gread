@@ -19,7 +19,7 @@ import gread/primitives
 export lunacy
 
 const
-  semanticErrorsAreFatal = false
+  semanticErrorsAreFatal = true
   initialCacheSize = 32*1024
   useAdix = true
 
@@ -30,6 +30,7 @@ when useAdix:
 
   type
     Fennel* = ref object
+      primitives: Primitives[Fennel]
       vm*: PState
       runs*: uint
       cache: LPTab[Hash, Score]
@@ -46,6 +47,7 @@ else:
 
   type
     Fennel* = ref object
+      primitives: Primitives[Fennel]
       vm*: PState
       runs*: uint
       cache: Table[Hash, Score]
@@ -109,20 +111,21 @@ const
       )
     )
   """
-proc newFennel*(): Fennel =
+proc newFennel*(c: Primitives[Fennel]): Fennel =
   ## reset a Fennel instance and prepare it for running programs
-  new result
+  result = Fennel(vm: newState(), primitives: c)
   when useAdix:
     init(result.cache, initialSize = initialCacheSize)
-  result.vm = newState()
+  clearStats result
+  result.runs = 0
+
+  # setup the lua vm with the fennel compiler and any shims
   result.vm.openLibs()
   result.vm.checkLua result.vm.doString """fennel = require("fennel")""":
     let sham =
       """fennel.eval([==[$#]==], {compilerEnv=_G})""" % shims
     result.vm.checkLua result.vm.doString sham.cstring:
       discard
-  clearStats result
-  result.runs = 0
 
 proc clearCache*(fnl: Fennel) =
   ## clear the execution cache of the Fennel instance
@@ -167,52 +170,44 @@ proc hash(p: FProg; locals: Locals): Hash =
   h = h !& locals.hash
   result = !$h
 
-proc `$`*(a: Ast[Fennel]): string
-
-template joinWithSpaces[T](a: openArray[T]): string =
-  map(a, `$`).join(" ")
-
-proc `$`*(a: Ast[Fennel]): string =
-  ## render fennel ast in a form that can be compiled
-  case a.kind
-  of Node:
-    case a.node.ident
-    of "{}":
-      result = "{"
-      result.add joinWithSpaces(a.args)
-      result.add "}"
-    of "[]":
-      result = "["
-      result.add joinWithSpaces(a.args)
-      result.add "]"
-    else:
-      result = "("
-      result.add a.node.ident
-      result.add " "
-      result.add joinWithSpaces(a.args)
-      result.add ")"
-  of Leaf:
-    result = $a.leaf
-
-proc `$`*(a: Program[Fennel]): string = $a.ast
+when false:
+  proc render*(c: Primitives[Fennel]; a: Ast[Fennel]): string =
+    ## render fennel ast in a form that can be compiled
+    var i = 0
+    var s = newSeqOfCap[int](a.len)
+    template maybeAddSpace {.dirty.} =
+      if result.len > 0 and result[^1] notin {'('}:
+        result.add " "
+    template closeParens {.dirty.} =
+      while s.len > 0 and i >= s[^1]:
+        result.add ")"
+        discard pop s
+    while i < a.len:
+      closeParens()
+      maybeAddSpace()
+      if a[i].isParent:
+        result.add "("
+        s.add i+sizeOfSubtree(a, i)      # pop when you get past index+size
+      else:
+        result.add render(c, a[i])
+      inc i
+    closeParens()
 
 proc `$`*(locals: Locals): string =
   result.add "["
   result.add mapIt(locals.values, $it[0] & "=" & $it[1]).join(" ")
   result.add "]"
 
-proc evaluate(vm: PState; p: FProg; locals: Locals): LuaStack =
+proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   ## compile and evaluate the program as fennel; the result of
   ## the expression is assigned to the variable `result`.
-  auditLength p
   vm.pushGlobal("result", term 0.0)
   for name, value in locals.values.items:
     discard vm.push value
     vm.setGlobal name.cstring
-  auditLength p
   let fennel = """
     result = fennel.eval([==[$#]==], {compilerEnv=_G})
-  """ % [ $p ]
+  """ % [ s ]
   vm.checkLua vm.doString fennel.cstring:
     vm.getGlobal "result"
     result = popStack vm
@@ -230,14 +225,15 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
     inc fnl.runs
     try:
       # pass the program and the training inputs
-      let stack = evaluate(fnl.vm, p, locals)
+      let stack = evaluate(fnl.vm, render(fnl.primitives, p.ast), locals)
       fnl.errors.push 0.0
       # score a resultant value if one was produced
       if not stack.isNil:
         result = fit(locals, stack.value)
     except LuaError as e:
       when semanticErrorsAreFatal:
-        debugEcho $p
+        debugEcho render(fnl.primitives, p.ast)
+        debugEcho p
         debugEcho e.msg
         quit 1
       else:
@@ -253,11 +249,18 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
         fnl.cache[h] = result
         0.0
 
-proc dumpScore*(p: FProg) =
-  if p.score.isValid:
-    checkpoint fmt"{p.score} [{p.len}] at #{p.generation} from {p.source} for {p}"
-  else:
-    checkpoint fmt"... [{p.len}] at #{p.generation} from {p.source} for {p}"
+proc dumpScore*(fnl: Fennel; p: FProg) =
+  let code = render(fnl.primitives, p.ast)
+  var s =
+    if p.score.isValid:
+      $p.score
+    else:
+      "... "
+  s.add fmt"[{p.len}] at #{p.generation} "
+  if p.source != 0:
+    s.add fmt"from {p.source} "
+  s.add fmt"for {code}"
+  checkpoint s
 
 proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
                       fenfit: FenFit; samples = 8) =
@@ -273,7 +276,7 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
         results.add s.float
     checkpoint "stddev:", stddev(results)
     checkpoint "ss: ", ss(results)
-    dumpScore p
+    fnl.dumpScore p
 
 proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
                       fenfit: FenFit; samples = 8) =
@@ -293,7 +296,7 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
     checkpoint "stddev:", stddev(results),
                "corr:", correlation(results, ideals)
     checkpoint "ss: ", ss(results, ideals)
-    dumpScore p
+    fnl.dumpScore p
 
 proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
                 gen: var FennelStat) =
@@ -339,8 +342,8 @@ proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
                 evolution time: {(getTime() - evo).inSeconds} sec
   """
   clearStats fnl
-  if pop.generations mod 10_000 == 0:
-    clearCache fnl
+  #if pop.generations mod 100_000 == 0:
+  #  clearCache fnl
   clear gen
 
 when compileOption"threads":
@@ -388,7 +391,7 @@ when compileOption"threads":
 
   proc worker*(args: Work) {.thread, gcsafe.} =
     {.gcsafe.}:
-      let fnl = newFennel()
+      let fnl = newFennel(args.primitives)
       var pop = randomPop(fnl, args.tableau, args.primitives)
       pop.fitness = args.fitness
       pop.operators = args.operators

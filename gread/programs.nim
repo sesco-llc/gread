@@ -16,10 +16,7 @@ type
 
 func len*(p: Program): int = p.ast.len
 
-template auditLength*[T](p: Program[T]) = auditLength p.ast
-
 proc `$`*[T](p: Program[T]): string =
-  auditLength p
   $p.ast
 
 proc `<`*[T](a, b: Program[T]): bool =

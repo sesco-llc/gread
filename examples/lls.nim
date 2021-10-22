@@ -14,7 +14,7 @@ import pkg/loony
 import pkg/adix/lptabz
 
 const
-  goodEnough = -0.0
+  goodEnough = 0.0
   statFrequency = 2000
 
 var prims = newPrimitives[Fennel]()
@@ -28,7 +28,6 @@ prims.constants = @[term 1.0, term 0.1]
 let operators = {
   randomCrossover[Fennel]: 0.02,
   pointPromotion[Fennel]: 0.05,
-  addOrRemoveLeaves[Fennel]: 0.07,
   pointMutation[Fennel]: 0.04,
   subtreeCrossover[Fennel]: 0.90,
 }
@@ -69,8 +68,8 @@ when isMainModule:
   randomize()
 
   # the main loop monitors inventions
-  proc main(tab: Tableau; inputs, outputs: LoonyQueue[FProg]) =
-    let fnl = newFennel()
+  proc main(work: Work; inputs, outputs: LoonyQueue[FProg]) =
+    let fnl = newFennel(work.primitives)
     var best = Score NaN
     while not best.isValid or best < goodEnough:
       let p = pop inputs
@@ -93,7 +92,7 @@ when isMainModule:
   for thread in threads.mitems:
     createThread(thread, worker, args)
 
-  main(tab, args.io.outputs, args.io.inputs)
+  main(args, args.io.outputs, args.io.inputs)
 
   for thread in threads.mitems:
     joinThread thread
