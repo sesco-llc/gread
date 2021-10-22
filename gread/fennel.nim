@@ -27,37 +27,32 @@ when useAdix:
   import pkg/adix/lptabz
   import pkg/adix/stat except variance
   export stat except variance
+  export lptabz
 
   type
-    Fennel* = ref object
-      primitives: Primitives[Fennel]
-      vm*: PState
-      runs*: uint
-      cache: LPTab[Hash, Score]
-      nans*: MovingStat[float32]
-      errors*: MovingStat[float32]
-      hits*: MovingStat[float32]
-
     FennelStat* = MovingStat[float32]
+    FennelTab* = LPTab
 
 else:
   import std/tables
   import std/stats except variance
   export stats except variance
+  export tables
 
   type
-    Fennel* = ref object
-      primitives: Primitives[Fennel]
-      vm*: PState
-      runs*: uint
-      cache: Table[Hash, Score]
-      nans*: RunningStat
-      errors*: RunningStat
-      hits*: RunningStat
-
     FennelStat* = RunningStat
+    FennelTab* = Table
 
 type
+  Fennel* = ref object
+    primitives: Primitives[Fennel]
+    vm*: PState
+    runs*: uint
+    cache: FennelTab[Hash, Score]
+    nans*: FennelStat
+    errors*: FennelStat
+    hits*: FennelStat
+
   Term* = Terminal[Fennel]
   Fun* = Function[Fennel]
 
@@ -70,6 +65,26 @@ type
 
   FenFit = proc(locals: Locals; ideal: LuaValue): Score
 
+proc len*(locals: Locals): int = locals.values.len
+
+proc asTable*[T](locals: Locals): FennelTab[string, T] =
+  ## given locals, select values of the given type into a table
+  when useAdix:
+    init(result, initialSize = locals.values.len)
+  for name, value in locals.values.items:
+    when T is SomeFloat:
+      if value.kind == TNumber:
+        result[name] = value.toFloat
+    elif T is SomeInteger:
+      if value.kind == TNumber:
+        result[name] = value.toInteger
+    elif T is string:
+      if value.kind == TString:
+        result[name] = value.strung
+    elif T is bool:
+      if value.kind == TBoolean:
+        result[name] = value.truthy
+
 proc initLocals*(values: openArray[(string, LuaValue)]): Locals =
   ## convert an openArray of (name, value) pairs into Locals
   ## suitable for evaluate()
@@ -77,6 +92,8 @@ proc initLocals*(values: openArray[(string, LuaValue)]): Locals =
   for item in values.items:
     result.values.add item
   result.hash = hash result.values
+
+proc values*(locals: Locals): seq[(string, LuaValue)] = locals.values
 
 proc clearStats*(fnl: Fennel) =
   ## reset the MovingStat values in the Fennel object
@@ -345,6 +362,8 @@ proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
   #if pop.generations mod 100_000 == 0:
   #  clearCache fnl
   clear gen
+  if not pop.fittest.isNil:
+    fnl.dumpScore pop.fittest
 
 when compileOption"threads":
   import gread/tableau

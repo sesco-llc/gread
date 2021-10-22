@@ -9,6 +9,6 @@ type
 
 const
   defaultTableau* =
-    Tableau(seedPopulation: 1000, maxPopulation: 1000,
+    Tableau(seedPopulation: 500, maxPopulation: 500,
             maxGenerations: 200_000, seedProgramSize: 5,
             tournamentSize: 6, useParsimony: on)
