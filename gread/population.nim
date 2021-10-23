@@ -12,6 +12,9 @@ import gread/programs
 import gread/primitives
 import gread/maths
 
+const
+  defaultParsimony = -0.02
+
 type
   Population*[T: ref] = ref object
     platform: T
@@ -37,10 +40,10 @@ type
 func tableau*(pop: Population): Tableau = pop.tableau
 
 template ignore(pop: var Population; p: Program) {.used.} =
-  pop.cache.incl p.h
+  pop.cache.incl p.hash
 
 template forget(pop: var Population; p: Program) {.used.} =
-  pop.cache.excl p.h
+  pop.cache.excl p.hash
 
 proc primitives*[T](pop: Population[T]): Primitives[T] = pop.primitives
 
@@ -132,7 +135,7 @@ proc newPopulation*[T](platform: T; tab: Tableau; primitives: Primitives[T];
       if tab.useParsimony:
         NaN
       else:
-        -0.02
+        defaultParsimony
 
 proc `operators=`*[T](pop: var Population[T];
                       weighted: openArray[(Operator[T], float64)]) =
@@ -203,12 +206,12 @@ proc maybeResetFittest[T](pop: var Population[T]; p: Program[T]) =
 proc introduce*[T](pop: var Population[T]; p: Program[T]) =
   ## introduce a foreign program to the local pop without
   ## setting it as the fittest individual, etc.
-  if not pop.cache.containsOrIncl p.h:
+  if not pop.cache.containsOrIncl p.hash:
     pop.programs.add p
 
 proc add*[T](pop: var Population[T]; p: Program[T]) =
   ## add a new program to the population
-  if not pop.cache.containsOrIncl p.h:
+  if not pop.cache.containsOrIncl p.hash:
     pop.programs.add p
     maybeResetFittest(pop, p)
 
@@ -317,10 +320,9 @@ proc parsimony*(pop: Population): float =
       scores.add s.float
   result =
     if scores.len > 0:
-      #covariance(lengths, scores) / variance(lengths)
-      -correlation(lengths, scores)
+      -covariance(lengths, scores) / variance(lengths)
     else:
-      -0.02
+      defaultParsimony
 
 proc parsimony*(pop: var Population): float =
   ## calculate the parsimony and store it in the population; mark
