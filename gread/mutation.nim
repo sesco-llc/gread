@@ -35,8 +35,8 @@ proc pointMutation*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
           c.terminals.filterIt(it.kind == prior.kind and it.ck == prior.ck)
         of Symbol:
           (c.inputs & c.outputs).filterIt(it.kind == prior.kind)
-        else:
-          c.terminals.filterIt(it.kind == prior.kind)
+        #else:
+        #  c.terminals.filterIt(it.kind == prior.kind)
       let chunk = c.initAst(sample terms)
       result = a                                      # copy the whole ast
       result.nodes[i] = chunk.nodes[0]                # swap the new node in
