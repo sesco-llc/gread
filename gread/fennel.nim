@@ -53,6 +53,7 @@ type
     nans*: FennelStat
     errors*: FennelStat
     hits*: FennelStat
+    runtime*: FennelStat
 
   Term* = Terminal[Fennel]
   Fun* = Function[Fennel]
@@ -101,6 +102,7 @@ proc clearStats*(fnl: Fennel) =
   clear fnl.nans
   clear fnl.errors
   clear fnl.hits
+  clear fnl.runtime
 
 const
   #[
@@ -244,7 +246,9 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
     inc fnl.runs
     try:
       # pass the program and the training inputs
+      let began = getTime()
       let stack = evaluate(fnl.vm, render(fnl.primitives, p.ast), locals)
+      fnl.runtime.push (getTime() - began).inMilliseconds.float
       fnl.errors.push 0.0
       # score a resultant value if one was produced
       if not stack.isNil:
@@ -287,15 +291,15 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
   ## dumps the performance of a program across `samples` training inputs;
   ## the stddev and sum of squares are provided
   if not p.isNil:
-    var results: seq[float]
+    var results = newSeqOfCap[float](training.len)
     for index, value in training.pairs:
       let s = evaluate(fnl, p, value, fenfit)
-      if index < samples:
+      if index < samples or index == training.high:
         checkpoint $value, "->", s
       if s.isValid:
         results.add s.float
-    checkpoint "stddev:", stddev(results)
-    checkpoint "ss: ", ss(results)
+    checkpoint "  stddev:", stddev(results)
+    checkpoint "      ss: ", ss(results)
     fnl.dumpScore p
 
 proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
@@ -308,14 +312,19 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
     var ideals: seq[float]
     for index, value in training.pairs:
       let s = evaluate(fnl, p, value[0], fenfit)
-      if index < samples:
-        checkpoint $value[0], "->", s, "vs", Score(value[1])
+      if 0 == index mod samples or index == training.high:
+        let delta = s.float
+        if delta in [0.0, -0.0]:
+          checkpoint fmt"{float(value[1]):>7.2f}"
+        else:
+          checkpoint fmt"{float(value[1]):>7.2f} -> {delta:>7.2f}     -> {sum(results):>7.2f}    {index}"
       if s.isValid:
         results.add s.float
-        ideals.add value[1].float
+        ideals.add abs(value[1].float)
     checkpoint "stddev:", stddev(results),
-               "corr:", correlation(results, ideals)
-    checkpoint "ss: ", ss(results, ideals)
+               "corr:", correlation(results, ideals),
+               "ss:", ss(results, ideals),
+               "of ideal:", sum(results) / sum(ideals)
     fnl.dumpScore p
 
 proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
@@ -334,24 +343,32 @@ proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
       validity.add 1.0
     else:
       validity.add 0.0
-  let bestSize =
-    if pop.fittest.isNil:
-      "n/a"
+  # FIXME: introduce scorecard
+  let bestSize = if pop.fittest.isNil: "n/a" else: $pop.fittest.len
+  let bestGen = if pop.fittest.isNil: "n/a" else: $pop.fittest.generation
+  let staleness = if pop.fittest.isNil: "n/a" else: $percent(pop.fittest.generation.float / pop.generations.float)
+  let foreignInfluence =
+    if pop.fittest.isNil or pop.fittest.core.isNone:
+      "?"
+    elif pop.fittest.core.get == fnl.core.get:
+      "-"
     else:
-      $pop.fittest.len
+      $pop.fittest.core.get
   let threaded = when compileOption"threads": $getThreadId() else: "-"
   let coreid = if fnl.core.isSome: $fnl.core.get else: "-"
   if not pop.fittest.isNil:
     fnl.dumpScore pop.fittest
+
   checkpoint fmt"""
                core and thread: {coreid}/{threaded}
-          virtual machine runs: {fnl.runs}
+          virtual machine runs: {fnl.runs} (never reset)
+            average vm runtime: {fnl.runtime.mean:>6.2f} ms
          total population size: {pop.len}
             average age in pop: {avg(ages)}
           validity rate in pop: {avg(validity).percent}
          program size variance: {variance(lengths)}
            average valid score: {Score avg(scores)}
-             best score in pop: {Score pop.best}
+          greatest of all time: {Score pop.best}
           average program size: {avg(lengths)}
           size of best program: {bestSize}
          parsimony coefficient: {Score pop.pcoeff}
@@ -360,13 +377,14 @@ proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
               total cache hits: {int fnl.hits.sum}
                 cache hit rate: {fnl.hits.mean.percent}
                     cache size: {fnl.cache.len}
+             foreign influence: {foreignInfluence}
+               best generation: {bestGen}
              total generations: {pop.generations}
+             invention recency: {staleness}
                generation time: {Score gen.mean} ms
                 evolution time: {(getTime() - evo).inSeconds} sec
   """
   clearStats fnl
-  #if pop.generations mod 100_000 == 0:
-  #  clearCache fnl
   clear gen
 
 when compileOption"threads":
@@ -411,7 +429,10 @@ when compileOption"threads":
     if not transit.isNil:
       transit.score = NaN
       discard pop.score transit
-      pop.introduce transit
+      when false:
+        pop.introduce transit    # no propogation of winners into fittest
+      else:
+        pop.add transit          # allows a winner to further propogate
 
   proc worker*(args: Work) {.thread, gcsafe.} =
     {.gcsafe.}:
@@ -431,13 +452,17 @@ when compileOption"threads":
         let p = generation pop
         genTime.push (getTime() - clock).inMilliseconds.float
 
+        if p.core.isNone and fnl.core.isSome:
+          p.core = fnl.core
+
         if not pop.fittest.isNil:
-          if pop.fittest.h != leader:
-            leader = pop.fittest.h
+          if pop.fittest.hash != leader:
+            leader = pop.fittest.hash
             share(args, pop.fittest)  # send it to other threads
 
         if p.generation mod args.stats == 0:
           dumpStats(fnl, pop, evoTime, genTime)
 
-        if args.tableau.useParsimony: # and p.generation mod 10 == 0:
-          discard pop.parsimony
+        if args.tableau.useParsimony:
+          profile "parsimony":
+            discard pop.parsimony
