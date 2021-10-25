@@ -47,4 +47,4 @@ proc newProgram*[T](a: Ast[T]; score: Score): Program[T] =
 
 proc clone*[T](p: Program[T]): Program[T] =
   Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
-             zombie: p.zombie, generation: p.generation)
+             core: p.core, zombie: p.zombie, generation: p.generation)
