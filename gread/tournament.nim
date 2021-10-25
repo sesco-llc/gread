@@ -9,6 +9,7 @@ import gread/programs
 
 type
   Competitor*[T] = tuple  # sorting by
+    valid: bool              # validity, then by
     score: Score             # score, then by
     len: int                 # program length
     index: int
@@ -25,7 +26,9 @@ proc initTourney[T](pop: Population[T]; size: int): Tourney[T] =
   while result.len < size:
     # fetching the same program more than once is nbd
     var (i, p) = randomMember pop
-    result.push (score: pop.score(p), len: -p.len, index: i, program: p)
+    let s = pop.score(p)
+    result.push (valid: s.isValid, score: s,
+                 len: -p.len, index: i, program: p)
 
 proc tournament*[T](pop: Population[T]; size: int;
                     order = Descending): Competitor[T] =
