@@ -13,8 +13,8 @@ It's currently a very basic genetic programming system built to explore some
 ideas for algorithm design, and specifically, grammatical evolution.
 
 The architecture is generic to the user's choice of genome; while we're
-currently experimenting with tree-based grammars, a future implementation
-will support linear genome definitions, etc.
+currently experimenting with tree-based grammars, we do technically support
+linear genome definitions, etc.
 
 ## Does It Evolve Nim Programs?
 
@@ -39,8 +39,6 @@ evaluated after being compiled into Lua.
 
 Fennel contributes a syntax convenient for subtree swapping and yet still
 provides the complexity of a macro system for evolving new grammar forms.
-Its syntax is more akin to the eventual linear representation that we target,
-while affording all the same benefits of Lua.
 
 ## Installation
 
@@ -51,6 +49,10 @@ or if you're still using Nimble like it's 2012,
 ```
 $ nimble install https://github.com/disruptek/gread
 ```
+
+## Debugging
+
+Profiling of individual parts of the system happens outside of `danger` builds.
 
 ## Documentation
 
