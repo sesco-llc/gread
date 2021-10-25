@@ -15,19 +15,24 @@ proc generation*[T](pop: var Population[T]): Program[T] =
   let generation = nextGeneration pop
 
   let fun = randomOperator pop
-  let evo = fun pop
+  profile "operator":
+    let evo = fun pop
   if evo.isNone:
     result = nil
   else:
     # make room for the new program
     template size: int = pop.tableau.tournamentSize
     while pop.len > pop.tableau.maxPopulation-1:
-      let loser = tournament(pop, size, order = Ascending)
-      del(pop, loser.index)
+      profile "loser's tournament":
+        let loser = tournament(pop, size, order = Ascending)
+        del(pop, loser.index)
 
     result = get evo
     result.generation = generation
-    result.score = pop.score(result)
-    if not result.score.isValid:
+    profile "new score":
+      result.score = pop.score(result)
+    if result.score.isValid:
+      # we only add valid programs to the population
+      pop.add result
+    else:
       result.zombie = true
-    pop.add result
