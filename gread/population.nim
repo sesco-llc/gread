@@ -346,3 +346,7 @@ func generations*(pop: Population): int =
 func pcoeff*(pop: Population): float =
   ## return the current parsimony coefficient
   pop.pcoeff
+
+proc contains*(pop: Population; p: Program): bool =
+  ## true if the `pop` contains Program `p`
+  p.hash in pop.cache
