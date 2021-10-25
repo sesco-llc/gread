@@ -1,3 +1,5 @@
+import std/times
+import std/macros
 import std/math
 import std/strutils
 
@@ -25,3 +27,22 @@ proc isValid*(s: Score): bool =
     false
   else:
     true
+
+macro profile*(s: string; logic: untyped): untyped =
+  when defined(danger):
+    result = logic
+  else:
+    let readTime = newCall bindSym"getTime"
+    let readThread = newCall bindSym"getThreadId"
+    let clock = nskLet.genSym"clock"
+    result = newStmtList()
+    result.add newLetStmt(clock, readTime)
+    result.add logic
+    when compileOption"threads":
+      result.add newCall(bindSym"debugEcho", readThread, newLit" ",
+                         s, newLit" ", newCall(bindSym"inMilliseconds",
+                         newCall(bindSym"-", readTime, clock)))
+    else:
+      result.add newCall(bindSym"debugEcho", s, newLit" ",
+                         newCall(bindSym"inMilliseconds",
+                               newCall(bindSym"-", readTime, clock)))
