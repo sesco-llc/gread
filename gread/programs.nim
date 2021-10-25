@@ -8,7 +8,7 @@ type
   Program*[T] = ref object
     core*: Option[int]        ## ideally holds the core where we were invented
     source*: int              ## usually the threadId where we were invented
-    generation*: int          ## the generation number in which we arrived
+    generation*: Generation   ## the generation number in which we arrived
     hash*: Hash               ## pre-generated hash for the program's ast
     score*: Score             ## the score of this program when last evaluated
     zombie*: bool             ## the code fails sem; use it for genetic data only

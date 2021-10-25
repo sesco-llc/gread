@@ -5,6 +5,8 @@ import std/random
 import std/hashes
 import std/sets
 
+import pkg/adix/stat except variance
+
 import gread/tableau
 import gread/fertilizer
 import gread/spec
@@ -25,7 +27,7 @@ type
     pcoeff: float
     fitness: Fitness[T]
     fittest: Program[T]
-    generation: int
+    generation: Generation
     operators: AliasMethod[Operator[T]]
 
   AliasMethod*[T] = object
@@ -334,13 +336,13 @@ proc parsimony*(pop: var Population): float =
   pop.pcoeff = result
   unfit pop
 
-proc nextGeneration*(pop: var Population): int =
+proc nextGeneration*(pop: var Population): Generation =
   ## inform the population that we're entering a new generation
   inc pop.generation
   result = pop.generation
 
-func generations*(pop: Population): int =
-  ## return the number of generations run on the population
+func generations*(pop: Population): Generation =
+  ## return the population's Generation
   pop.generation
 
 func pcoeff*(pop: Population): float =

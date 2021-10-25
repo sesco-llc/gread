@@ -5,6 +5,7 @@ import std/strutils
 
 type
   Score* = distinct float
+  Generation* = distinct int
 
 converter toFloat*(s: Score): float = float s
 converter toScore*[T: float or float64](f: T): Score = Score f
@@ -27,6 +28,11 @@ proc isValid*(s: Score): bool =
     false
   else:
     true
+
+proc `$`*(g: Generation): string {.borrow.}
+proc inc*(g: var Generation; n: int = 1) {.borrow.}
+proc `mod`*(a: Generation; b: int): int = a.int.mod b
+converter toInt*(g: Generation): int = g.int
 
 macro profile*(s: string; logic: untyped): untyped =
   when defined(danger):
