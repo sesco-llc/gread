@@ -15,6 +15,7 @@ import gread/population
 import gread/programs
 import gread/maths
 import gread/primitives
+import gread/data
 
 export lunacy
 
@@ -61,19 +62,17 @@ type
   FProg* = Program[Fennel]
   FPop* = Population[Fennel]
 
-  Locals* = object
-    hash: Hash
-    values: seq[(string, LuaValue)]
+  Locals* = SymbolSet[Fennel, LuaValue]
 
   FenFit = proc(locals: Locals; ideal: LuaValue): Score
-
-proc len*(locals: Locals): int = locals.values.len
 
 proc asTable*[T](locals: Locals): FennelTab[string, T] =
   ## given locals, select values of the given type into a table
   when useAdix:
     init(result, initialSize = locals.values.len)
-  for name, value in locals.values.items:
+  for point in locals.values.items:
+    template name: string = point.name
+    template value: LuaValue = point.value
     when T is SomeFloat:
       if value.kind == TNumber:
         result[name] = value.toFloat
@@ -90,12 +89,10 @@ proc asTable*[T](locals: Locals): FennelTab[string, T] =
 proc initLocals*(values: openArray[(string, LuaValue)]): Locals =
   ## convert an openArray of (name, value) pairs into Locals
   ## suitable for evaluate()
-  result.values = newSeqOfCap[(string, LuaValue)](values.len)
-  for item in values.items:
-    result.values.add item
-  result.hash = hash result.values
+  initSymbolSet[Fennel, LuaValue](values)
 
-proc values*(locals: Locals): seq[(string, LuaValue)] = locals.values
+proc initLocals*(values: openArray[DataPoint[Fennel, LuaValue]]): Locals =
+  initSymbolSet values
 
 proc clearStats*(fnl: Fennel) =
   ## reset the MovingStat values in the Fennel object
@@ -213,18 +210,13 @@ when false:
       inc i
     closeParens()
 
-proc `$`*(locals: Locals): string =
-  result.add "["
-  result.add mapIt(locals.values, $it[0] & "=" & $it[1]).join(" ")
-  result.add "]"
-
 proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   ## compile and evaluate the program as fennel; the result of
   ## the expression is assigned to the variable `result`.
   vm.pushGlobal("result", term 0.0)
-  for name, value in locals.values.items:
-    discard vm.push value
-    vm.setGlobal name.cstring
+  for point in locals.values.items:
+    discard vm.push point.value
+    vm.setGlobal point.name.cstring
   let fennel = """
     result = fennel.eval([==[$#]==], {compilerEnv=_G})
   """ % [ s ]
@@ -442,7 +434,6 @@ when compileOption"threads":
       pop.operators = args.operators
 
       var leader: Hash
-      var transit: FProg
       var evoTime = getTime()
       var genTime: FennelStat
       while true:
