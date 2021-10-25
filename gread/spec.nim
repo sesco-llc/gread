@@ -33,7 +33,11 @@ macro profile*(s: string; logic: untyped): untyped =
     result = logic
   else:
     let readTime = newCall bindSym"getTime"
-    let readThread = newCall bindSym"getThreadId"
+    let readThread =
+      when compileOption"threads":
+        newCall bindSym"getThreadId"
+      else:
+        newLit"> "
     let clock = nskLet.genSym"clock"
     result = newStmtList()
     result.add newLetStmt(clock, readTime)
