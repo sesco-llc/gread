@@ -35,7 +35,7 @@ proc `mod`*(a: Generation; b: int): int = a.int.mod b
 converter toInt*(g: Generation): int = g.int
 
 macro profile*(s: string; logic: untyped): untyped =
-  when defined(danger):
+  when defined(danger) or not defined(greadProfile):
     result = logic
   else:
     let readTime = newCall bindSym"getTime"
