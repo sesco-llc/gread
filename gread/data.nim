@@ -43,7 +43,19 @@ proc initSymbolSet*[T, V](values: openArray[(string, V)]): SymbolSet[T, V] =
   for name, value in values.items:
     points.add:
       initDataPoint[T, V](name, value)
-  result = initSymbolSet points
+  result = initSymbolSet[T, V](points)
+
+iterator pairs*[T, V](ss: SymbolSet[T, V]): tuple[key: string, val: V] =
+  for point in ss.values.items:
+    yield (key: point.name, val: point.value)
+
+iterator items*[T, V](ss: SymbolSet[T, V]): DataPoint[T, V] =
+  for point in ss.values.items:
+    yield point
+
+iterator keys*[T, V](ss: SymbolSet[T, V]): string =
+  for point in ss.values.items:
+    yield point.name
 
 proc values*[T, V](ss: SymbolSet[T, V]): lent seq[DataPoint[T, V]] =
   ss.values
