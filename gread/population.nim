@@ -312,7 +312,7 @@ proc unfit*(pop: var Population) =
     discard score(pop, pop.fittest)
 
 proc parsimony*(pop: Population): float =
-  ## compure parsimony for members of the population with valid scores
+  ## compute parsimony for members of the population with valid scores
   var lengths = newSeqOfCap[float](pop.len)
   var scores = newSeqOfCap[float](pop.len)
   for p in pop.items:
