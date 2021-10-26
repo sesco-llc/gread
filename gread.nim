@@ -9,6 +9,7 @@ import gread/programs
 import gread/spec
 import gread/tableau
 import gread/tournament
+import gread/data
 
 export ast
 export fertilizer
@@ -21,3 +22,4 @@ export programs
 export spec
 export tableau
 export tournament
+export data
