@@ -17,7 +17,7 @@ type
   ## a function that takes your custom Language object and
   ## a suitable program as input; the result is a Score
 
-proc zombie*(p: Program): bool =
+proc zombie*(p: Program): bool {.inline.} =
   ## true if the program is invalid and may only be used for genetic data
   DeadCode in p.ast[0].flags
 
@@ -55,3 +55,13 @@ proc newProgram*[T](a: Ast[T]; score: Score): Program[T] =
 proc clone*[T](p: Program[T]): Program[T] =
   Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
              core: p.core, generation: p.generation)
+
+proc isValid*(p: Program): bool =
+  ## true if the program is valid; this will raise a defect
+  ## if we have not scored the program yet
+  if p.zombie:
+    false
+  elif p.score.isNaN:
+    raise Defect.newException "score the program before measuring validity"
+  else:
+    true
