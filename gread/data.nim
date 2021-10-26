@@ -27,8 +27,9 @@ proc `$`*(ss: SymbolSet): string =
   result.add mapIt(ss.values, $it).join(" ")
   result.add "]"
 
-proc initDataPoint*[T, V](name: string, value: V): DataPoint[T, V] =
-  DataPoint[T, V](name: name, value: value)
+proc initDataPoint*[T, V](name: string; value: V;
+                          kind = akNone): DataPoint[T, V] =
+  DataPoint[T, V](name: name, value: value, kind: kind)
 
 proc initSymbolSet*[T, V](values: openArray[DataPoint[T, V]]): SymbolSet[T, V] =
   ## convert an openArray of DataPoints into a suitable SymbolSet
