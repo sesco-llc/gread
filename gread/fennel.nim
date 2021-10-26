@@ -225,7 +225,7 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
     result = popStack vm
 
 proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
-  if p.zombie: return NaN
+  if p.zombie or p.hash in fnl.cache: return NaN
   var h = hash(p, locals)
   try:
     # try to fetch the score from cache
@@ -380,53 +380,10 @@ proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
   clear gen
 
 when compileOption"threads":
-  import gread/tableau
+  import gread/cluster
   import gread/generation
 
-  import pkg/loony
-
-  type
-    Work* = object
-      core*: Option[int]
-      stats*: int
-      sharing*: int
-      fitness*: Fitness[Fennel]
-      tableau*: Tableau
-      primitives*: Primitives[Fennel]
-      operators*: seq[OperatorWeight[Fennel]]
-      io*: tuple[inputs: LoonyQueue[FProg], outputs: LoonyQueue[FProg]]
-
-  proc initWork*(tab: Tableau; prims: Primitives[Fennel];
-                 ops: openArray[OperatorWeight[Fennel]] = @[];
-                 fitness: Fitness[Fennel] = nil;
-                 sharing = 2; stats = 1000; core = none int): Work =
-    ## create a work object suitable for passing setup instructions
-    ## to worker threads
-    result = Work(tableau: tab, primitives: prims, stats: stats,
-                  fitness: fitness, sharing: sharing, core: core)
-    result.io = (newLoonyQueue[FProg](), newLoonyQueue[FProg]())
-    for item in ops.items:
-      result.operators.add item
-
-  proc share*(work: Work; p: FProg) =
-    ## send a better program to other threads
-    for copies in 1..max(1, work.sharing):
-      var transit = clone p
-      transit.source = getThreadId()
-      push(work.io.outputs, transit)
-
-  proc search*(work: Work; pop: var FPop) =
-    ## try to get some fresh genes from another thread
-    var transit = pop work.io.inputs
-    if not transit.isNil:
-      transit.score = NaN
-      discard pop.score transit
-      when false:
-        pop.introduce transit    # no propogation of winners into fittest
-      else:
-        pop.add transit          # allows a winner to further propogate
-
-  proc worker*(args: Work) {.thread, gcsafe.} =
+  proc worker*(args: Work[Fennel]) {.thread, gcsafe.} =
     {.gcsafe.}:
       let fnl = newFennel(args.primitives, core = args.core)
       var pop = randomPop(fnl, args.tableau, args.primitives)
@@ -457,3 +414,9 @@ when compileOption"threads":
         if args.tableau.useParsimony:
           profile "parsimony":
             discard pop.parsimony
+
+        for invalid in invalidPrograms(args):
+          fnl.cache[invalid.hash] = Score NaN
+
+        if p.score.isNaN:
+          negativeCache(args, p)
