@@ -49,7 +49,7 @@ for (x, y) in data.items:
 
 proc fenfit(inputs: Locals; output: LuaValue): Score =
   ## fenfit gates program output such that producing a NaN will terminate
-  ## training of the program early, and mark the program as invalid
+  ## scoring of the program early, and mark the program as invalid
   if output.kind == TNumber:
     targets[hash inputs].toFloat - output.toFloat  # the residual
   else:
