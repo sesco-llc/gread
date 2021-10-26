@@ -52,8 +52,7 @@ $ nimble install https://github.com/disruptek/gread
 
 ## Debugging
 
-Profiling of individual parts of the system happens outside of `danger` builds
-when you `--define:greadProfile`.
+Profiling of individual parts of the system happens when you `--define:greadProfile`.
 
 ## Documentation
 
