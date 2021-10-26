@@ -13,6 +13,7 @@ import gread/population
 import gread/tableau
 import gread/generation
 import gread/data
+import gread/manager
 
 let processors = countProcessors()
 
