@@ -11,12 +11,19 @@ type
     generation*: Generation   ## the generation number in which we arrived
     hash*: Hash               ## pre-generated hash for the program's ast
     score*: Score             ## the score of this program when last evaluated
-    zombie*: bool             ## the code fails sem; use it for genetic data only
     ast*: Ast[T]              ## the ast of the program itself
 
   Fitness*[T: ref] = proc(q: T; p: Program[T]): Score ##
   ## a function that takes your custom Language object and
   ## a suitable program as input; the result is a Score
+
+proc zombie*(p: Program): bool =
+  ## true if the program is invalid and may only be used for genetic data
+  DeadCode in p.ast[0].flags
+
+proc `zombie=`*(p: Program; b: bool) =
+  ## mark a program as invalid; idempotent
+  incl(p.ast[0].flags, DeadCode)
 
 func len*(p: Program): int =
   ## some objective measurement of the program; ast length
@@ -47,4 +54,4 @@ proc newProgram*[T](a: Ast[T]; score: Score): Program[T] =
 
 proc clone*[T](p: Program[T]): Program[T] =
   Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
-             core: p.core, zombie: p.zombie, generation: p.generation)
+             core: p.core, generation: p.generation)

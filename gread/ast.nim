@@ -4,6 +4,8 @@ import std/options
 import std/hashes
 from std/json import escapeJson
 
+import gread/spec
+
 import "$nim/compiler/ic/bitabs"
 
 type
@@ -34,16 +36,18 @@ type
       ident*: string
       sk*: SymbolKind
 
-  NodeFlag = enum
+  NodeFlag* = enum
     Compiled
     Cached
     Scored
     Optimized
     DeadCode
-  NodeFlags = set[NodeFlag]
+  NodeFlags* = set[NodeFlag]
 
   AstOrigin = object
-    generation: int32
+    core: Option[int]
+    population: Monotime
+    generation: Generation
     monotime: Monotime
     parents: (Hash, Hash)
 
@@ -164,7 +168,7 @@ when false:
 func high*(a: Ast): int {.inline.} = a.nodes.high
 func low*(a: Ast): int {.inline.} = a.nodes.low
 
-proc `[]`*[T](a: var Ast[T]; n: Natural): lent AstNode[T] {.inline.} =
+proc `[]`*[T](a: var Ast[T]; n: Natural): var AstNode[T] {.inline.} =
   a.nodes[n]
 
 proc `[]`*[T](a: Ast[T]; n: Natural): AstNode[T] {.inline.} =
