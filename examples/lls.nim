@@ -71,6 +71,8 @@ proc fitness(fnl: Fennel; p: FProg): Score =
   result = Score: s
 
 when isMainModule:
+  import std/sequtils
+  import gread/cluster
 
   randomize()
 
@@ -95,19 +97,14 @@ when isMainModule:
   tab.maxPopulation = 10000
 
   # each worker gets a Work object as input to its thread
+  let affinity = toSeq 0..<countProcessors()
+  let clump = newCluster worker
   var args = initWork(tab, prims, operators, fitness, stats = statFrequency)
 
-  let processors = countProcessors()
-  var threads: seq[Thread[Work]]
-  newSeq(threads, processors)
-  checkpoint fmt"seeding {threads.len} threads..."
-  for i, thread in threads.mpairs:
-    args.core = some i
-    createThread(thread, worker, args)
-    pinToCpu(thread, i mod processors)
+  checkpoint fmt"seeding {affinity.len} threads..."
+  clump.boot args
+  clump.pin affinity
 
   # run the main loop to gatekeep inventions
-  main(args, args.io.outputs, args.io.inputs)
-
-  for thread in threads.mitems:
-    joinThread thread
+  let (inputs, outputs) = clump.programQueues()
+  main(args, outputs, inputs)
