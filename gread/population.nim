@@ -46,11 +46,10 @@ template learn(pop: Population; p: Program; pos: int) =
   if p.isValid:
     pop.scores[pos] = float(p.score)
     pop.lengths[pos] = float(p.len)
-    if p.isValid and p.score.isValid:
-      pop.ken.scores.push float(p.score)
-      pop.ken.validity.push 1.0
-    else:
-      pop.ken.validity.push 0.0
+    pop.ken.scores.push float(p.score)
+    pop.ken.validity.push 1.0
+  else:
+    pop.ken.validity.push 0.0
   pop.ken.lengths.push float(p.len)
   if p.core == pop.ken.core:
     pop.ken.ages.push float(int p.generation)
@@ -123,19 +122,24 @@ template growNaNs(pop: Population; field: typed): untyped =
     setLen(field, field.len + 1)
     field[field.high] = NaN
 
+template addImpl[T](pop: Population[T]; p: Program[T]) =
+  pop.programs.add p
+  growNaNs(pop, pop.scores)
+  growNaNs(pop, pop.lengths)
+  learn(pop, p, pop.programs.high)
+  echo pop.len
+  raise
+
 proc introduce*[T](pop: Population[T]; p: Program[T]) =
   ## introduce a foreign program to the local pop without
   ## setting it as the fittest individual, etc.
   if not pop.cache.containsOrIncl p.hash:
-    pop.programs.add p
-    growNaNs(pop, pop.scores)
-    growNaNs(pop, pop.lengths)
-    pop.learn(p, pop.programs.high)
+    addImpl(pop, p)
 
 proc add*[T](pop: Population[T]; p: Program[T]) =
   ## add a new program to the population
   if not pop.cache.containsOrIncl p.hash:
-    pop.introduce p
+    addImpl(pop, p)
     maybeResetFittest(pop, p)
 
 type
