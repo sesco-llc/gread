@@ -1,3 +1,4 @@
+import std/options
 import std/times
 import std/macros
 import std/math
@@ -5,6 +6,7 @@ import std/strutils
 
 type
   Score* = distinct float
+  CoreSpec* = Option[int]
   Generation* = distinct int
 
 converter toFloat*(s: Score): float = float s
@@ -33,6 +35,16 @@ proc `$`*(g: Generation): string {.borrow.}
 proc inc*(g: var Generation; n: int = 1) {.borrow.}
 proc `mod`*(a: Generation; b: int): int = a.int.mod b
 converter toInt*(g: Generation): int = g.int
+
+proc get*(cs: CoreSpec): int = get Option[int](cs)
+proc isSome*(cs: CoreSpec): bool = isSome Option[int](cs)
+proc isNone*(cs: CoreSpec): bool = isNone Option[int](cs)
+
+proc `$`*(cs: CoreSpec): string =
+  if cs.isSome:
+    $get(cs)
+  else:
+    "-"
 
 macro profile*(s: string; logic: untyped): untyped =
   when not defined(greadProfile):

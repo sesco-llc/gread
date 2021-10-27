@@ -6,31 +6,32 @@ import gread/programs
 import gread/tournament
 import gread/fertilizer
 import gread/crossover
+import gread/manager
 
-proc pointPromotion*[T](pop: var Population[T]): Option[Program[T]] =
-  template size: int = pop.tableau.tournamentSize
-  let a = tournament(pop, size).program
-  result = some: newProgram pointPromotion(pop.primitives, a.ast)
+proc pointPromotion*[T](man: var Manager[T]): Option[Program[T]] =
+  template size: int = man.tableau.tournamentSize
+  let a = tournament(man, size).program
+  result = some: newProgram pointPromotion(man.primitives, a.ast)
 
-proc pointMutation*[T](pop: var Population[T]): Option[Program[T]] =
-  template size: int = pop.tableau.tournamentSize
-  let a = tournament(pop, size).program
-  result = some: newProgram pointMutation(pop.primitives, a.ast)
+proc pointMutation*[T](man: var Manager[T]): Option[Program[T]] =
+  template size: int = man.tableau.tournamentSize
+  let a = tournament(man, size).program
+  result = some: newProgram pointMutation(man.primitives, a.ast)
 
-proc addOrRemoveLeaves*[T](pop: var Population[T]): Option[Program[T]] =
-  template size: int = pop.tableau.tournamentSize
-  let a = tournament(pop, size).program
-  result = some: newProgram addOrRemoveLeaves(pop.primitives, a.ast,
-                                              size = pop.tableau.seedProgramSize)
+proc addOrRemoveLeaves*[T](man: var Manager[T]): Option[Program[T]] =
+  template size: int = man.tableau.tournamentSize
+  let a = tournament(man, size).program
+  result = some: newProgram addOrRemoveLeaves(man.primitives, a.ast,
+                                              size = man.tableau.seedProgramSize)
 
-proc randomCrossover*[T](pop: var Population[T]): Option[Program[T]] =
-  template size: int = pop.tableau.tournamentSize
-  let a = tournament(pop, size).program
-  let b = randProgram(pop.primitives, size = pop.tableau.seedProgramSize)
+proc randomCrossover*[T](man: var Manager[T]): Option[Program[T]] =
+  template size: int = man.tableau.tournamentSize
+  let a = tournament(man, size).program
+  let b = randProgram(man.primitives, size = man.tableau.seedProgramSize)
   result = some: newProgram subtreeCrossover(a.ast, b.ast)
 
-proc subtreeCrossover*[T](pop: var Population[T]): Option[Program[T]] =
-  template size: int = pop.tableau.tournamentSize
-  let a = tournament(pop, size).program
-  let b = tournament(pop, size).program
+proc subtreeCrossover*[T](man: var Manager[T]): Option[Program[T]] =
+  template size: int = man.tableau.tournamentSize
+  let a = tournament(man, size).program
+  let b = tournament(man, size).program
   result = some: newProgram subtreeCrossover(a.ast, b.ast)

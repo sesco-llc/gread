@@ -29,14 +29,14 @@ proc initAliasMethod*[T](am: var AliasMethod;
   setLen(am.data, n)
 
   # rescale the probabilities according to the quantity
-  var rescaled = newSeqOfCap[(T, float64)](n)
+  var rescaled = newSeqOfCap[tuple[value: T, weight: float64]](n)
   for (op, weight) in input.items:
     rescaled.add (op, float64(weight) * n.float64)
 
   # sort the ops into deques of indices, according probability
   var small, large: Deque[int]
   for i, pair in rescaled.pairs:
-    am.data[i] = pair[0]
+    am.data[i] = pair.value
     if pair.weight < 1.0:
       small.addLast i
     else:

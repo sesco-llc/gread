@@ -63,13 +63,14 @@ proc share*[T](work: Work[T]; p: Program[T]) =
     transit.source = getThreadId()
     push(work.io.outputs, transit)
 
-proc search*[T](work: Work[T]; population: var Population) =
+proc search*[T](work: Work[T]; population: Population) =
   ## try to get some fresh genes from another thread
   var transit = pop work.io.inputs
   if not transit.isNil:
     transit.score = NaN
-    discard population.score transit
-    when false:
+    # FIXME: maybe rewrite this to enable some kind of scoring
+    #discard population.score transit
+    when true:
       population.introduce transit    # no propogation of winners into fittest
     else:
       population.add transit          # allows a winner to further propogate

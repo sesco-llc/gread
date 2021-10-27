@@ -48,6 +48,7 @@ let
 var
   fnl = newFennel(prims)
   pop: FPop
+  man: FMan
   # we want to make a function that returns the median of `lo` and `hi` inputs
   inputData = @[
     # the training data is also the test data; no hold-outs, everybody fights
@@ -127,9 +128,9 @@ suite "simulation":
   block:
     ## created a random population of programs
     checkpoint "creating", tab.seedPopulation, "random programs..."
-    pop = randomPop(fnl, tab, prims)
-    pop.operators = operators
-    pop.fitness = fitness
+    man = newManager(fnl, tab, prims, operators, fitness = fitness)
+    man.population = man.randomPop()
+    pop = man.population
 
   block:
     ## dumped some statistics
@@ -143,11 +144,13 @@ suite "simulation":
       if pop.best.isValid and pop.best >= goodEnough:
         break
       let clock = getTime()
-      let p = generation pop
-      genTime.push (getTime() - clock).inMilliseconds.float
-      if p.score > best:
-        best = pop.best
-        dumpPerformance p
+      let invented = man.generation()
+      if invented.isSome:
+        let p = get invented
+        genTime.push (getTime() - clock).inMilliseconds.float
+        if p.score > best:
+          best = pop.best
+          dumpPerformance p
 
       if pop.generations mod statFrequency == 0:
         dumpStats()
