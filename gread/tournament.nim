@@ -32,6 +32,7 @@ proc initTourney[T, V](evo: Evolver[T, V]; size: int): Tourney[T] =
     # pick a program; fetching the same program more than once is nbd
     var (i, p) = randomMember evo.population
     # score the program against the data
+    # FIXME: optimization point
     let s = evo.score(syms, p)
     # resolve the score to a value we can sort with
     let score =

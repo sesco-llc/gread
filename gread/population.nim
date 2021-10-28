@@ -44,7 +44,7 @@ type
 template learn(pop: Population; p: Program; pos: int) =
   pop.cache.incl p.hash
   if p.isValid:
-    pop.scores[pos] = float penalizeSize(pop, p.score.float, p.len)
+    pop.scores[pos] = float penalizeSize(pop, p.score, p.len)
     pop.lengths[pos] = float(p.len)
     pop.ken.scores.push float(p.score)
     pop.ken.validity.push 1.0
@@ -102,20 +102,23 @@ func best*(pop: Population): Score =
   return NaN.Score
 
 func fittest*[T](pop: Population[T]): Program[T] =
-  pop.fittest
+  withInitialized pop:
+    pop.fittest
 
-proc penalizeSize*(pop: Population; score: float; length: int): Score =
-  # apply some pressure on program size
-  var s = score
-  if not pop.ken.parsimony.isNaN:
-    s += min(0.0, pop.ken.parsimony * length.float)
-  result = Score s
+proc penalizeSize*(pop: Population; score: Score; length: int): Score =
+  ## apply some pressure on program size
+  withInitialized pop:
+    var s = score.float
+    if not pop.ken.parsimony.isNaN:
+      s += min(0.0, pop.ken.parsimony * length.float)
+    result = Score s
 
 proc maybeResetFittest[T](pop: Population[T]; p: Program[T]) =
   ## reset the fittest pointer if the argument is actually superior
-  if p.score.isValid:
-    if pop.fittest.isNil or pop.fittest.score < p.score:
-      pop.fittest = p
+  withInitialized pop:
+    if p.score.isValid:
+      if pop.fittest.isNil or pop.fittest.score < p.score:
+        pop.fittest = p
 
 template growNaNs(pop: Population; field: typed): untyped =
   while pop.programs.len > field.len:
@@ -131,40 +134,43 @@ template addImpl[T](pop: Population[T]; p: Program[T]) =
 proc introduce*[T](pop: Population[T]; p: Program[T]) =
   ## introduce a foreign program to the local pop without
   ## setting it as the fittest individual, etc.
-  if not pop.cache.containsOrIncl p.hash:
-    addImpl(pop, p)
+  withInitialized pop:
+    if not pop.cache.containsOrIncl p.hash:
+      addImpl(pop, p)
 
 proc add*[T](pop: Population[T]; p: Program[T]) =
   ## add a new program to the population
-  if p.isNil:
-    raise Defect.newException "nil program"
-  elif pop.isNil:
-    raise Defect.newException "nil pop"
-  if not pop.cache.containsOrIncl p.hash:
-    addImpl(pop, p)
-    maybeResetFittest(pop, p)
+  withInitialized pop:
+    if p.isNil:
+      raise Defect.newException "nil program"
+    elif pop.isNil:
+      raise Defect.newException "nil pop"
+    if not pop.cache.containsOrIncl p.hash:
+      addImpl(pop, p)
+      maybeResetFittest(pop, p)
 
 type
   TopPop[T] = tuple[score: Score, program: Program[T]]
 
 iterator top*[T](pop: Population[T]; n: int): TopPop[T] =
   ## iterate through the best performers, low-to-high
-  var queue: HeapQueue[TopPop[T]]
-  var valid = false
-  for i in 0..<pop.programs.len:
-    var p = pop.programs[i]
-    if p.isValid or not valid:
-      valid = valid or p.score.isValid
-      # handling missing scores
-      queue.push (score: p.score, program: p)
-    # discard invalid stuff if we have valid scores in the queue
-    while valid and queue.len > 0 and not queue[0].score.isValid:
-      discard queue.pop()
-    # discard excess queue members
-    while queue.len > n:
-      discard queue.pop()
-  while queue.len > 0:
-    yield queue.pop()
+  withInitialized pop:
+    var queue: HeapQueue[TopPop[T]]
+    var valid = false
+    for i in 0..<pop.programs.len:
+      var p = pop.programs[i]
+      if p.isValid or not valid:
+        valid = valid or p.score.isValid
+        # handling missing scores
+        queue.push (score: p.score, program: p)
+      # discard invalid stuff if we have valid scores in the queue
+      while valid and queue.len > 0 and not queue[0].score.isValid:
+        discard queue.pop()
+      # discard excess queue members
+      while queue.len > n:
+        discard queue.pop()
+    while queue.len > 0:
+      yield queue.pop()
 
 proc first*[T](pop: Population[T]): Program[T] =
   ## return the fittest individual in the population
@@ -177,12 +183,14 @@ proc first*[T](pop: Population[T]): Program[T] =
       return pop.fittest
 
 iterator items*[T](pop: Population[T]): Program[T] =
-  for p in pop.programs.items:
-    yield p
+  withInitialized pop:
+    for p in pop.programs.items:
+      yield p
 
 iterator mitems*[T](pop: Population[T]): var Program[T] =
-  for p in pop.programs.mitems:
-    yield p
+  withInitialized pop:
+    for p in pop.programs.mitems:
+      yield p
 
 type
   IndexedProgram[T] = tuple
@@ -208,13 +216,14 @@ proc randomRemoval*[T](pop: Population[T]): Program[T] =
 
 proc unfit*(pop: Population) =
   ## mark all members of the population as unscored
-  raise Defect.newException "this no longer makes sense"
-  for p in pop.mitems:
-    # critically, when you reset everyone's scores, make sure
-    # you at least try to reset the score of the fittest program
-    # FIXME: for now we just don't reset the fittest individual
-    if cast[int](p) != cast[int](pop.fittest):
-      p.score = NaN
+  withInitialized pop:
+    raise Defect.newException "this no longer makes sense"
+    for p in pop.mitems:
+      # critically, when you reset everyone's scores, make sure
+      # you at least try to reset the score of the fittest program
+      # FIXME: for now we just don't reset the fittest individual
+      if cast[int](p) != cast[int](pop.fittest):
+        p.score = NaN
 
 proc selectNonNaN[T](a: openArray[T]): seq[float] =
   result = newSeqOfCap[float](a.len)
@@ -224,54 +233,62 @@ proc selectNonNaN[T](a: openArray[T]): seq[float] =
 
 proc parsimony*(pop: Population): float =
   ## compute parsimony for members of the population with valid scores
-  var scores = selectNonNaN(pop.scores)
-  var lengths = selectNonNaN(pop.lengths)
-  result =
-    if scores.len > 0:
-      -covariance(lengths, scores) / variance(lengths)
-    else:
-      defaultParsimony
-  pop.ken.parsimony = result
-  unfit pop
+  withInitialized pop:
+    var scores = selectNonNaN(pop.scores)
+    var lengths = selectNonNaN(pop.lengths)
+    result =
+      if scores.len > 0:
+        -covariance(lengths, scores) / variance(lengths)
+      else:
+        defaultParsimony
+    pop.ken.parsimony = result
+    unfit pop
 
 proc nextGeneration*(pop: Population): Generation =
   ## inform the population that we're entering a new generation
-  inc pop.ken.generation
-  result = pop.ken.generation
+  withInitialized pop:
+    inc pop.ken.generation
+    result = pop.ken.generation
 
 func generations*(pop: Population): Generation =
   ## return the population's Generation
-  pop.ken.generation
+  withInitialized pop:
+    pop.ken.generation
 
 proc contains*(pop: Population; p: Program): bool =
   ## true if the `pop` contains Program `p`
-  p.hash in pop.cache
+  withInitialized pop:
+    p.hash in pop.cache
 
 proc scoreChanged*(pop: Population; p: Program; s: Score; index = none int) =
-  if index.isSome:
-    pop.scores[get index] = float penalizeSize(pop, s.float, p.len)
-  else:
-    for i, q in pop.programs.pairs:
-      if q.hash == p.hash:
-        scoreChanged(pop, p, s, index = some i)
-        break
-    raise ValueError.newException:
-      "program does not exist in this population"
+  withInitialized pop:
+    if index.isSome:
+      pop.scores[get index] = float penalizeSize(pop, s, p.len)
+    else:
+      for i, q in pop.programs.pairs:
+        if q.hash == p.hash:
+          scoreChanged(pop, p, s, index = some i)
+          break
+      raise ValueError.newException:
+        "program does not exist in this population"
 
-proc core*(pop: Population): CoreSpec = pop.ken.core
+proc core*(pop: Population): CoreSpec =
+  withInitialized pop:
+    pop.ken.core
 
 proc metrics*(pop: Population): PopMetrics =
   ## returns a copy of the population's metrics
-  result = pop.ken
-  result.size = pop.len
-  if not pop.fittest.isNil:
-    result.bestSize = pop.fittest.len
-    result.bestScore = pop.fittest.score
-    result.bestGen = pop.fittest.generation
-    if pop.fittest.core == pop.ken.core:
-      let current = pop.ken.generation.int.float
-      result.staleness = (current - pop.fittest.generation.float) / current
-      result.usurper = none int
-    else:
-      result.staleness = NaN
-      result.usurper = pop.fittest.core
+  withInitialized pop:
+    result = pop.ken
+    result.size = pop.len
+    if not pop.fittest.isNil:
+      result.bestSize = pop.fittest.len
+      result.bestScore = pop.fittest.score
+      result.bestGen = pop.fittest.generation
+      if pop.fittest.core == pop.ken.core:
+        let current = pop.ken.generation.int.float
+        result.staleness = (current - pop.fittest.generation.float) / current
+        result.usurper = none int
+      else:
+        result.staleness = NaN
+        result.usurper = pop.fittest.core

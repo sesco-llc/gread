@@ -19,7 +19,7 @@ import pkg/adix/lptabz
 randomize()
 
 const
-  goodEnough = -0.5          ## quit when you reach this score
+  goodEnough = -0.1          ## quit when you reach this score
   dataInaccurate = false     ## use faulty data
   statFrequency = 2000       ## how often to output statistics
 
@@ -39,10 +39,10 @@ tab.useParsimony = false
 # define the different ways in which we evolve, and their weights
 let
   operators = {
-    randomCrossover[Fennel, LuaValue]:  0.01,
-    pointPromotion[Fennel, LuaValue]:   0.02,
-    pointMutation[Fennel, LuaValue]:    0.10,
-    subtreeCrossover[Fennel, LuaValue]: 0.90,
+    randomCrossover[Fennel, LuaValue]:   1.0,
+    pointPromotion[Fennel, LuaValue]:    2.0,
+    pointMutation[Fennel, LuaValue]:    10.0,
+    subtreeCrossover[Fennel, LuaValue]: 90.0,
   }
 
 var
@@ -55,7 +55,6 @@ var
     (%* {"hi": 24.0,   "lo": 7.0},      15.5),
     (%* {"hi": 11.0,   "lo": 6.0},       8.5),
     (%* {"hi": 98.0,   "lo": 71.0},     84.5),
-
   ]
 
 when dataInaccurate:
@@ -101,14 +100,14 @@ proc fenfit(inputs: Locals; output: LuaValue): Score =
 proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
   ## convenience capture
   let s = evaluate(fnl, p, locals, fenfit)
-  if not s.isNaN:
+  if not s.isNaN and s notin [-Inf, Inf]:
     result = some Score(-abs s)
 
 proc fitmany(fnl: Fennel; ss: openArray[(Locals, Score)];
              p: FProg): Option[Score] =
   var results = newSeq[float](ss.len)
   for locals, s in ss.items:
-    if s.isNaN:
+    if s.isNaN or s in [-Inf, Inf]:
       return none Score
     else:
       results.add s
@@ -156,7 +155,7 @@ suite "simulation":
         let p = get invented
         genTime.push (getTime() - clock).inMilliseconds.float
         if p.score > best:
-          best = pop.best
+          best = pop.penalizeSize(p.score, p.len)
           dumpPerformance p
 
       if pop.generations mod statFrequency == 0:

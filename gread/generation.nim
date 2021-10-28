@@ -9,9 +9,7 @@ import gread/data
 import gread/evolver
 
 proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
-  ## try to make something amazing
-  if evo.fitone.isNil:
-    raise Defect.newException "assign a fitness function first"
+  ## try to create a novel program from better existing programs
 
   # inform the pop that we're in a new generation
   let gen = nextGeneration evo.population
@@ -31,7 +29,9 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
 
     p.generation = gen
     profile "new score":
-      let s = evo.score(evo.randomSymbols(), p)
+      # FIXME: optimization point
+      #let s = evo.score(evo.randomSymbols(), p)
+      let s = evo.score(p)
     if s.isSome:
       p.score = get s
       # we only add valid programs to the population

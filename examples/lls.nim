@@ -7,7 +7,7 @@ import std/random
 import std/math
 
 import gread
-import gread/fennel
+import gread/fennel except variance
 
 import pkg/balls
 import pkg/lunacy
@@ -27,10 +27,10 @@ prims.constants = @[term 1.0, term 0.1]
 
 # you can adjust these weights to change mutation rates
 let operators = {
-  randomCrossover[Fennel]: 2.0,
-  pointPromotion[Fennel]: 5.0,
-  pointMutation[Fennel]: 4.0,
-  subtreeCrossover[Fennel]: 90.0,
+  randomCrossover[Fennel, LuaValue]:  2.0,
+  pointPromotion[Fennel, LuaValue]:   5.0,
+  pointMutation[Fennel, LuaValue]:    4.0,
+  subtreeCrossover[Fennel, LuaValue]: 90.0,
 }
 
 const
@@ -55,20 +55,21 @@ proc fenfit(inputs: Locals; output: LuaValue): Score =
   else:
     NaN
 
-proc fitness(fnl: Fennel; p: FProg): Score =
-  ## the fitness function measures the program's performance
-  ## across the entire dataset
-  var results = newSeq[float](training.len)
-  var s = NaN
-  for locals in training.items:
-    s = evaluate(fnl, p, locals, fenfit)
+proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
+  let s = evaluate(fnl, p, locals, fenfit)
+  if not s.isNaN:
+    result = some Score(-abs s)
+
+proc fitmany(fnl: Fennel; ss: openArray[(Locals, Score)];
+             p: FProg): Option[Score] =
+  var results = newSeq[float](ss.len)
+  for locals, s in ss.items:
     if s.isNaN:
-      return Score NaN
+      return none Score
     else:
       results.add s
   if results.len > 0:
-    s = -variance(results)  # ie. minimize variance
-  result = Score: s
+    result = some Score -ss(results)
 
 when isMainModule:
   import std/sequtils
@@ -99,7 +100,10 @@ when isMainModule:
   # each worker gets a Work object as input to its thread
   let affinity = toSeq 0..<countProcessors()
   let clump = newCluster worker
-  var args = initWork(tab, prims, operators, fitness, stats = statFrequency)
+  var args: Work[Fennel, LuaValue]
+  initWork(args, tab, primitives = prims, operators = operators,
+           dataset = training,
+           fitone = fitone, fitmany = fitmany, stats = statFrequency)
 
   checkpoint fmt"seeding {affinity.len} threads..."
   clump.boot args

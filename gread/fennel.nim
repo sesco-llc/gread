@@ -20,7 +20,7 @@ import gread/primitives
 import gread/data
 import gread/evolver
 
-export stat #except variance
+export stat
 export lptabz
 export lunacy
 
@@ -305,7 +305,7 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
                "of ideal:", sum(results) / sum(ideals)
     fnl.dumpScore p
 
-proc dumpStats*(fnl: Fennel; pop: Population; evo: Time;
+proc dumpStats*(fnl: Fennel; pop: Population; evoTime: Time;
                 gen: var FennelStat) =
   ## a threadsafe echo of some statistics regarding the vm and population
   let m = pop.metrics
@@ -313,17 +313,18 @@ proc dumpStats*(fnl: Fennel; pop: Population; evo: Time;
   if not pop.fittest.isNil:
     fnl.dumpScore pop.fittest
 
+  var dumb = m.lengths.variance.int  # work around nim bug
   checkpoint fmt"""
                core and thread: {m.core}/{threaded}
           virtual machine runs: {fnl.runs} (never reset)
             average vm runtime: {fnl.runtime.mean:>6.2f} ms
          total population size: {m.size}
-            average age in pop: {m.generation.int.float - m.ages.mean}
+            average age in pop: {int(m.generation.int.float - m.ages.mean)}
           validity rate in pop: {m.validity.mean.percent}
-         program size variance: {m.lengths.variance}
+         program size variance: {dumb}
            average valid score: {Score m.scores.mean}
           greatest of all time: {m.bestScore}
-          average program size: {m.lengths.mean}
+          average program size: {m.lengths.mean.int}
           size of best program: {m.bestSize}
          parsimony coefficient: {Score m.parsimony}
             insufficiency rate: {fnl.nans.mean.percent}
@@ -336,7 +337,7 @@ proc dumpStats*(fnl: Fennel; pop: Population; evo: Time;
              total generations: {m.generation}
              invention recency: {m.staleness.percent}
                generation time: {Score gen.mean} ms
-                evolution time: {(getTime() - evo).inSeconds} sec
+                evolution time: {(getTime() - evoTime).inSeconds} sec
   """
   clearStats fnl
   clear gen
@@ -345,14 +346,19 @@ when compileOption"threads":
   import gread/cluster
   import gread/generation
 
-  proc worker*[V](args: Work[Fennel, V]) {.thread, gcsafe.} =
+  proc worker*(args: Work[Fennel, LuaValue]) {.thread, gcsafe.} =
     {.gcsafe.}:
       let fnl = newFennel(args.primitives, core = args.core)
-      var evo = initEvolver(fnl, args.tableau)
+      var evo: Evolver[Fennel, LuaValue]
+      initEvolver(evo, fnl, args.tableau)
       evo.primitives = args.primitives
       evo.operators = args.operators
       evo.dataset = args.dataset
       evo.core = fnl.core
+      evo.fitone = args.fitone
+      evo.fitmany = args.fitmany
+      evo.population = evo.randomPop()
+
       var leader: Hash
       var evoTime = getTime()
       var genTime: FennelStat

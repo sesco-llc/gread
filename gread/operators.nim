@@ -1,6 +1,5 @@
 import std/options
 
-import gread/population
 import gread/mutation
 import gread/programs
 import gread/tournament

@@ -1,5 +1,4 @@
 import std/sequtils
-import std/hashes
 import std/random
 import std/options
 
@@ -42,6 +41,9 @@ type
     population: Population[T]
     operators: AliasMethod[Operator[T, V]]
 
+proc `core=`*[T, V](evo: var Evolver[T, V]; core: CoreSpec) =
+  evo.core = core
+
 proc `operators=`*[T, V](evo: var Evolver[T, V];
                          weighted: openArray[(Operator[T, V], float64)]) =
   initAliasMethod(evo.operators, weighted)
@@ -67,10 +69,12 @@ proc `dataset=`*[T, V](evo: var Evolver[T, V]; dataset: seq[(SymbolSet[T, V], Sc
   evo.dataset = mapIt(dataset, it[0])
   evo.targets = some mapIt(dataset, it[1])
 
+proc `targets=`*[T, V](evo: var Evolver[T, V]; targets: seq[Score]) =
+  evo.targets = some targets
+
 proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau) =
   ## perform initial setup of the Evolver, binding platform and tableau
-  evo.platform = platform
-  evo.tableau = tableau
+  evo = Evolver[T, V](platform: platform, tableau: tableau)
 
 proc tableau*(evo: Evolver): Tableau = evo.tableau
 
@@ -86,10 +90,31 @@ proc randomOperator*[T, V](evo: Evolver[T, V]): Operator[T, V] =
 
 proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
                   p: Program[T]): Option[Score] =
+  ## score the program against a single symbol set
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   else:
     result = evo.fitone(evo.platform, s, p)
+
+proc score*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
+  ## score the program against all available symbol sets
+  if evo.fitone.isNil:
+    raise ValueError.newException "evolver needs fitone assigned"
+  if evo.fitmany.isNil:
+    raise ValueError.newException "evolver needs fitmany assigned"
+  else:
+    block exit:
+      var scores = newSeqOfCap[(SymbolSet[T, V], Score)](evo.dataset.len)
+      for ss in evo.dataset.items:
+        let s = evo.score(ss, p)
+        if s.isNone:
+          result = none Score
+          break exit
+        else:
+          scores.add (ss, get s)
+      let s = evo.fitmany(evo.platform, scores, p)
+      if s.isSome:
+        result = s
 
 proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
   ## assign a new fitness function to the evolver
@@ -122,7 +147,11 @@ proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
   result = newPopulation[T](evo.tableau.seedPopulation, core = evo.core)
   while result.len < evo.tableau.seedPopulation:
     let p = randProgram(evo.primitives, evo.tableau.seedProgramSize)
-    let s = evo.score(evo.randomSymbols(), p)
+    let s = evo.score(p) #evo.randomSymbols(), p)
     if s.isSome:
-      p.score = get s
-      result.add p
+      if s.get.isNaN:
+        raise ValueError.newException:
+          "a fitness function produced NaN; this is unsupported for randomPop()"
+      else:
+        p.score = get s
+        result.add p
