@@ -36,9 +36,9 @@ proc inc*(g: var Generation; n: int = 1) {.borrow.}
 proc `mod`*(a: Generation; b: int): int = a.int.mod b
 converter toInt*(g: Generation): int = g.int
 
-proc get*(cs: CoreSpec): int = get Option[int](cs)
-proc isSome*(cs: CoreSpec): bool = isSome Option[int](cs)
-proc isNone*(cs: CoreSpec): bool = isNone Option[int](cs)
+#proc get*(cs: CoreSpec): int = get Option[int](cs)
+#proc isSome*(cs: CoreSpec): bool = isSome Option[int](cs)
+#proc isNone*(cs: CoreSpec): bool = isNone Option[int](cs)
 
 proc `$`*(cs: CoreSpec): string =
   if cs.isSome:

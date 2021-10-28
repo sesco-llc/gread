@@ -10,7 +10,7 @@ import gread/spec
 import gread/tableau
 import gread/tournament
 import gread/data
-import gread/manager
+import gread/evolver
 
 export ast
 export fertilizer
@@ -24,4 +24,4 @@ export spec
 export tableau
 export tournament
 export data
-export manager
+export evolver

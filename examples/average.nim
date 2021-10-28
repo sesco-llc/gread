@@ -39,16 +39,16 @@ tab.useParsimony = false
 # define the different ways in which we evolve, and their weights
 let
   operators = {
-    randomCrossover[Fennel]: 0.01,
-    pointPromotion[Fennel]: 0.02,
-    pointMutation[Fennel]: 0.10,
-    subtreeCrossover[Fennel]: 0.90,
+    randomCrossover[Fennel, LuaValue]:  0.01,
+    pointPromotion[Fennel, LuaValue]:   0.02,
+    pointMutation[Fennel, LuaValue]:    0.10,
+    subtreeCrossover[Fennel, LuaValue]: 0.90,
   }
 
 var
   fnl = newFennel(prims)
   pop: FPop
-  man: FMan
+  evo: FEvo
   # we want to make a function that returns the median of `lo` and `hi` inputs
   inputData = @[
     # the training data is also the test data; no hold-outs, everybody fights
@@ -98,45 +98,52 @@ proc fenfit(inputs: Locals; output: LuaValue): Score =
   else:
     NaN
 
-proc fitone(p: FProg; locals: Locals): Score =
+proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
   ## convenience capture
-  evaluate(fnl, p, locals, fenfit)
+  let s = evaluate(fnl, p, locals, fenfit)
+  if not s.isNaN:
+    result = some Score(-abs s)
 
-proc fitness(fnl: Fennel; p: FProg): Score =
-  var results = newSeq[float](training.len)
-  var s = NaN
-  for (locals, ideal) in training.items:
-    s = fitone(p, locals)
+proc fitmany(fnl: Fennel; ss: openArray[(Locals, Score)];
+             p: FProg): Option[Score] =
+  var results = newSeq[float](ss.len)
+  for locals, s in ss.items:
     if s.isNaN:
-      return Score NaN
+      return none Score
     else:
       results.add s
   if results.len > 0:
-    s = -(stddev results)
-  result = Score: s
+    result = some Score -(stddev results)
 
 template dumpStats() {.dirty.} =
-  dumpStats(fnl, pop, evo, genTime)
+  dumpStats(fnl, pop, et, genTime)
 
 template dumpPerformance(p: FProg) {.dirty.} =
   dumpPerformance(fnl, p, training, fenfit)
 
 suite "simulation":
-  var evo = getTime()
+  var et = getTime()
   var genTime: FennelStat
 
   block:
     ## created a random population of programs
     checkpoint "creating", tab.seedPopulation, "random programs..."
-    man = newManager(fnl, tab, prims, operators, fitness = fitness)
-    man.population = man.randomPop()
-    pop = man.population
+    initEvolver(evo, fnl, tab)
+    evo.primitives = prims
+    evo.operators = operators
+    evo.dataset = training
+    evo.fitone = fitone
+    evo.fitmany = fitmany
+    evo.population = evo.randomPop()
+
+    # we use `pop` in some closures, so we'll assign it here
+    pop = evo.population
 
   block:
     ## dumped some statistics
     dumpStats()
 
-  evo = getTime()
+  et = getTime()
   var best = Score NaN
   block:
     ## ran until we can average two numbers
@@ -144,7 +151,7 @@ suite "simulation":
       if pop.best.isValid and pop.best >= goodEnough:
         break
       let clock = getTime()
-      let invented = man.generation()
+      let invented = evo.generation()
       if invented.isSome:
         let p = get invented
         genTime.push (getTime() - clock).inMilliseconds.float

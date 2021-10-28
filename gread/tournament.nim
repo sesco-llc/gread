@@ -1,3 +1,4 @@
+import std/options
 import std/heapqueue
 import std/algorithm
 
@@ -6,10 +7,10 @@ export SortOrder
 import gread/spec
 import gread/population
 import gread/programs
-import gread/manager
+import gread/evolver
 
 type
-  Competitor*[T] = tuple  # sorting by
+  Competitor*[T] = tuple     # sorting by
     valid: bool              # validity, then by
     score: Score             # score, then by
     len: int                 # program length
@@ -18,23 +19,32 @@ type
 
   Tourney*[T] = HeapQueue[Competitor[T]]
 
-proc initTourney[T](man: Manager[T]; size: int): Tourney[T] =
-  if man.population.len < 1:
+proc initTourney[T, V](evo: Evolver[T, V]; size: int): Tourney[T] =
+  if evo.population.len < 1:
     raise ValueError.newException:
       "cannot run a tournament with empty population"
 
-  let size = max(1, min(man.population.len, size))
+  # figure out the size of the tourney
+  let size = max(1, min(evo.population.len, size))
+  # get some data to test all the programs with
+  let syms = evo.randomSymbols()
   while result.len < size:
-    # fetching the same program more than once is nbd
-    var (i, p) = randomMember man.population
-    let s = man.score(p)
-    result.push (valid: s.isValid, score: s,
+    # pick a program; fetching the same program more than once is nbd
+    var (i, p) = randomMember evo.population
+    # score the program against the data
+    let s = evo.score(syms, p)
+    # resolve the score to a value we can sort with
+    let score =
+      if s.isSome: get s
+             else: NaN
+    # push into the queue; the early index prevents "sort by program"
+    result.push (valid: s.isSome, score: score,
                  len: -p.len, index: i, program: p)
 
-proc tournament*[T](man: Manager[T]; size: int;
-                    order = Descending): Competitor[T] =
+proc tournament*[T, V](evo: Evolver[T, V]; size: int;
+                       order = Descending): Competitor[T] =
   ## find the fittest or least fit of a subset of the population
-  var tourney = initTourney(man, size)
+  var tourney = initTourney(evo, size)
 
   # we want the program with the highest score...
   if order == Descending:

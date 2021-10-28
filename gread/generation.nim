@@ -5,34 +5,36 @@ import gread/population
 import gread/spec
 import gread/ast
 import gread/programs
-import gread/manager
+import gread/data
+import gread/evolver
 
-proc generation*[T](man: var Manager[T]): Option[Program[T]] =
+proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
   ## try to make something amazing
-  if man.fitness.isNil:
+  if evo.fitone.isNil:
     raise Defect.newException "assign a fitness function first"
 
   # inform the pop that we're in a new generation
-  let gen = nextGeneration man.population
+  let gen = nextGeneration evo.population
 
-  let operator = man.randomOperator()
+  let operator = evo.randomOperator()
   profile "operator":
-    result = operator man
+    result = operator evo
 
   if result.isSome:
     let p = get result
     # make room for the new program
-    template size: int = man.tableau.tournamentSize
-    while man.population.len > man.tableau.maxPopulation-1:
+    template size: int = evo.tableau.tournamentSize
+    while evo.population.len > evo.tableau.maxPopulation-1:
       profile "loser's tournament":
-        let loser = tournament(man, size, order = Ascending)
-        del(man.population, loser.index)
+        let loser = tournament(evo, size, order = Ascending)
+        del(evo.population, loser.index)
 
     p.generation = gen
     profile "new score":
-      p.score = man.score(p)
-    if p.isValid:
+      let s = evo.score(evo.randomSymbols(), p)
+    if s.isSome:
+      p.score = get s
       # we only add valid programs to the population
-      man.population.add p
+      evo.population.add p
     else:
       p.zombie = true

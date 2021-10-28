@@ -15,12 +15,12 @@ import gread/spec
 import gread/ast
 import gread/population
 import gread/programs
-import gread/maths
+import gread/maths except variance
 import gread/primitives
 import gread/data
-import gread/manager
+import gread/evolver
 
-export stat except variance
+export stat #except variance
 export lptabz
 export lunacy
 
@@ -47,7 +47,7 @@ type
 
   FProg* = Program[Fennel]
   FPop* = Population[Fennel]
-  FMan* = Manager[Fennel]
+  FEvo* = Evolver[Fennel, LuaValue]
 
   Locals* = SymbolSet[Fennel, LuaValue]
 
@@ -345,11 +345,14 @@ when compileOption"threads":
   import gread/cluster
   import gread/generation
 
-  proc worker*(args: Work[Fennel]) {.thread, gcsafe.} =
+  proc worker*[V](args: Work[Fennel, V]) {.thread, gcsafe.} =
     {.gcsafe.}:
       let fnl = newFennel(args.primitives, core = args.core)
-      var man = newManager(fnl, args.tableau, args.primitives,
-                           fitness = args.fitness, operators = args.operators)
+      var evo = initEvolver(fnl, args.tableau)
+      evo.primitives = args.primitives
+      evo.operators = args.operators
+      evo.dataset = args.dataset
+      evo.core = fnl.core
       var leader: Hash
       var evoTime = getTime()
       var genTime: FennelStat
@@ -357,19 +360,21 @@ when compileOption"threads":
         for invalid in invalidPrograms(args):
           fnl.cache[invalid.hash] = Score NaN
 
-        search(args, man.population)   # fresh meat from other threads
+        search(args, evo.population)   # fresh meat from other threads
 
-        if not man.fittest.isNil:
-          if man.fittest.hash != leader:
-            leader = man.fittest.hash
-            share(args, man.fittest)  # send it to other threads
+        let fit = evo.fittest
+        if fit.isSome:
+          let fit = get fit
+          if fit.hash != leader:
+            leader = fit.hash
+            share(args, fit)  # send it to other threads
 
-        if man.tableau.useParsimony:
+        if evo.tableau.useParsimony:
           profile "parsimony":
-            discard man.population.parsimony
+            discard evo.population.parsimony
 
         let clock = getTime()
-        let invention = man.generation()
+        let invention = evo.generation()
         genTime.push (getTime() - clock).inMilliseconds.float
 
         if invention.isSome:
@@ -378,7 +383,7 @@ when compileOption"threads":
             p.core = fnl.core
 
           if p.generation mod args.stats == 0:
-            dumpStats(fnl, man.population, evoTime, genTime)
+            dumpStats(fnl, evo.population, evoTime, genTime)
 
           if p.score.isNaN:
             negativeCache(args, p)

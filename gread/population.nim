@@ -44,7 +44,7 @@ type
 template learn(pop: Population; p: Program; pos: int) =
   pop.cache.incl p.hash
   if p.isValid:
-    pop.scores[pos] = float(p.score)
+    pop.scores[pos] = float penalizeSize(pop, p.score.float, p.len)
     pop.lengths[pos] = float(p.len)
     pop.ken.scores.push float(p.score)
     pop.ken.validity.push 1.0
@@ -127,8 +127,6 @@ template addImpl[T](pop: Population[T]; p: Program[T]) =
   growNaNs(pop, pop.scores)
   growNaNs(pop, pop.lengths)
   learn(pop, p, pop.programs.high)
-  echo pop.len
-  raise
 
 proc introduce*[T](pop: Population[T]; p: Program[T]) =
   ## introduce a foreign program to the local pop without
@@ -138,6 +136,10 @@ proc introduce*[T](pop: Population[T]; p: Program[T]) =
 
 proc add*[T](pop: Population[T]; p: Program[T]) =
   ## add a new program to the population
+  if p.isNil:
+    raise Defect.newException "nil program"
+  elif pop.isNil:
+    raise Defect.newException "nil pop"
   if not pop.cache.containsOrIncl p.hash:
     addImpl(pop, p)
     maybeResetFittest(pop, p)
@@ -247,7 +249,7 @@ proc contains*(pop: Population; p: Program): bool =
 
 proc scoreChanged*(pop: Population; p: Program; s: Score; index = none int) =
   if index.isSome:
-    pop.scores[get index] = float s
+    pop.scores[get index] = float penalizeSize(pop, s.float, p.len)
   else:
     for i, q in pop.programs.pairs:
       if q.hash == p.hash:
