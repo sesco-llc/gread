@@ -4,7 +4,6 @@ import std/random
 
 import gread/spec
 import gread/ast
-import gread/fertilizer
 import gread/primitives
 
 proc mutateFunction[T](c: Primitives[T]; a: Ast[T]; i: int): Ast[T] =
@@ -86,3 +85,27 @@ proc removeOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
         if prior.kind != Symbol or a[i-1].kind != akCall:
           result = a.delete(i)
           break
+
+proc appendOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
+  if a.len < 3:
+    result = a
+  else:
+    block exit:
+      while true:
+        var i = rand a.high
+        block random:
+          if not a[i].isParent:
+            let dad = parentOf(a, i)
+            if dad.isSome:
+              i = get dad
+            else:
+              break random  # try another index; this should be impossible
+          let leaf = c.initAst(sample c.terminals).nodes[^1]
+          let offset = rand 0..<countChildren(a, i)  # offset some number of kids
+          let index =
+            if a[i].kind == akCall:
+              i + 2 + offset # insert it after the function symbol
+            else:
+              i + 1 + offset # it's not a call?  insert it wherever...
+          result = a.insert(index, @[leaf])
+          break exit

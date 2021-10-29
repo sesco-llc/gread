@@ -23,6 +23,12 @@ proc removeOneLeaf*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
   result = some: newProgram removeOneLeaf(evo.primitives, a.ast,
                                           size = evo.tableau.seedProgramSize)
 
+proc appendOneLeaf*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  template size: int = evo.tableau.tournamentSize
+  let a = tournament(evo, size).program
+  result = some: newProgram appendOneLeaf(evo.primitives, a.ast,
+                                          size = evo.tableau.seedProgramSize)
+
 proc randomCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
   template size: int = evo.tableau.tournamentSize
   let a = tournament(evo, size).program
