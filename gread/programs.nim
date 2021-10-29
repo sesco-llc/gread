@@ -19,7 +19,8 @@ type
     hash*: Hash               ## pre-generated hash for the program's ast
     score*: Score             ## the score of this program when last evaluated
     ast*: Ast[T]              ## the ast of the program itself
-    cache: LPTab[Hash, Score] ## cache of score given symbol set hash
+    when programCache:
+      cache: LPTab[Hash, Score] ## cache of score given symbol set hash
 
   Fitness*[T: ref] = proc(q: T; p: Program[T]): Score ##
   ## a function that takes your custom Language object and
