@@ -1,6 +1,7 @@
 when not compileOption"threads":
   {.error: "cluster support requires threads".}
 
+import std/sequtils
 import std/options
 import std/osproc
 
@@ -84,6 +85,11 @@ proc programQueues*[T, V](cluster: Cluster[T, V]): IO[T] =
   ## members will use to exchange novel programs
   (cluster.pq.inputs, cluster.pq.outputs)
 
+proc pin*(cluster: Cluster; cores: openArray[int]) =
+  ## pin a cluster to a selection of cores
+  for i, thread in cluster.threads.mpairs:
+    pinToCpu(thread, cores[i mod cores.len])
+
 proc boot*[T, V](cluster: Cluster[T, V]; work: Work[T, V]) =
   ## boot a cluster with a work assignment
   setLen(cluster.neg, cluster.threads.len)
@@ -96,15 +102,28 @@ proc boot*[T, V](cluster: Cluster[T, V]; work: Work[T, V]) =
     w.cluster = cluster
     createThread(thread, cluster.worker, w)
 
+proc boot*[T, V](cluster: Cluster[T, V]; work: Work[T, V];
+                 data: seq[seq[(SymbolSet[T, V], Score)]]) =
+  ## boot a cluster with a work assignment and unique training data;
+  ## the length of the training data will determine the thread count
+  ## and pin the evolvers to unique processor cores, etc.
+  setLen(cluster.threads, data.len)
+  setLen(cluster.neg, cluster.threads.len)
+  for i, thread in cluster.threads.mpairs:
+    cluster.neg[i] = newLoonyQueue[Program[T]]()
+    var w = work
+    w.core = some i
+    w.neg = cluster.neg[i]
+    w.io = cluster.programQueues()
+    w.cluster = cluster
+    w.dataset = mapIt(data[i], it[0])
+    w.targets = some: mapIt(data[i], it[1])
+    createThread(thread, cluster.worker, w)
+
 proc halt*(cluster: Cluster) =
   ## shutdown a cluster
   for thread in cluster.threads.mitems:
     joinThread thread
-
-proc pin*(cluster: Cluster; cores: openArray[int]) =
-  ## pin a cluster to a selection of cores
-  for i, thread in cluster.threads.mpairs:
-    pinToCpu(thread, cores[i mod cores.len])
 
 proc newCluster*[T, V](worker: Worker[T, V];
                        threads = processors): Cluster[T, V] =
