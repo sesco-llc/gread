@@ -22,9 +22,9 @@ proc mutateFunction[T](c: Primitives[T]; a: Ast[T]; i: int): Ast[T] =
   a.delete(1).insert(1): @[c.initAst(sample funs).nodes[^1]]
 
 proc pointMutation*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
+  audit a: echo "1pt mut: ", a
   if c.isNil:
     raise Defect.newException "unable to mutate ast without primitives"
-  audit result: echo "1pt mut: ", result
   let i = rand a.high
   if a[i].isParent:
     result = mutateFunction(c, a, i)
@@ -39,10 +39,14 @@ proc pointMutation*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
         of Constant:
           c.terminals.filterIt(it.kind == prior.kind and it.ck == prior.ck)
         of Symbol:
+          let x = (c.inputs & c.outputs)
+          if x.len < 1 or x[^1].kind != Symbol:
+            echo "I/O ", repr(x)
+            raise Defect.newException "unable to find suitable terminal"
           (c.inputs & c.outputs).filterIt(it.kind == prior.kind)
       if terms.len == 0:
-        echo repr(prior)
-        echo repr(c.terminals)
+        echo "PRIOR ", repr(prior)
+        echo "TERMINALS ", repr(c.terminals)
         raise Defect.newException "unable to find suitable terminal"
       let chunk = c.initAst(sample terms)
       result = a                                      # copy the whole ast
@@ -52,6 +56,7 @@ proc pointMutation*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
   audit result: echo "2pt mut: ", result
 
 proc pointPromotion*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
+  audit a: echo "promote: ", a
   if c.isNil:
     raise Defect.newException "unable to mutate ast without primitives"
   if a.len < 3 or a.countParents == 0:
@@ -83,6 +88,7 @@ proc pointPromotion*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
       break
 
 proc removeOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
+  audit a: echo "remove: ", a
   if c.isNil:
     raise Defect.newException "unable to mutate ast without primitives"
   if a.len < 3 or a.countParents == a.len:
@@ -95,8 +101,10 @@ proc removeOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
         if prior.kind != Symbol or a[i-1].kind != akCall:
           result = a.delete(i)
           break
+  audit result: echo "remove result: ", result
 
 proc appendOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
+  audit a: echo "append: ", a
   if c.isNil:
     raise Defect.newException "unable to mutate ast without primitives"
   if a.len < 3:
@@ -123,3 +131,4 @@ proc appendOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
               i + 1 + offset # it's not a call?  insert it wherever...
           result = a.insert(index, @[leaf])
           break exit
+  audit result: echo "append result: ", result
