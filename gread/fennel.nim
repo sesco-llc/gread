@@ -329,10 +329,11 @@ proc dumpStats*(fnl: Fennel; pop: Population; evoTime: Time;
          parsimony coefficient: {Score m.parsimony}
             insufficiency rate: {fnl.nans.mean.percent}
            semantic error rate: {fnl.errors.mean.percent}
-              total cache hits: {int fnl.hits.sum}
-                cache hit rate: {fnl.hits.mean.percent}
-                    cache size: {fnl.cache.len}
+          total lua cache hits: {int fnl.hits.sum}
+            lua cache hit rate: {fnl.hits.mean.percent}
+             lua vm cache size: {fnl.cache.len}
              foreign influence: {m.usurper}
+              immigration rate: {(m.immigrants.float / m.size.float).percent}
                best generation: {m.bestGen}
              total generations: {m.generation}
              invention recency: {m.staleness.percent}
