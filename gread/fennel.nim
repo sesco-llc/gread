@@ -86,6 +86,11 @@ proc clearStats*(fnl: Fennel) =
   clear fnl.errors
   clear fnl.hits
   clear fnl.runtime
+  when false:
+    let began = getTime()
+    fnl.vm.checkLua fnl.vm.gc(GcCollect, 0):
+      discard
+    echo "collected in ", (getTime() - began).inMilliseconds, " µs"
 
 const
   #[
