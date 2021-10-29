@@ -11,9 +11,11 @@ proc mutateFunction[T](c: Primitives[T]; a: Ast[T]; i: int): Ast[T] =
   template arity: int = countChildren(a, i) - 1
   let funs = c.functions.filterIt(arity in it.args.a .. it.args.b)
   if funs.len == 0:
-    echo a
-    raise ValueError.newException:
-      "no functions support arity " & $arity
+    # we're here because a program we're mutating is invalid according
+    # to our primitives but, probably, valid according to our target
+    # language; we'll just bail since the alternative is to make the
+    # situation worse...  it's possible the program will be repaired.
+    return a
 
   # initAst produces two nodes; you want only the last one here
   a.delete(1).insert(1): @[c.initAst(sample funs).nodes[^1]]
@@ -73,7 +75,7 @@ proc pointPromotion*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
             get g
       break
 
-proc addOrRemoveLeaves*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
+proc removeOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
   if a.len < 3 or a.countParents == a.len:
     result = a
   else:
@@ -81,7 +83,6 @@ proc addOrRemoveLeaves*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
       let i = rand a.high
       if not a[i].isParent:
         let prior = c.toTerminal(a, i)
-        if prior.kind == Symbol and a[i-1].kind == akCall:
-          continue
-        result = a.delete(i)
-        break
+        if prior.kind != Symbol or a[i-1].kind != akCall:
+          result = a.delete(i)
+          break

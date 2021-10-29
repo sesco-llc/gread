@@ -19,7 +19,7 @@ import pkg/adix/lptabz
 randomize()
 
 const
-  goodEnough = -0.1          ## quit when you reach this score
+  goodEnough = -0.01         ## quit when you reach this score
   dataInaccurate = false     ## use faulty data
   statFrequency = 2000       ## how often to output statistics
 
@@ -34,14 +34,14 @@ prims.inputs.add @[sym"hi", sym"lo"]
 
 # no point in slowing down this simple example
 var tab = defaultTableau
-tab.useParsimony = false
 
 # define the different ways in which we evolve, and their weights
 let
   operators = {
     randomCrossover[Fennel, LuaValue]:   1.0,
     pointPromotion[Fennel, LuaValue]:    2.0,
-    pointMutation[Fennel, LuaValue]:    10.0,
+    removeOneLeaf[Fennel, LuaValue]:     5.0,
+    pointMutation[Fennel, LuaValue]:     5.0,
     subtreeCrossover[Fennel, LuaValue]: 90.0,
   }
 
@@ -147,20 +147,19 @@ suite "simulation":
   block:
     ## ran until we can average two numbers
     while pop.generations < tab.maxGenerations:
-      if pop.best.isValid and pop.best >= goodEnough:
+      if best.isValid and best >= goodEnough:
         break
       let clock = getTime()
       let invented = evo.generation()
       if invented.isSome:
         let p = get invented
         genTime.push (getTime() - clock).inMilliseconds.float
-        if p.score > best:
-          best = pop.penalizeSize(p.score, p.len)
+        if p.score > best or best.isNaN:
+          best = p.score
           dumpPerformance p
 
       if pop.generations mod statFrequency == 0:
         dumpStats()
-        dumpPerformance pop.fittest
 
   block:
     ## showed the top-10 programs

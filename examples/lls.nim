@@ -27,10 +27,11 @@ prims.constants = @[term 1.0, term 0.1]
 
 # you can adjust these weights to change mutation rates
 let operators = {
-  randomCrossover[Fennel, LuaValue]:  2.0,
-  pointPromotion[Fennel, LuaValue]:   5.0,
-  pointMutation[Fennel, LuaValue]:    4.0,
-  subtreeCrossover[Fennel, LuaValue]: 90.0,
+  randomCrossover[Fennel, LuaValue]:    2.0,
+  pointPromotion[Fennel, LuaValue]:     5.0,
+  removeOneLeaf[Fennel, LuaValue]:      5.0,
+  pointMutation[Fennel, LuaValue]:      4.0,
+  subtreeCrossover[Fennel, LuaValue]:  90.0,
 }
 
 const

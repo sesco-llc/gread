@@ -300,9 +300,9 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
         results.add s.float
         ideals.add abs(value[1].float)
     checkpoint "stddev:", stddev(results),
-               "corr:", correlation(results, ideals),
+               "corr:", correlation(results, ideals).percent,
                "ss:", ss(results, ideals),
-               "of ideal:", sum(results) / sum(ideals)
+               "of ideal:", (sum(results) / sum(ideals)).percent
     fnl.dumpScore p
 
 proc dumpStats*(fnl: Fennel; pop: Population; evoTime: Time;
