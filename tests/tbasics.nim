@@ -177,12 +177,12 @@ suite "data":
         }
     check stuff.len == 3
     var count = stuff.len
-    for name, value in stuff.pairs:
+    for name, point in stuff.pairs:
       check name in ["a", "b", "c"]
-      case value.kind
-      of JInt:      check value.getInt == 4
-      of JString:   check value.getStr == "hello"
-      of JFloat:    check value.getFloat == 3.5
+      case point.value.kind
+      of JInt:      check point.getInt == 4
+      of JString:   check point.getStr == "hello"
+      of JFloat:    check point.getFloat == 3.5
       else: fail"unexpected json kind"
       dec count
     check count == 0, "missing some items"
