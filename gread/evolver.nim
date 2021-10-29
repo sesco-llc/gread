@@ -81,7 +81,8 @@ proc tableau*(evo: Evolver): Tableau = evo.tableau
 
 proc fittest*[T, V](evo: Evolver[T, V]): Option[Program[T]] =
   if not evo.population.isNil:
-    result = some evo.population.fittest
+    if not evo.population.fittest.isNil:
+      result = some evo.population.fittest
 
 proc randomOperator*[T, V](evo: Evolver[T, V]): Operator[T, V] =
   if evo.operators.len == 0:
