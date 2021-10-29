@@ -214,17 +214,6 @@ proc randomRemoval*[T](pop: Population[T]): Program[T] =
   withPopulated pop:
     del(pop, rand pop.programs.high)
 
-proc unfit*(pop: Population) =
-  ## mark all members of the population as unscored
-  withInitialized pop:
-    raise Defect.newException "this no longer makes sense"
-    for p in pop.mitems:
-      # critically, when you reset everyone's scores, make sure
-      # you at least try to reset the score of the fittest program
-      # FIXME: for now we just don't reset the fittest individual
-      if cast[int](p) != cast[int](pop.fittest):
-        p.score = NaN
-
 proc selectNonNaN[T](a: openArray[T]): seq[float] =
   result = newSeqOfCap[float](a.len)
   for s in a.items:
@@ -242,7 +231,6 @@ proc parsimony*(pop: Population): float =
       else:
         defaultParsimony
     pop.ken.parsimony = result
-    unfit pop
 
 proc nextGeneration*(pop: Population): Generation =
   ## inform the population that we're entering a new generation
