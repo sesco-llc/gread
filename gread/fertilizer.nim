@@ -11,6 +11,8 @@ type
 proc randAst*[T](c: Primitives[T]; size: var int;
                  kinds = {Node, Leaf}): Ast[T] =
   ## produce a random tree of ast using `size` as a guideline
+  if c.isNil:
+    raise Defect.newException "unable to create ast without primitives"
   dec size
   var kinds =
     if size <= 0: {Leaf}

@@ -87,6 +87,8 @@ proc render*[T](c: Primitives[T]; n: AstNode[T]): string =
 
 proc render*[T](c: Primitives[T]; a: Ast[T]): string =
   ## it's the fennel renderer for other languages 🤷
+  if c.isNil:
+    raise Defect.newException "unable to render without primitives"
   var i = 0
   var s = newSeqOfCap[int](a.len)
   template maybeAddSpace {.dirty.} =

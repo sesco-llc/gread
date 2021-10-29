@@ -7,6 +7,8 @@ import gread/ast
 import gread/primitives
 
 proc mutateFunction[T](c: Primitives[T]; a: Ast[T]; i: int): Ast[T] =
+  if c.isNil:
+    raise Defect.newException "unable to mutate ast without primitives"
   template arity: int = countChildren(a, i) - 1
   let funs = c.functions.filterIt(arity in it.args.a .. it.args.b)
   if funs.len == 0:
@@ -20,6 +22,8 @@ proc mutateFunction[T](c: Primitives[T]; a: Ast[T]; i: int): Ast[T] =
   a.delete(1).insert(1): @[c.initAst(sample funs).nodes[^1]]
 
 proc pointMutation*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
+  if c.isNil:
+    raise Defect.newException "unable to mutate ast without primitives"
   audit result: echo "1pt mut: ", result
   let i = rand a.high
   if a[i].isParent:
@@ -36,8 +40,10 @@ proc pointMutation*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
           c.terminals.filterIt(it.kind == prior.kind and it.ck == prior.ck)
         of Symbol:
           (c.inputs & c.outputs).filterIt(it.kind == prior.kind)
-        #else:
-        #  c.terminals.filterIt(it.kind == prior.kind)
+      if terms.len == 0:
+        echo repr(prior)
+        echo repr(c.terminals)
+        raise Defect.newException "unable to find suitable terminal"
       let chunk = c.initAst(sample terms)
       result = a                                      # copy the whole ast
       result.nodes[i] = chunk.nodes[0]                # swap the new node in
@@ -46,6 +52,8 @@ proc pointMutation*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
   audit result: echo "2pt mut: ", result
 
 proc pointPromotion*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
+  if c.isNil:
+    raise Defect.newException "unable to mutate ast without primitives"
   if a.len < 3 or a.countParents == 0:
     result = a
   else:
@@ -75,6 +83,8 @@ proc pointPromotion*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
       break
 
 proc removeOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
+  if c.isNil:
+    raise Defect.newException "unable to mutate ast without primitives"
   if a.len < 3 or a.countParents == a.len:
     result = a
   else:
@@ -87,6 +97,8 @@ proc removeOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
           break
 
 proc appendOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
+  if c.isNil:
+    raise Defect.newException "unable to mutate ast without primitives"
   if a.len < 3:
     result = a
   else:
@@ -100,6 +112,8 @@ proc appendOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
               i = get dad
             else:
               break random  # try another index; this should be impossible
+          if c.terminals.len == 0:
+            raise Defect.newException "no terminals means no leaves"
           let leaf = c.initAst(sample c.terminals).nodes[^1]
           let offset = rand 0..<countChildren(a, i)  # offset some number of kids
           let index =
