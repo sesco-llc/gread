@@ -89,6 +89,7 @@ proc render*[T](c: Primitives[T]; a: Ast[T]): string =
   ## it's the fennel renderer for other languages 🤷
   if c.isNil:
     raise Defect.newException "unable to render without primitives"
+  audit a: echo "render: ", repr(a)
   var i = 0
   var s = newSeqOfCap[int](a.len)
   template maybeAddSpace {.dirty.} =
