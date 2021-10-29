@@ -1,3 +1,4 @@
+import std/times
 import std/sequtils
 import std/random
 import std/options
@@ -94,7 +95,13 @@ proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   else:
-    result = evo.fitone(evo.platform, s, p)
+    result = p.getScoreFromCache(s.hash)
+    if result.isNone:
+      let began = getTime()
+      result = evo.fitone(evo.platform, s, p)
+      p.runtime.push (getTime() - began).inMilliseconds.float
+      if result.isSome:
+        p.addScoreToCache(s.hash, get result)
 
 proc score*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
   ## score the program against all available symbol sets
@@ -114,6 +121,11 @@ proc score*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
           scores.add (ss, get s)
       let s = evo.fitmany(evo.platform, scores, p)
       if s.isSome:
+        p.score = get s
+        # FIXME: find a better way to do this (ie. discover the index somehow?)
+        when false:
+          if not evo.population.isNil:
+            scoreChanged(evo.population, p, p.score, index = none int)  # 😢
         result = s
 
 proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
