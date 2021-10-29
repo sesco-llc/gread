@@ -13,6 +13,9 @@ type
     kind*: AstKind
     value*: V
 
+converter toValue*[T, V](point: DataPoint[T, V]): V =
+  point.value
+
 proc len*(ss: SymbolSet): int = ss.values.len
 
 proc `$`*(dp: DataPoint): string =
@@ -45,9 +48,14 @@ proc initSymbolSet*[T, V](values: openArray[(string, V)]): SymbolSet[T, V] =
       initDataPoint[T, V](name, value)
   result = initSymbolSet[T, V](points)
 
-iterator pairs*[T, V](ss: SymbolSet[T, V]): tuple[key: string, val: V] =
+type
+  NamePoint[T, V] = tuple  # only for pairs iteration; no export
+    key: string
+    val: DataPoint[T, V]
+
+iterator pairs*[T, V](ss: SymbolSet[T, V]): NamePoint[T, V] =
   for point in ss.values.items:
-    yield (key: point.name, val: point.value)
+    yield (key: point.name, val: point)
 
 iterator items*[T, V](ss: SymbolSet[T, V]): DataPoint[T, V] =
   for point in ss.values.items:
@@ -61,3 +69,8 @@ proc values*[T, V](ss: SymbolSet[T, V]): lent seq[DataPoint[T, V]] =
   ss.values
 
 proc hash*(ss: SymbolSet): Hash = ss.hash
+
+proc `[]`*[T, V](ss: SymbolSet[T, V]; key: string): DataPoint[T, V] =
+  for name, value in ss.pairs:
+    if name == key:
+      return value
