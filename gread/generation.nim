@@ -28,6 +28,7 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
         del(evo.population, loser.index)
 
     p.generation = gen
+    p.core = evo.core
     profile "new score":
       # FIXME: optimization point
       #let s = evo.score(evo.randomSymbols(), p)

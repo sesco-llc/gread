@@ -42,8 +42,8 @@ type
     population: Population[T]
     operators: AliasMethod[Operator[T, V]]
 
-proc `core=`*[T, V](evo: var Evolver[T, V]; core: CoreSpec) =
-  evo.core = core
+proc `core=`*(evo: var Evolver; core: CoreSpec) = evo.core = core
+proc core*(evo: var Evolver): CoreSpec = evo.core
 
 proc `operators=`*[T, V](evo: var Evolver[T, V];
                          weighted: openArray[(Operator[T, V], float64)]) =
@@ -160,11 +160,13 @@ proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
   result = newPopulation[T](evo.tableau.seedPopulation, core = evo.core)
   while result.len < evo.tableau.seedPopulation:
     let p = randProgram(evo.primitives, evo.tableau.seedProgramSize)
-    let s = evo.score(p) #evo.randomSymbols(), p)
+    p.core = evo.core
+    let s = evo.score(evo.randomSymbols(), p)
     if s.isSome:
       if s.get.isNaN:
         raise ValueError.newException:
           "a fitness function produced NaN; this is unsupported for randomPop()"
       else:
+        # this score value is probably pretty useless
         p.score = get s
         result.add p
