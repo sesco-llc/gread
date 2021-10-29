@@ -110,7 +110,8 @@ proc penalizeSize*(pop: Population; score: Score; length: int): Score =
   withInitialized pop:
     var s = score.float
     if not pop.ken.parsimony.isNaN:
-      s += min(0.0, pop.ken.parsimony * length.float)
+      if pop.ken.parsimony < 0.0:
+        s += min(0.0, pop.ken.parsimony * length.float)
     result = Score s
 
 proc maybeResetFittest[T](pop: Population[T]; p: Program[T]) =
