@@ -253,6 +253,7 @@ proc scoreChanged*(pop: Population; p: Program; s: Score; index = none int) =
     if index.isSome:
       pop.scores[get index] = float penalizeSize(pop, s, p.len)
     else:
+      # FIXME: find a better way to do this
       for i, q in pop.programs.pairs:
         if q.hash == p.hash:
           scoreChanged(pop, p, s, index = some i)
