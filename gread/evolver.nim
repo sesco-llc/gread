@@ -4,6 +4,7 @@ import std/random
 import std/options
 
 import pkg/adix/lptabz
+import pkg/adix/stat
 
 import gread/population
 import gread/spec
@@ -37,10 +38,22 @@ type
     balance: AliasMethod[int]
     core: CoreSpec
     tableau: Tableau
-    fitness: Fitness[T]
     primitives: Primitives[T]
     population: Population[T]
     operators: AliasMethod[Operator[T, V]]
+    gentime: MovingStat[float32]
+
+proc generationTime*(evo: Evolver): MovingStat[float32] =
+  ## fetch the generation time statistics
+  evo.gentime
+
+proc generationTime*(evo: var Evolver; ms: float) =
+  ## add a generation time (in millis) for recordkeeping
+  evo.gentime.push ms
+
+proc clearStats*(evo: var Evolver) =
+  ## reset any statistics recorded by the Evolver
+  clear evo.gentime
 
 proc `core=`*(evo: var Evolver; core: CoreSpec) = evo.core = core
 proc core*(evo: var Evolver): CoreSpec = evo.core

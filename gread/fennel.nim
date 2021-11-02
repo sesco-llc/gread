@@ -311,7 +311,7 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
     fnl.dumpScore p
 
 proc dumpStats*(fnl: Fennel; pop: Population; evoTime: Time;
-                gen: var FennelStat) =
+                genTime: FennelStat) =
   ## a threadsafe echo of some statistics regarding the vm and population
   let m = pop.metrics
   let threaded = when compileOption"threads": $getThreadId() else: "-"
@@ -342,11 +342,10 @@ proc dumpStats*(fnl: Fennel; pop: Population; evoTime: Time;
                best generation: {m.bestGen}
              total generations: {m.generation}
              invention recency: {m.staleness.percent}
-               generation time: {Score gen.mean} ms
+               generation time: {Score genTime.mean} ms
                 evolution time: {(getTime() - evoTime).inSeconds} sec
   """
   clearStats fnl
-  clear gen
 
 when compileOption"threads":
   import gread/cluster
@@ -368,7 +367,6 @@ when compileOption"threads":
 
     var leader: Hash
     var evoTime = getTime()
-    var genTime: FennelStat
     while true:
       noop() # give other evolvers a chance
 
@@ -388,9 +386,7 @@ when compileOption"threads":
         profile "parsimony":
           discard evo.population.parsimony
 
-      let clock = getTime()
       let invention = evo.generation()
-      genTime.push (getTime() - clock).inMilliseconds.float
 
       if invention.isSome:
         let p = get invention
@@ -398,7 +394,8 @@ when compileOption"threads":
           p.core = fnl.core
 
         if p.generation mod args.stats == 0:
-          dumpStats(fnl, evo.population, evoTime, genTime)
+          dumpStats(fnl, evo.population, evoTime, evo.generationTime)
+          clearStats evo
 
         if p.score.isNaN:
           negativeCache(args, p)
