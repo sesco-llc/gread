@@ -7,42 +7,27 @@ import std/options
 import std/strutils
 
 import pkg/lunacy
+import pkg/adix/lptabz
+import pkg/adix/stat
 import pkg/balls
+import pkg/cps
 
 import gread/spec
 import gread/ast
 import gread/population
 import gread/programs
-import gread/maths
+import gread/maths except variance
 import gread/primitives
 import gread/data
+import gread/evolver
 
+export stat
+export lptabz
 export lunacy
 
 const
   semanticErrorsAreFatal = false
   initialCacheSize = 32*1024
-  useAdix = true
-
-when useAdix:
-  import pkg/adix/lptabz
-  import pkg/adix/stat except variance
-  export stat except variance
-  export lptabz
-
-  type
-    FennelStat* = MovingStat[float32]
-    FennelTab* = LPTab
-
-else:
-  import std/tables
-  import std/stats except variance
-  export stats except variance
-  export tables
-
-  type
-    FennelStat* = RunningStat
-    FennelTab* = Table
 
 type
   Fennel* = ref object
@@ -50,27 +35,29 @@ type
     primitives: Primitives[Fennel]
     vm*: PState
     runs*: uint
-    cache: FennelTab[Hash, Score]
+    cache: LPTab[Hash, Score]
     nans*: FennelStat
     errors*: FennelStat
     hits*: FennelStat
     runtime*: FennelStat
+
+  FennelStat* = MovingStat[float32]
 
   Term* = Terminal[Fennel]
   Fun* = Function[Fennel]
 
   FProg* = Program[Fennel]
   FPop* = Population[Fennel]
+  FEvo* = Evolver[Fennel, LuaValue]
 
   Locals* = SymbolSet[Fennel, LuaValue]
 
   FenFit = proc(locals: Locals; ideal: LuaValue): Score
 
-proc asTable*[T](locals: Locals): FennelTab[string, T] =
+proc asTable*[T](locals: SymbolSet[Fennel, LuaValue]): LPTab[string, T] =
   ## given locals, select values of the given type into a table
-  when useAdix:
-    init(result, initialSize = locals.values.len)
-  for point in locals.values.items:
+  init(result, initialSize = locals.len)
+  for point in locals.items:
     template name: string = point.name
     template value: LuaValue = point.value
     when T is SomeFloat:
@@ -86,13 +73,13 @@ proc asTable*[T](locals: Locals): FennelTab[string, T] =
       if value.kind == TBoolean:
         result[name] = value.truthy
 
-proc initLocals*(values: openArray[(string, LuaValue)]): Locals =
+proc initLocals*[T, V](values: openArray[DataPoint[T, V]]): SymbolSet[T, V] =
+  initSymbolSet[T, V](values)
+
+proc initLocals*[V](values: openArray[(string, V)]): SymbolSet[Fennel, V] =
   ## convert an openArray of (name, value) pairs into Locals
   ## suitable for evaluate()
-  initSymbolSet[Fennel, LuaValue](values)
-
-proc initLocals*(values: openArray[DataPoint[Fennel, LuaValue]]): Locals =
-  initSymbolSet values
+  initSymbolSet[Fennel, V](values)
 
 proc clearStats*(fnl: Fennel) =
   ## reset the MovingStat values in the Fennel object
@@ -100,6 +87,11 @@ proc clearStats*(fnl: Fennel) =
   clear fnl.errors
   clear fnl.hits
   clear fnl.runtime
+  when false:
+    let began = getTime()
+    fnl.vm.checkLua fnl.vm.gc(GcCollect, 0):
+      discard
+    echo "collected in ", (getTime() - began).inMilliseconds, " µs"
 
 const
   #[
@@ -128,13 +120,12 @@ const
       )
     )
   """
+
 proc newFennel*(c: Primitives[Fennel]; core = none int): Fennel =
   ## reset a Fennel instance and prepare it for running programs
   result = Fennel(vm: newState(), primitives: c, core: core)
-  when useAdix:
-    init(result.cache, initialSize = initialCacheSize)
+  init(result.cache, initialSize = initialCacheSize)
   clearStats result
-  result.runs = 0
 
   # setup the lua vm with the fennel compiler and any shims
   result.vm.openLibs()
@@ -214,7 +205,7 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   ## compile and evaluate the program as fennel; the result of
   ## the expression is assigned to the variable `result`.
   vm.pushGlobal("result", term 0.0)
-  for point in locals.values.items:
+  for point in locals.items:
     discard vm.push point.value
     vm.setGlobal point.name.cstring
   let fennel = """
@@ -225,7 +216,7 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
     result = popStack vm
 
 proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
-  if p.zombie: return NaN
+  if p.zombie or p.hash in fnl.cache: return NaN
   var h = hash(p, locals)
   try:
     # try to fetch the score from cache
@@ -290,8 +281,8 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
         checkpoint $value, "->", s
       if s.isValid:
         results.add s.float
-    checkpoint "  stddev:", stddev(results)
-    checkpoint "      ss: ", ss(results)
+    checkpoint "  stddev:", Score stddev(results)
+    checkpoint "      ss: ", Score ss(results)
     fnl.dumpScore p
 
 proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
@@ -314,146 +305,96 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
         results.add s.float
         ideals.add abs(value[1].float)
     checkpoint "stddev:", stddev(results),
-               "corr:", correlation(results, ideals),
+               "corr:", correlation(results, ideals).percent,
                "ss:", ss(results, ideals),
-               "of ideal:", sum(results) / sum(ideals)
+               "of ideal:", (sum(results) / sum(ideals)).percent
     fnl.dumpScore p
 
-proc dumpStats*(fnl: Fennel; pop: var Population; evo: Time;
+proc dumpStats*(fnl: Fennel; pop: Population; evoTime: Time;
                 gen: var FennelStat) =
   ## a threadsafe echo of some statistics regarding the vm and population
-  var lengths = newSeqOfCap[int](pop.len)
-  var scores = newSeqOfCap[float](pop.len)
-  var validity = newSeqOfCap[float](pop.len)
-  var ages = newSeqOfCap[int](pop.len)
-  for p in pop.mitems:
-    let s = pop.score(p)
-    lengths.add p.len
-    ages.add pop.generations - p.generation
-    if s.isValid:
-      scores.add: s
-      validity.add 1.0
-    else:
-      validity.add 0.0
-  # FIXME: introduce scorecard
-  let bestSize = if pop.fittest.isNil: "n/a" else: $pop.fittest.len
-  let bestGen = if pop.fittest.isNil: "n/a" else: $pop.fittest.generation
-  let staleness = if pop.fittest.isNil: "n/a" else: $percent(pop.fittest.generation.float / pop.generations.float)
-  let foreignInfluence =
-    if pop.fittest.isNil or pop.fittest.core.isNone:
-      "?"
-    elif pop.fittest.core.get == fnl.core.get:
-      "-"
-    else:
-      $pop.fittest.core.get
+  let m = pop.metrics
   let threaded = when compileOption"threads": $getThreadId() else: "-"
-  let coreid = if fnl.core.isSome: $fnl.core.get else: "-"
   if not pop.fittest.isNil:
     fnl.dumpScore pop.fittest
 
+  var dumb = m.lengths.variance.int  # work around nim bug
   checkpoint fmt"""
-               core and thread: {coreid}/{threaded}
+               core and thread: {m.core}/{threaded}
           virtual machine runs: {fnl.runs} (never reset)
             average vm runtime: {fnl.runtime.mean:>6.2f} ms
-         total population size: {pop.len}
-            average age in pop: {avg(ages)}
-          validity rate in pop: {avg(validity).percent}
-         program size variance: {variance(lengths)}
-           average valid score: {Score avg(scores)}
-          greatest of all time: {Score pop.best}
-          average program size: {avg(lengths)}
-          size of best program: {bestSize}
-         parsimony coefficient: {Score pop.pcoeff}
+         total population size: {m.size}
+            average age in pop: {int(m.generation.int.float - m.ages.mean)}
+          validity rate in pop: {m.validity.mean.percent}
+         program size variance: {dumb}
+           average valid score: {Score m.scores.mean}
+          greatest of all time: {m.bestScore}
+          average program size: {m.lengths.mean.int}
+          size of best program: {m.bestSize}
+         parsimony coefficient: {Score m.parsimony}
             insufficiency rate: {fnl.nans.mean.percent}
            semantic error rate: {fnl.errors.mean.percent}
-              total cache hits: {int fnl.hits.sum}
-                cache hit rate: {fnl.hits.mean.percent}
-                    cache size: {fnl.cache.len}
-             foreign influence: {foreignInfluence}
-               best generation: {bestGen}
-             total generations: {pop.generations}
-             invention recency: {staleness}
+          total lua cache hits: {int fnl.hits.sum}
+            lua cache hit rate: {fnl.hits.mean.percent}
+             lua vm cache size: {fnl.cache.len}
+             foreign influence: {m.usurper}
+              immigration rate: {(m.immigrants.float / m.size.float).percent}
+               best generation: {m.bestGen}
+             total generations: {m.generation}
+             invention recency: {m.staleness.percent}
                generation time: {Score gen.mean} ms
-                evolution time: {(getTime() - evo).inSeconds} sec
+                evolution time: {(getTime() - evoTime).inSeconds} sec
   """
   clearStats fnl
   clear gen
 
 when compileOption"threads":
-  import gread/tableau
+  import gread/cluster
   import gread/generation
 
-  import pkg/loony
+  proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
+    let fnl = newFennel(args.primitives, core = args.core)
+    var evo: Evolver[Fennel, LuaValue]
+    initEvolver(evo, fnl, args.tableau)
+    evo.primitives = args.primitives
+    evo.operators = args.operators
+    evo.dataset = args.dataset
+    evo.core = fnl.core
+    evo.fitone = args.fitone
+    evo.fitmany = args.fitmany
+    evo.population = evo.randomPop()
 
-  type
-    Work* = object
-      core*: Option[int]
-      stats*: int
-      sharing*: int
-      fitness*: Fitness[Fennel]
-      tableau*: Tableau
-      primitives*: Primitives[Fennel]
-      operators*: seq[OperatorWeight[Fennel]]
-      io*: tuple[inputs: LoonyQueue[FProg], outputs: LoonyQueue[FProg]]
+    var leader: Hash
+    var evoTime = getTime()
+    var genTime: FennelStat
+    while true:
+      for invalid in invalidPrograms(args):
+        fnl.cache[invalid.hash] = Score NaN
 
-  proc initWork*(tab: Tableau; prims: Primitives[Fennel];
-                 ops: openArray[OperatorWeight[Fennel]] = @[];
-                 fitness: Fitness[Fennel] = nil;
-                 sharing = 2; stats = 1000; core = none int): Work =
-    ## create a work object suitable for passing setup instructions
-    ## to worker threads
-    result = Work(tableau: tab, primitives: prims, stats: stats,
-                  fitness: fitness, sharing: sharing, core: core)
-    result.io = (newLoonyQueue[FProg](), newLoonyQueue[FProg]())
-    for item in ops.items:
-      result.operators.add item
+      search(args, evo.population)   # fresh meat from other threads
 
-  proc share*(work: Work; p: FProg) =
-    ## send a better program to other threads
-    for copies in 1..max(1, work.sharing):
-      var transit = clone p
-      transit.source = getThreadId()
-      push(work.io.outputs, transit)
+      let fit = evo.fittest
+      if fit.isSome:
+        let fit = get fit
+        if fit.hash != leader:
+          leader = fit.hash
+          share(args, fit)  # send it to other threads
 
-  proc search*(work: Work; pop: var FPop) =
-    ## try to get some fresh genes from another thread
-    var transit = pop work.io.inputs
-    if not transit.isNil:
-      transit.score = NaN
-      discard pop.score transit
-      when false:
-        pop.introduce transit    # no propogation of winners into fittest
-      else:
-        pop.add transit          # allows a winner to further propogate
+      if evo.tableau.useParsimony:
+        profile "parsimony":
+          discard evo.population.parsimony
 
-  proc worker*(args: Work) {.thread, gcsafe.} =
-    {.gcsafe.}:
-      let fnl = newFennel(args.primitives, core = args.core)
-      var pop = randomPop(fnl, args.tableau, args.primitives)
-      pop.fitness = args.fitness
-      pop.operators = args.operators
+      let clock = getTime()
+      let invention = evo.generation()
+      genTime.push (getTime() - clock).inMilliseconds.float
 
-      var leader: Hash
-      var evoTime = getTime()
-      var genTime: FennelStat
-      while true:
-        search(args, pop)   # fresh meat from other threads
-
-        let clock = getTime()
-        let p = generation pop
-        genTime.push (getTime() - clock).inMilliseconds.float
-
+      if invention.isSome:
+        let p = get invention
         if p.core.isNone and fnl.core.isSome:
           p.core = fnl.core
 
-        if not pop.fittest.isNil:
-          if pop.fittest.hash != leader:
-            leader = pop.fittest.hash
-            share(args, pop.fittest)  # send it to other threads
-
         if p.generation mod args.stats == 0:
-          dumpStats(fnl, pop, evoTime, genTime)
+          dumpStats(fnl, evo.population, evoTime, genTime)
 
-        if args.tableau.useParsimony:
-          profile "parsimony":
-            discard pop.parsimony
+        if p.score.isNaN:
+          negativeCache(args, p)

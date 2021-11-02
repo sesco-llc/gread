@@ -19,7 +19,7 @@ import pkg/adix/lptabz
 randomize()
 
 const
-  goodEnough = -0.5          ## quit when you reach this score
+  goodEnough = -0.01         ## quit when you reach this score
   dataInaccurate = false     ## use faulty data
   statFrequency = 2000       ## how often to output statistics
 
@@ -34,27 +34,27 @@ prims.inputs.add @[sym"hi", sym"lo"]
 
 # no point in slowing down this simple example
 var tab = defaultTableau
-tab.useParsimony = false
 
 # define the different ways in which we evolve, and their weights
 let
   operators = {
-    randomCrossover[Fennel]: 0.01,
-    pointPromotion[Fennel]: 0.02,
-    pointMutation[Fennel]: 0.10,
-    subtreeCrossover[Fennel]: 0.90,
+    randomCrossover[Fennel, LuaValue]:   1.0,
+    pointPromotion[Fennel, LuaValue]:    2.0,
+    removeOneLeaf[Fennel, LuaValue]:     5.0,
+    pointMutation[Fennel, LuaValue]:     5.0,
+    subtreeCrossover[Fennel, LuaValue]: 90.0,
   }
 
 var
   fnl = newFennel(prims)
   pop: FPop
+  evo: FEvo
   # we want to make a function that returns the median of `lo` and `hi` inputs
   inputData = @[
     # the training data is also the test data; no hold-outs, everybody fights
     (%* {"hi": 24.0,   "lo": 7.0},      15.5),
     (%* {"hi": 11.0,   "lo": 6.0},       8.5),
     (%* {"hi": 98.0,   "lo": 71.0},     84.5),
-
   ]
 
 when dataInaccurate:
@@ -82,10 +82,10 @@ var training: seq[(Locals, Score)]
 var targets: LPTab[Hash, LuaValue]
 init(targets, initialSize = inputData.len)
 for (js, ideal) in inputData.items:
-  var pairs: seq[(string, LuaValue)]
+  var paired: seq[(string, LuaValue)]
   for name, value in js.pairs:
-    pairs.add (name, value.toLuaValue)
-  var locals = initLocals pairs
+    paired.add (name, value.toLuaValue)
+  var locals = initLocals paired
   let luaIdeal = ideal.toLuaValue
   training.add (locals, Score ideal)
   targets[hash locals] = luaIdeal
@@ -97,61 +97,69 @@ proc fenfit(inputs: Locals; output: LuaValue): Score =
   else:
     NaN
 
-proc fitone(p: FProg; locals: Locals): Score =
+proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
   ## convenience capture
-  evaluate(fnl, p, locals, fenfit)
+  let s = evaluate(fnl, p, locals, fenfit)
+  if not s.isNaN and s notin [-Inf, Inf]:
+    result = some Score(-abs s)
 
-proc fitness(fnl: Fennel; p: FProg): Score =
-  var results = newSeq[float](training.len)
-  var s = NaN
-  for (locals, ideal) in training.items:
-    s = fitone(p, locals)
-    if s.isNaN:
-      return Score NaN
+proc fitmany(fnl: Fennel; ss: openArray[(Locals, Score)];
+             p: FProg): Option[Score] =
+  var results = newSeqOfCap[float](ss.len)
+  for locals, s in ss.items:
+    if s.isNaN or s in [-Inf, Inf]:
+      return none Score
     else:
       results.add s
   if results.len > 0:
-    s = -(stddev results)
-  result = Score: s
+    result = some Score -(stddev results)
 
 template dumpStats() {.dirty.} =
-  dumpStats(fnl, pop, evo, genTime)
+  dumpStats(fnl, pop, et, genTime)
 
 template dumpPerformance(p: FProg) {.dirty.} =
   dumpPerformance(fnl, p, training, fenfit)
 
 suite "simulation":
-  var evo = getTime()
+  var et = getTime()
   var genTime: FennelStat
 
   block:
     ## created a random population of programs
     checkpoint "creating", tab.seedPopulation, "random programs..."
-    pop = randomPop(fnl, tab, prims)
-    pop.operators = operators
-    pop.fitness = fitness
+    initEvolver(evo, fnl, tab)
+    evo.primitives = prims
+    evo.operators = operators
+    evo.dataset = training
+    evo.fitone = fitone
+    evo.fitmany = fitmany
+    evo.population = evo.randomPop()
+
+    # we use `pop` in some closures, so we'll assign it here
+    pop = evo.population
 
   block:
     ## dumped some statistics
     dumpStats()
 
-  evo = getTime()
+  et = getTime()
   var best = Score NaN
   block:
     ## ran until we can average two numbers
     while pop.generations < tab.maxGenerations:
-      if pop.best.isValid and pop.best >= goodEnough:
+      if best.isValid and best >= goodEnough:
         break
       let clock = getTime()
-      let p = generation pop
-      genTime.push (getTime() - clock).inMilliseconds.float
-      if p.score > best:
-        best = pop.best
-        dumpPerformance p
+      let invented = evo.generation()
+      if invented.isSome:
+        let p = get invented
+        genTime.push (getTime() - clock).inMilliseconds.float
+        if p.score > best or best.isNaN:
+          best = p.score
+          dumpPerformance p
 
       if pop.generations mod statFrequency == 0:
         dumpStats()
-        dumpPerformance pop.fittest
 
   block:
     ## showed the top-10 programs

@@ -7,9 +7,10 @@ import std/random
 import std/math
 
 import gread
-import gread/fennel
+import gread/fennel except variance
 
 import pkg/balls
+import pkg/cps
 import pkg/lunacy
 import pkg/loony
 import pkg/adix/lptabz
@@ -27,10 +28,12 @@ prims.constants = @[term 1.0, term 0.1]
 
 # you can adjust these weights to change mutation rates
 let operators = {
-  randomCrossover[Fennel]: 2.0,
-  pointPromotion[Fennel]: 5.0,
-  pointMutation[Fennel]: 4.0,
-  subtreeCrossover[Fennel]: 90.0,
+  randomCrossover[Fennel, LuaValue]:    1.0,
+  pointPromotion[Fennel, LuaValue]:     5.0,
+  removeOneLeaf[Fennel, LuaValue]:      5.0,
+  appendOneLeaf[Fennel, LuaValue]:      2.0,
+  pointMutation[Fennel, LuaValue]:      4.0,
+  subtreeCrossover[Fennel, LuaValue]:  90.0,
 }
 
 const
@@ -49,28 +52,31 @@ for (x, y) in data.items:
 
 proc fenfit(inputs: Locals; output: LuaValue): Score =
   ## fenfit gates program output such that producing a NaN will terminate
-  ## training of the program early, and mark the program as invalid
+  ## scoring of the program early, and mark the program as invalid
   if output.kind == TNumber:
     targets[hash inputs].toFloat - output.toFloat  # the residual
   else:
     NaN
 
-proc fitness(fnl: Fennel; p: FProg): Score =
-  ## the fitness function measures the program's performance
-  ## across the entire dataset
-  var results = newSeq[float](training.len)
-  var s = NaN
-  for locals in training.items:
-    s = evaluate(fnl, p, locals, fenfit)
+proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
+  let s = evaluate(fnl, p, locals, fenfit)
+  if not s.isNaN:
+    result = some Score(-abs s)
+
+proc fitmany(fnl: Fennel; data: openArray[(Locals, Score)];
+             p: FProg): Option[Score] =
+  var results = newSeqOfCap[float](data.len)
+  for locals, s in data.items:
     if s.isNaN:
-      return Score NaN
+      return none Score
     else:
       results.add s
   if results.len > 0:
-    s = -variance(results)  # ie. minimize variance
-  result = Score: s
+    result = some Score -ss(results)
 
 when isMainModule:
+  import std/sequtils
+  import gread/cluster
 
   randomize()
 
@@ -95,19 +101,14 @@ when isMainModule:
   tab.maxPopulation = 10000
 
   # each worker gets a Work object as input to its thread
-  var args = initWork(tab, prims, operators, fitness, stats = statFrequency)
+  let clump = newCluster[Fennel, LuaValue]()
+  var args = clump.initWork()
+  initWork(args, tab, primitives = prims, operators = operators,
+           dataset = training,
+           fitone = fitone, fitmany = fitmany, stats = statFrequency)
 
-  let processors = countProcessors()
-  var threads: seq[Thread[Work]]
-  newSeq(threads, processors)
-  checkpoint fmt"seeding {threads.len} threads..."
-  for i, thread in threads.mpairs:
-    args.core = some i
-    createThread(thread, worker, args)
-    pinToCpu(thread, i mod processors)
+  clump.boot(whelp worker(args), args.core)
 
   # run the main loop to gatekeep inventions
-  main(args, args.io.outputs, args.io.inputs)
-
-  for thread in threads.mitems:
-    joinThread thread
+  let (inputs, outputs) = clump.programQueues()
+  main(args, outputs, inputs)

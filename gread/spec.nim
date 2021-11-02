@@ -1,11 +1,15 @@
-import std/times
-import std/macros
+import std/options
 import std/math
 import std/strutils
 
+import pkg/cps
+
 type
   Score* = distinct float
+  CoreSpec* = Option[CoreId]
+  CoreId* = int
   Generation* = distinct int
+  C* = ref object of Continuation
 
 converter toFloat*(s: Score): float = float s
 converter toScore*[T: float or float64](f: T): Score = Score f
@@ -34,10 +38,20 @@ proc inc*(g: var Generation; n: int = 1) {.borrow.}
 proc `mod`*(a: Generation; b: int): int = a.int.mod b
 converter toInt*(g: Generation): int = g.int
 
-macro profile*(s: string; logic: untyped): untyped =
-  when defined(danger) or not defined(greadProfile):
-    result = logic
+#proc get*(cs: CoreSpec): int = get Option[int](cs)
+#proc isSome*(cs: CoreSpec): bool = isSome Option[int](cs)
+#proc isNone*(cs: CoreSpec): bool = isNone Option[int](cs)
+
+proc `$`*(cs: CoreSpec): string =
+  if cs.isSome:
+    $get(cs)
   else:
+    "-"
+
+when defined(greadProfile):
+  import std/times
+  import std/macros
+  macro profile*(s: string; logic: untyped): untyped =
     let readTime = newCall bindSym"getTime"
     let readThread =
       when compileOption"threads":
@@ -56,3 +70,5 @@ macro profile*(s: string; logic: untyped): untyped =
       result.add newCall(bindSym"debugEcho", s, newLit" ",
                          newCall(bindSym"inMilliseconds",
                                newCall(bindSym"-", readTime, clock)))
+else:
+  template profile*(s: string; logic: untyped): untyped = logic

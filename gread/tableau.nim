@@ -6,9 +6,10 @@ type
     seedProgramSize*: int
     tournamentSize*: int
     useParsimony*: bool
+    sharingRate*: float
 
 const
   defaultTableau* =
     Tableau(seedPopulation: 500, maxPopulation: 500,
             maxGenerations: 200_000, seedProgramSize: 5,
-            tournamentSize: 6, useParsimony: on)
+            sharingRate: 2.0, tournamentSize: 6, useParsimony: on)
