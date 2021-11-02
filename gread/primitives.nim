@@ -4,7 +4,7 @@ import gread/ast
 import "$nim/compiler/ic/bitabs"
 
 type
-  Primitives*[T] = ref object
+  PrimitivesObj[T] = object
     functions*: seq[Function[T]]
     constants*: seq[Terminal[T]]
     inputs*: seq[Terminal[T]]
@@ -12,8 +12,10 @@ type
     strings: BiTable[string]
     numbers: BiTable[BiggestInt]
 
+  Primitives*[T] = ptr PrimitivesObj[T]
+
 proc newPrimitives*[T](): Primitives[T] =
-  new Primitives[T]
+  cast[Primitives[T]](alloc0 sizeof(PrimitivesObj))
 
 func terminals*[T](c: Primitives[T]): seq[Terminal[T]] =
   c.constants & c.inputs & c.outputs
