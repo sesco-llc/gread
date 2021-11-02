@@ -125,7 +125,6 @@ proc newFennel*(c: Primitives[Fennel]; core = none int): Fennel =
   result = Fennel(vm: newState(), primitives: c, core: core)
   init(result.cache, initialSize = initialCacheSize)
   clearStats result
-  result.runs = 0
 
   # setup the lua vm with the fennel compiler and any shims
   result.vm.openLibs()
@@ -281,8 +280,8 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
         checkpoint $value, "->", s
       if s.isValid:
         results.add s.float
-    checkpoint "  stddev:", stddev(results)
-    checkpoint "      ss: ", ss(results)
+    checkpoint "  stddev:", Score stddev(results)
+    checkpoint "      ss: ", Score ss(results)
     fnl.dumpScore p
 
 proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
