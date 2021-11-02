@@ -14,6 +14,7 @@ import gread/maths
 
 const
   defaultParsimony = -0.01
+  populationCache = false
 
 type
   PopMetrics* = object
@@ -34,21 +35,25 @@ type
     size*: int
 
   Population*[T: ref] = ref object
-    cache: HashSet[Hash]
     programs: seq[Program[T]]
     lengths: seq[float]
     scores: seq[float]
     fittest: Program[T]
     ken: PopMetrics
+    when populationCache:
+      cache: HashSet[Hash]
 
 template learn(pop: Population; p: Program; pos: int) =
-  pop.cache.incl p.hash
-  if p.isValid:
+  when populationCache:
+    pop.cache.incl p.hash
+  if p.isValid and p.score.isValid:
     pop.scores[pos] = float penalizeSize(pop, p.score, p.len)
     pop.lengths[pos] = float(p.len)
     pop.ken.scores.push float(p.score)
     pop.ken.validity.push 1.0
   else:
+    pop.scores[pos] = NaN
+    pop.lengths[pos] = NaN
     pop.ken.validity.push 0.0
   pop.ken.lengths.push float(p.len)
   if p.core == pop.ken.core:
@@ -57,7 +62,8 @@ template learn(pop: Population; p: Program; pos: int) =
     inc pop.ken.immigrants
 
 template forget(pop: Population; p: Program; pos: int) =
-  pop.cache.excl p.hash
+  when populationCache:
+    pop.cache.excl p.hash
   if p.isValid:
     pop.scores[pos] = NaN
     pop.lengths[pos] = NaN
@@ -136,7 +142,10 @@ proc introduce*[T](pop: Population[T]; p: Program[T]) =
   ## introduce a foreign program to the local pop without
   ## setting it as the fittest individual, etc.
   withInitialized pop:
-    if not pop.cache.containsOrIncl p.hash:
+    when populationCache:
+      if not pop.cache.containsOrIncl p.hash:
+        addImpl(pop, p)
+    else:
       addImpl(pop, p)
 
 proc add*[T](pop: Population[T]; p: Program[T]) =
@@ -146,7 +155,11 @@ proc add*[T](pop: Population[T]; p: Program[T]) =
       raise Defect.newException "nil program"
     elif pop.isNil:
       raise Defect.newException "nil pop"
-    if not pop.cache.containsOrIncl p.hash:
+    when populationCache:
+      if not pop.cache.containsOrIncl p.hash:
+        addImpl(pop, p)
+        maybeResetFittest(pop, p)
+    else:
       addImpl(pop, p)
       maybeResetFittest(pop, p)
 
@@ -244,23 +257,37 @@ func generations*(pop: Population): Generation =
   withInitialized pop:
     pop.ken.generation
 
-proc contains*(pop: Population; p: Program): bool =
-  ## true if the `pop` contains Program `p`
-  withInitialized pop:
-    p.hash in pop.cache
+when populationCache:
+  proc contains*(pop: Population; p: Program): bool =
+    ## true if the `pop` contains Program `p`
+    withInitialized pop:
+      p.hash in pop.cache
 
 proc scoreChanged*(pop: Population; p: Program; s: Score; index = none int) =
   withInitialized pop:
     if index.isSome:
-      pop.scores[get index] = float penalizeSize(pop, s, p.len)
+      if s.isValid:
+        pop.scores[get index] = penalizeSize(pop, s, p.len).float
+        # the lengths could be NaN for this program if it was
+        # entered without a valid score... or something.
+        pop.lengths[get index] = p.len.float
+      else:
+        pop.scores[get index] = NaN
+        pop.lengths[get index] = NaN
     else:
-      # FIXME: find a better way to do this
-      for i, q in pop.programs.pairs:
-        if q.hash == p.hash:
-          scoreChanged(pop, p, s, index = some i)
-          break
-      raise ValueError.newException:
-        "program does not exist in this population"
+      when false:
+        # FIXME: find a better way to do this
+        for i, q in pop.programs.pairs:
+          if q.hash == p.hash:
+            scoreChanged(pop, p, s, index = some i)
+            break
+        raise ValueError.newException:
+          "program does not exist in this population"
+
+when false:
+  proc penalized*(pop: Population; index: int): Score =
+    withInitialized pop:
+      Score pop.scores[index]
 
 proc core*(pop: Population): CoreSpec =
   withInitialized pop:
