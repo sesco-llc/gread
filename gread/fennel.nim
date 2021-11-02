@@ -352,6 +352,8 @@ when compileOption"threads":
   import gread/cluster
   import gread/generation
 
+  proc noop(c: C): C {.cpsMagic.} = c
+
   proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
     let fnl = newFennel(args.primitives, core = args.core)
     var evo: Evolver[Fennel, LuaValue]
@@ -368,6 +370,8 @@ when compileOption"threads":
     var evoTime = getTime()
     var genTime: FennelStat
     while true:
+      noop() # give other evolvers a chance
+
       for invalid in invalidPrograms(args):
         fnl.cache[invalid.hash] = Score NaN
 

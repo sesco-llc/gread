@@ -6,6 +6,8 @@ import std/options
 import std/osproc
 import std/random
 import std/os
+import std/strformat
+import std/deques
 
 import pkg/loony
 import pkg/cps
@@ -51,13 +53,26 @@ var
   shelf: seq[CQ]
 
 proc corker*(queue: CQ) {.thread.} =
+  var work: Deque[C]
   {.gcsafe.}:
     while true:
       var c = pop queue
-      if c.isNil:
+      if not c.isNil:
+        work.addLast c
+      if work.len == 0:
         sleep 1
       else:
-        discard trampoline c
+        # trampoline that tolerates errors and coops
+        var o: Continuation = work.popFirst()
+        if o.running:
+          try:
+            # run a single leg at a time
+            o = o.fn(o)
+            work.addLast o.C
+          except Exception as e:
+            writeStackFrames o
+            stdmsg().writeLine fmt"{e.name}: {e.msg}"
+            stdmsg().writeLine "dismissing continuation..."
 
 for core in 1..processors:
   setLen(threads, threads.len + 1)
