@@ -50,6 +50,14 @@ or if you're still using Nimble like it's 2012,
 $ nimble install https://github.com/disruptek/gread
 ```
 
+## Usage
+
+Check out the [examples](examples/) and note the following required compilation
+switches:
+
+- `--threads:on`
+- `--gc:arc` or `--gc:orc`
+
 ## Debugging
 
 Profiling of individual parts of the system happens when you `--define:greadProfile`.
