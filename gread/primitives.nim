@@ -1,4 +1,8 @@
 from std/json import escapeJson
+
+import pkg/sync
+export isNil, `[]`
+
 import gread/ast
 
 import "$nim/compiler/ic/bitabs"
@@ -12,19 +16,36 @@ type
     strings: BiTable[string]
     numbers: BiTable[BiggestInt]
 
-  Primitives*[T] = ptr PrimitivesObj[T]
+  Primitives*[T] = SharedPtr[PrimitivesObj[T]]
 
 proc newPrimitives*[T](): Primitives[T] =
-  cast[Primitives[T]](allocShared0 sizeof(PrimitivesObj))
+  newSharedPtr:
+    PrimitivesObj[T]()
+
+proc `functions=`*[T](c: Primitives[T];
+                      a: openArray[Function[T]]) =
+  c[].functions = @a
+
+proc `inputs=`*[T](c: Primitives[T];
+                   a: openArray[Terminal[T]]) =
+  c[].inputs = @a
+
+proc `outputs=`*[T](c: Primitives[T];
+                    a: openArray[Terminal[T]]) =
+  c[].outputs = @a
+
+proc `constants=`*[T](c: Primitives[T];
+                      a: openArray[Terminal[T]]) =
+  c[].constants = @a
 
 func terminals*[T](c: Primitives[T]): seq[Terminal[T]] =
-  c.constants & c.inputs & c.outputs
+  c[].constants & c.inputs & c.outputs
 
 proc toLitId(x: string; c: Primitives): LitId =
-  getOrIncl(c.strings, x)
+  getOrIncl(c[].strings, x)
 
 proc toLitId(x: BiggestInt; c: Primitives): LitId =
-  getOrIncl(c.numbers, x)
+  getOrIncl(c[].numbers, x)
 
 proc toLitId(x: BiggestUInt; c: Primitives): LitId =
   toLitId(cast[BiggestInt](x), c)
@@ -72,18 +93,18 @@ proc render*[T](c: Primitives[T]; n: AstNode[T]): string =
   of akParents:
     "→"
   of akIdent:
-    c.strings[LitId n.operand]
+    c[].strings[LitId n.operand]
   of akStrLit:
-    escapeJson(c.strings[LitId n.operand], result)
+    escapeJson(c[].strings[LitId n.operand], result)
     result
   of akNilLit:
     "nil"
   of akBoolLit:
-    $cast[bool](c.numbers[LitId n.operand])
+    $cast[bool](c[].numbers[LitId n.operand])
   of akIntLit:
-    $cast[BiggestInt](c.numbers[LitId n.operand])
+    $cast[BiggestInt](c[].numbers[LitId n.operand])
   of akFloatLit:
-    $cast[BiggestFloat](c.numbers[LitId n.operand])
+    $cast[BiggestFloat](c[].numbers[LitId n.operand])
   else:
     "«" & $n.kind & "»"
 
@@ -116,19 +137,19 @@ proc toTerminal*[T](c: Primitives[T]; a: Ast; index: int): Terminal[T] =
   template n: AstNode[T] = a[index]
   case n.kind
   of akIdent:
-    Terminal[T](kind: Symbol, ident: c.strings[LitId n.operand])
+    Terminal[T](kind: Symbol, ident: c[].strings[LitId n.operand])
   of akFloatLit:
     Terminal[T](kind: Constant, ck: Float,
-                floatVal: cast[BiggestFloat](c.numbers[LitId n.operand]))
+                floatVal: cast[BiggestFloat](c[].numbers[LitId n.operand]))
   of akIntLit:
     Terminal[T](kind: Constant, ck: Integer,
-                intVal: c.numbers[LitId n.operand])
+                intVal: c[].numbers[LitId n.operand])
   of akStrLit:
     Terminal[T](kind: Constant, ck: String,
-                strVal: c.strings[LitId n.operand])
+                strVal: c[].strings[LitId n.operand])
   of akBoolLit:
     Terminal[T](kind: Constant, ck: Boolean,
-                boolVal: cast[bool](c.numbers[LitId n.operand]))
+                boolVal: cast[bool](c[].numbers[LitId n.operand]))
   else:
     raise Defect.newException "unsupported form: " & $n
 
@@ -136,3 +157,8 @@ proc isFunctionSymbol*(a: Ast; index: int): bool =
   if index > 0 and index < a.high:
     if not a[index].isParent:
       result = a[index].kind == akIdent and a[index-1].kind == akCall
+
+proc inputs*[T](c: Primitives[T]): var seq[Terminal[T]] = c[].inputs
+proc outputs*[T](c: Primitives[T]): var seq[Terminal[T]] = c[].outputs
+proc constants*[T](c: Primitives[T]): var seq[Terminal[T]] = c[].constants
+proc functions*[T](c: Primitives[T]): var seq[Function[T]] = c[].functions
