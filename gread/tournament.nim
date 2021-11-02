@@ -32,12 +32,22 @@ proc initTourney[T, V](evo: Evolver[T, V]; size: int): Tourney[T] =
     # pick a program; fetching the same program more than once is nbd
     var (i, p) = randomMember evo.population
     # score the program against the data
-    # FIXME: optimization point
     let s = evo.score(syms, p)
-    # resolve the score to a value we can sort with
+
+    # take the opportunity to update the population
+    let c = evo.scoreFromCache(p)
+    if c.isSome:
+      evo.population.scoreChanged(p, get c, index = some i)
+
+    # resolve the score to a value we can sort with, maybe using parsimony
     let score =
-      if s.isSome: get s
-             else: NaN
+      if s.isSome:
+        if evo.tableau.useParsimony:
+          penalizeSize(evo.population, get s, p.len)
+        else:
+          get s
+     else:
+       NaN
     # push into the queue; the early index prevents "sort by program"
     result.push (valid: s.isSome, score: score,
                  len: -p.len, index: i, program: p)

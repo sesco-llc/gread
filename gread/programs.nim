@@ -8,7 +8,7 @@ import gread/ast
 import gread/spec
 
 const
-  programCache = true
+  programCache* = true
 
 type
   Program*[T] = ref object
