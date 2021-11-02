@@ -15,7 +15,7 @@ type
   Primitives*[T] = ptr PrimitivesObj[T]
 
 proc newPrimitives*[T](): Primitives[T] =
-  cast[Primitives[T]](alloc0 sizeof(PrimitivesObj))
+  cast[Primitives[T]](allocShared0 sizeof(PrimitivesObj))
 
 func terminals*[T](c: Primitives[T]): seq[Terminal[T]] =
   c.constants & c.inputs & c.outputs
