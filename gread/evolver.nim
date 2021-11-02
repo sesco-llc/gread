@@ -92,7 +92,12 @@ proc randomOperator*[T, V](evo: Evolver[T, V]): Operator[T, V] =
 
 proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
                   p: Program[T]): Option[Score] =
-  ## score the program against a single symbol set
+  ## score the program against a single symbol set; if the program cache
+  ## is enabled via its `programCache` constant, then we might simply
+  ## fetch the score from there. otherwise, we'll run the evolver's
+  ## `fitone` function against the platform and data record to evaluate
+  ## the program. this scoring function also runs a stopwatch over
+  ## `fitone()` and update's the programs runtime statistics.
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   else:
@@ -103,6 +108,20 @@ proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
       p.runtime.push (getTime() - began).inMilliseconds.float
       if result.isSome:
         p.addScoreToCache(s.hash, get result)
+
+proc collectCachedScores[T, V](evo: Evolver[T, V]; p: Program[T]): seq[(SymbolSet[T, V], Score)] =
+  when programCache:
+    result = newSeqOfCap[(SymbolSet[T, V], Score)](evo.dataset.len)
+    for ss in evo.dataset.items:
+      let s = getScoreFromCache(p, ss.hash)
+      if s.isSome:
+        result.add (ss, get s)
+
+proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
+  profile "score from cache":
+    let cached = collectCachedScores(evo, p)
+    if cached.len > 0:
+      result = evo.fitmany(evo.platform, cached, p)
 
 proc score*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
   ## score the program against all available symbol sets
