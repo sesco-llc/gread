@@ -15,7 +15,7 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
   let gen = nextGeneration evo.population
 
   let operator = evo.randomOperator()
-  profile "operator":
+  profile "running the operator":
     result = operator evo
 
   if result.isSome:
@@ -29,9 +29,8 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
 
     p.generation = gen
     p.core = evo.core
-    profile "new score":
+    profile "new score sampled across entire dataset":
       # FIXME: optimization point
-      #let s = evo.score(evo.randomSymbols(), p)
       let s = evo.score(p)
     if s.isSome:
       p.score = get s
