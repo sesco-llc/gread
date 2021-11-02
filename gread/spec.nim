@@ -1,12 +1,11 @@
 import std/options
-import std/times
-import std/macros
 import std/math
 import std/strutils
 
 type
   Score* = distinct float
-  CoreSpec* = Option[int]
+  CoreSpec* = Option[CoreId]
+  CoreId* = int
   Generation* = distinct int
 
 converter toFloat*(s: Score): float = float s
@@ -46,10 +45,10 @@ proc `$`*(cs: CoreSpec): string =
   else:
     "-"
 
-macro profile*(s: string; logic: untyped): untyped =
-  when not defined(greadProfile):
-    result = logic
-  else:
+when defined(greadProfile):
+  import std/times
+  import std/macros
+  macro profile*(s: string; logic: untyped): untyped =
     let readTime = newCall bindSym"getTime"
     let readThread =
       when compileOption"threads":
@@ -68,3 +67,5 @@ macro profile*(s: string; logic: untyped): untyped =
       result.add newCall(bindSym"debugEcho", s, newLit" ",
                          newCall(bindSym"inMilliseconds",
                                newCall(bindSym"-", readTime, clock)))
+else:
+  template profile*(s: string; logic: untyped): untyped = logic
