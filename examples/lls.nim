@@ -10,6 +10,7 @@ import gread
 import gread/fennel except variance
 
 import pkg/balls
+import pkg/cps
 import pkg/lunacy
 import pkg/loony
 import pkg/adix/lptabz
@@ -62,10 +63,10 @@ proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
   if not s.isNaN:
     result = some Score(-abs s)
 
-proc fitmany(fnl: Fennel; ss: openArray[(Locals, Score)];
+proc fitmany(fnl: Fennel; data: openArray[(Locals, Score)];
              p: FProg): Option[Score] =
-  var results = newSeq[float](ss.len)
-  for locals, s in ss.items:
+  var results = newSeqOfCap[float](data.len)
+  for locals, s in data.items:
     if s.isNaN:
       return none Score
     else:
@@ -100,16 +101,13 @@ when isMainModule:
   tab.maxPopulation = 10000
 
   # each worker gets a Work object as input to its thread
-  let affinity = toSeq 0..<countProcessors()
-  let clump = newCluster worker
-  var args: Work[Fennel, LuaValue]
+  let clump = newCluster[Fennel, LuaValue]()
+  var args = clump.initWork()
   initWork(args, tab, primitives = prims, operators = operators,
            dataset = training,
            fitone = fitone, fitmany = fitmany, stats = statFrequency)
 
-  checkpoint fmt"seeding {affinity.len} threads..."
-  clump.boot args
-  clump.pin affinity
+  clump.boot(whelp worker(args), args.core)
 
   # run the main loop to gatekeep inventions
   let (inputs, outputs) = clump.programQueues()

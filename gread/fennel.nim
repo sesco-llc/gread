@@ -10,6 +10,7 @@ import pkg/lunacy
 import pkg/adix/lptabz
 import pkg/adix/stat
 import pkg/balls
+import pkg/cps
 
 import gread/spec
 import gread/ast
@@ -351,50 +352,49 @@ when compileOption"threads":
   import gread/cluster
   import gread/generation
 
-  proc worker*(args: Work[Fennel, LuaValue]) {.thread, gcsafe.} =
-    {.gcsafe.}:
-      let fnl = newFennel(args.primitives, core = args.core)
-      var evo: Evolver[Fennel, LuaValue]
-      initEvolver(evo, fnl, args.tableau)
-      evo.primitives = args.primitives
-      evo.operators = args.operators
-      evo.dataset = args.dataset
-      evo.core = fnl.core
-      evo.fitone = args.fitone
-      evo.fitmany = args.fitmany
-      evo.population = evo.randomPop()
+  proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
+    let fnl = newFennel(args.primitives, core = args.core)
+    var evo: Evolver[Fennel, LuaValue]
+    initEvolver(evo, fnl, args.tableau)
+    evo.primitives = args.primitives
+    evo.operators = args.operators
+    evo.dataset = args.dataset
+    evo.core = fnl.core
+    evo.fitone = args.fitone
+    evo.fitmany = args.fitmany
+    evo.population = evo.randomPop()
 
-      var leader: Hash
-      var evoTime = getTime()
-      var genTime: FennelStat
-      while true:
-        for invalid in invalidPrograms(args):
-          fnl.cache[invalid.hash] = Score NaN
+    var leader: Hash
+    var evoTime = getTime()
+    var genTime: FennelStat
+    while true:
+      for invalid in invalidPrograms(args):
+        fnl.cache[invalid.hash] = Score NaN
 
-        search(args, evo.population)   # fresh meat from other threads
+      search(args, evo.population)   # fresh meat from other threads
 
-        let fit = evo.fittest
-        if fit.isSome:
-          let fit = get fit
-          if fit.hash != leader:
-            leader = fit.hash
-            share(args, fit)  # send it to other threads
+      let fit = evo.fittest
+      if fit.isSome:
+        let fit = get fit
+        if fit.hash != leader:
+          leader = fit.hash
+          share(args, fit)  # send it to other threads
 
-        if evo.tableau.useParsimony:
-          profile "parsimony":
-            discard evo.population.parsimony
+      if evo.tableau.useParsimony:
+        profile "parsimony":
+          discard evo.population.parsimony
 
-        let clock = getTime()
-        let invention = evo.generation()
-        genTime.push (getTime() - clock).inMilliseconds.float
+      let clock = getTime()
+      let invention = evo.generation()
+      genTime.push (getTime() - clock).inMilliseconds.float
 
-        if invention.isSome:
-          let p = get invention
-          if p.core.isNone and fnl.core.isSome:
-            p.core = fnl.core
+      if invention.isSome:
+        let p = get invention
+        if p.core.isNone and fnl.core.isSome:
+          p.core = fnl.core
 
-          if p.generation mod args.stats == 0:
-            dumpStats(fnl, evo.population, evoTime, genTime)
+        if p.generation mod args.stats == 0:
+          dumpStats(fnl, evo.population, evoTime, genTime)
 
-          if p.score.isNaN:
-            negativeCache(args, p)
+        if p.score.isNaN:
+          negativeCache(args, p)

@@ -2,11 +2,14 @@ import std/options
 import std/math
 import std/strutils
 
+import pkg/cps
+
 type
   Score* = distinct float
   CoreSpec* = Option[CoreId]
   CoreId* = int
   Generation* = distinct int
+  C* = ref object of Continuation
 
 converter toFloat*(s: Score): float = float s
 converter toScore*[T: float or float64](f: T): Score = Score f

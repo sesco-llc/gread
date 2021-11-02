@@ -5,8 +5,10 @@ import std/sequtils
 import std/options
 import std/osproc
 import std/random
+import std/os
 
 import pkg/loony
+import pkg/cps
 
 import gread/spec
 import gread/primitives
@@ -16,15 +18,11 @@ import gread/tableau
 import gread/data
 import gread/evolver
 
-let processors = countProcessors()
-
 type
   ProgramQueue*[T] = LoonyQueue[Program[T]]
   IO[T] = tuple[inputs, outputs: ProgramQueue[T]]
   Cluster*[T, V] = ref object
     cores: seq[CoreId]
-    threads: seq[Thread[Work[T, V]]]
-    worker: Worker[T, V]
     pq: IO[T]                      ## program gene transfer
     negs: seq[ProgramQueue[T]]     ## thread-local invalid program caches
     nextId: CoreId                 ## the value of the next core identity
@@ -45,6 +43,32 @@ type
     neg: ProgramQueue[T]                   ## receives invalid programs
     cluster: Cluster[T, V]
 
+  CQ = LoonyQueue[C]
+
+let processors = countProcessors()
+var
+  threads: seq[Thread[CQ]]
+  shelf: seq[CQ]
+
+proc corker*(queue: CQ) {.thread.} =
+  {.gcsafe.}:
+    while true:
+      var c = pop queue
+      if c.isNil:
+        sleep 1
+      else:
+        discard trampoline c
+
+for core in 1..processors:
+  setLen(threads, threads.len + 1)
+  setLen(shelf, shelf.len + 1)
+  shelf[^1] = newLoonyQueue[C]()
+  createThread(threads[^1], corker, shelf[^1])
+  pinToCpu(threads[^1], core-1)
+
+proc sendToCore(c: C; core: Natural) =
+  shelf[core mod shelf.len].push c
+
 proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
                      primitives: Primitives[T] = nil;
                      operators: openArray[OperatorWeight[T, V]] = @[];
@@ -52,11 +76,17 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
                      dataset: seq[SymbolSet[T, V]] = @[];
                      targets = none seq[Score];
                      core = none int; stats = 1000) =
-  ## initialize a work object for passing setup instructions
-  ## to worker threads
-  work = Work[T, V](tableau: tab, primitives: primitives, dataset: dataset,
-                    operators: @operators, stats: stats, core: core,
-                    fitone: fitone, fitmany: fitmany)
+  ## initialize a work object for passing setup instructions to worker threads;
+  ## this is now just a convenience to reduce line count
+  work.tableau = tab
+  work.primitives = primitives
+  work.dataset = dataset
+  work.operators = @operators
+  work.stats = stats
+  work.fitone = fitone
+  work.fitmany = fitmany
+  if work.core.isNone:
+    work.core = core
 
 proc share*(work: Work; p: Program) =
   ## send a better program to other threads
@@ -100,65 +130,44 @@ proc programQueues*[T, V](cluster: Cluster[T, V]): IO[T] =
   ## members will use to exchange novel programs
   (cluster.pq.inputs, cluster.pq.outputs)
 
-proc pin*(cluster: Cluster; cores: openArray[int]) =
-  ## pin a cluster to a selection of cores
-  for i, thread in cluster.threads.mpairs:
-    pinToCpu(thread, cores[i mod cores.len])
-
 proc size*(cluster: Cluster): int =
   ## returns the number of evolvers in the cluster
   cluster.threads.len
 
-proc nextId(cluster: Cluster): CoreId =
-  result = cluster.nextId
+proc nextCore*(cluster: Cluster): Option[CoreId] =
+  ## returns the next CoreId which will be used by the cluster
+  result = some cluster.nextId
   inc cluster.nextId
 
-proc boot*[T, V](cluster: Cluster[T, V]; work: Work[T, V];
-                 threads: Natural = processors) =
-  ## boot a cluster with a work assignment
-  var w = work
-  w.io = cluster.programQueues()
-  w.cluster = cluster
-  for i in 1..threads:
-    setLen(cluster.threads, cluster.threads.len + 1)
-    cluster.negs.add newLoonyQueue[Program[T]]()
-    w.neg = cluster.negs[^1]
-    w.core = some cluster.nextId
-    createThread(cluster.threads[^1], cluster.worker, w)
+proc redress*[T, V](cluster: Cluster[T, V]; work: var Work[T, V]) =
+  ## freshen a work object with a new core and i/o channels, etc.
+  cluster.negs.add newLoonyQueue[Program[T]]()
+  work.neg = cluster.negs[^1]
+  work.io = cluster.programQueues()
+  work.core = cluster.nextCore
+  work.cluster = cluster
 
-proc boot*[T, V](cluster: Cluster[T, V]; work: Work[T, V];
-                 dataset: seq[SymbolSet[T, V]];
-                 targets: Option[seq[Score]] = none seq[Score];
-                 threads = processors) =
-  ## boot a cluster with a work assignment and specific dataset/targets
-  var w = work
-  w.dataset = dataset
-  w.targets = targets
-  cluster.boot(w, threads)
+proc initWork*[T, V](cluster: Cluster[T, V]): Work[T, V] =
+  ## instantiate a new Work object which is already redress(ed)
+  cluster.redress result
 
-proc boot*[T, V](cluster: Cluster[T, V]; work: Work[T, V];
-                 data: seq[(SymbolSet[T, V], Score)];
-                 threads = processors) =
-  ## boot a cluster with a work assignment; unzip the data
-  var w = work
-  w.dataset = newSeqOfCap[SymbolSet[T, V]](data.len)
-  w.targets = newSeqOfCap[Score](data.len)
-  for ss, s in data.items:
-    w.dataset.add ss
-    w.targets.add s
-  cluster.boot(w, threads)
+proc boot*[T, V](cluster: Cluster[T, V]; worker: C; core: CoreSpec) =
+  ## boot a cluster with a worker continuation
+  sendToCore(worker, get core)
+  cluster.cores.add: get core
 
 proc halt*(cluster: Cluster; core = none CoreId) =
   ## halt a cluster or a particular core
-  for i, thread in cluster.threads.mitems:
-    if core.isNone or cluster.cores[i] == get core:
-      joinThread cluster.threads[i]
-      del(cluster.threads, i)
-      del(cluster.negs, i)
+  for i, thread in threads.mitems:
+    if true: #core.isNone or cluster.cores[i] == get core:
+      joinThread thread
+      #del(cluster.threads, i)
+      #del(cluster.negs, i)
+  cluster.negs = @[]
 
-proc newCluster*[T, V](worker: Worker[T, V]): Cluster[T, V] =
+proc newCluster*[T, V](): Cluster[T, V] =
   ## create a new cluster
-  result = Cluster[T, V](worker: worker)
+  result = Cluster[T, V]()
   result.pq = (newLoonyQueue[Program[T]](), newLoonyQueue[Program[T]]())
 
 proc negativeCache*(cluster: Cluster; p: Program) =

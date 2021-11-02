@@ -82,10 +82,10 @@ var training: seq[(Locals, Score)]
 var targets: LPTab[Hash, LuaValue]
 init(targets, initialSize = inputData.len)
 for (js, ideal) in inputData.items:
-  var pairs: seq[(string, LuaValue)]
+  var paired: seq[(string, LuaValue)]
   for name, value in js.pairs:
-    pairs.add (name, value.toLuaValue)
-  var locals = initLocals pairs
+    paired.add (name, value.toLuaValue)
+  var locals = initLocals paired
   let luaIdeal = ideal.toLuaValue
   training.add (locals, Score ideal)
   targets[hash locals] = luaIdeal
@@ -105,7 +105,7 @@ proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
 
 proc fitmany(fnl: Fennel; ss: openArray[(Locals, Score)];
              p: FProg): Option[Score] =
-  var results = newSeq[float](ss.len)
+  var results = newSeqOfCap[float](ss.len)
   for locals, s in ss.items:
     if s.isNaN or s in [-Inf, Inf]:
       return none Score
