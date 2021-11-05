@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ['windows-latest', 'macos-latest', 'ubuntu-latest']
+        os: ['ubuntu-latest']
         nim: ['devel', 'version-1-6']
     name: '${{ matrix.os }} (${{ matrix.nim }})'
     runs-on: ${{ matrix.os }}
@@ -44,6 +44,11 @@ jobs:
         with:
           path: nim
           version: ${{ matrix.nim }}
+
+      - name: Setup Lua
+        if: ${{ matrix.os }} == 'ubuntu-latest'
+        run: |
+          sudo apt-get install -y libluajit-5.1-dev liblua5.1-0-dev
 
       - name: Run tests
         shell: bash
