@@ -18,7 +18,6 @@ proc subtreeCrossover*[T](a, b: Ast[T]): Ast[T] =
       #if not a.isFunctionSymbol(x) and not b.isFunctionSymbol(y):
       when true:
         # FIXME: optimize this delete/insert to a replace operation
-        let dad = a.parentOf(x)   # parent of a subtree
         let d = a.delete(x)       # remove the old subtree
         let c = b.subtree(y)      # the subtree at index y
 
