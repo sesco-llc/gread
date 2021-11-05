@@ -24,6 +24,7 @@ type
   ProgramQueue*[T] = LoonyQueue[Program[T]]
   IO[T] = tuple[inputs, outputs: ProgramQueue[T]]
   Cluster*[T, V] = ref object
+    name: string
     cores: seq[CoreId]
     pq: IO[T]                      ## program gene transfer
     negs: seq[ProgramQueue[T]]     ## thread-local invalid program caches
@@ -180,10 +181,16 @@ proc halt*(cluster: Cluster; core = none CoreId) =
       #del(cluster.negs, i)
   cluster.negs = @[]
 
-proc newCluster*[T, V](): Cluster[T, V] =
+proc newCluster*[T, V](name = ""): Cluster[T, V] =
   ## create a new cluster
-  result = Cluster[T, V]()
+  result = Cluster[T, V](name: name)
   result.pq = (newLoonyQueue[Program[T]](), newLoonyQueue[Program[T]]())
+
+proc name*(cluster: Cluster): string =
+  if cluster.name == "":
+    "cores " & cluster.cores.map(`$`).join(",")
+  else:
+    cluster.name
 
 proc negativeCache*(cluster: Cluster; p: Program) =
   ## inform the members of the cluster that Program `p` is invalid
