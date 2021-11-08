@@ -46,7 +46,7 @@ type
 template learn(pop: Population; p: Program; pos: int) =
   when populationCache:
     pop.cache.incl p.hash
-  if p.isValid and p.score.isValid:
+  if not p.zombie and p.score.isValid:
     pop.scores[pos] = float penalizeSize(pop, p.score, p.len)
     pop.lengths[pos] = float(p.len)
     pop.ken.scores.push float(p.score)
@@ -64,7 +64,7 @@ template learn(pop: Population; p: Program; pos: int) =
 template forget(pop: Population; p: Program; pos: int) =
   when populationCache:
     pop.cache.excl p.hash
-  if p.isValid:
+  if not p.zombie and p.score.isValid:
     pop.scores[pos] = NaN
     pop.lengths[pos] = NaN
     if p.score.isValid:
