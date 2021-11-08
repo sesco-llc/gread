@@ -1,3 +1,4 @@
+import std/json
 import std/times
 import std/strformat
 import std/sequtils
@@ -11,6 +12,8 @@ import pkg/adix/lptabz
 import pkg/adix/stat
 import pkg/balls
 import pkg/cps
+import pkg/frosty/streams as brrr
+export brrr
 
 import gread/spec
 import gread/ast
@@ -53,6 +56,18 @@ type
   Locals* = SymbolSet[Fennel, LuaValue]
 
   FenFit = proc(locals: Locals; ideal: LuaValue): Score
+
+proc serialize*[S](output: var S; input: LuaValue) =
+  ## serialize a LuaValue; used internally by frosty
+  let js = input.toJson
+  serialize(output, js[])
+
+proc deserialize*[S](input: var S; output: var LuaValue) =
+  ## deserialize a LuaValue; used internally by frosty
+  var js: JsonNode
+  new js
+  deserialize(input, js[])
+  output = js.toLuaValue
 
 proc asTable*[T](locals: SymbolSet[Fennel, LuaValue]): LPTab[string, T] =
   ## given locals, select values of the given type into a table
