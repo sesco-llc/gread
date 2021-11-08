@@ -414,3 +414,45 @@ when compileOption"threads":
 
         if p.score.isNaN:
           negativeCache(args, p)
+
+when not compileOption"threads":
+  import pkg/hmisc/wrappers/treesitter
+  import pkg/htsparse/fennel/fennel as parsefen
+
+  proc toAst(node: HtsNode[TsFennelNode, FennelNodeKind];
+             c: Primitives[Fennel]): Ast[Fennel] =
+    #echo "  node kind: ", node.kind
+    #echo "node string: ", node.getTs.nodeString
+    #echo "node strval: ", node.strVal
+    case node.kind
+    of fennelProgram:
+      result = toAst(node[0], c)
+    of fennelSymbol:
+      result = Ast[Fennel](nodes: @[c.identNode node.strVal])
+    of fennelList:
+      result = Ast[Fennel]()
+      result.nodes.add:
+        AstNode[Fennel](kind: akCall, operand: 1)
+      result.nodes.add:
+        node[0].toAst(c)[0]  # convert the symbol to ast, grab first node
+      for item in node[1..^1]:
+        result = result.append toAst(item, c)
+    of fennelComment:
+      result = Ast[Fennel]()
+    of fennelFalseTok:
+      result = initAst(c, term false)
+    of fennelTrueTok:
+      result = initAst(c, term true)
+    of fennelBoolean:
+      result = initAst(c, term parseBool(node.strVal))
+    of fennelNumber:
+      result = initAst(c, term parseFloat(node.strVal))
+    else:
+      raise Defect.newException "unsupported node: " & $node.kind
+
+  proc newProgram*[T: Fennel](c: Primitives[T]; s: string): Program[T] =
+    let tree = parseFennelString s
+    if tree.kind != fennelProgram:
+      raise ValueError.newException "expected a program; got " & $tree.kind
+    else:
+      result = newProgram tree.toAst(c)
