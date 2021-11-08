@@ -21,8 +21,10 @@ when not defined(release):
 task test, "run tests for ci":
   when defined(windows):
     exec "balls.cmd --threads:on --gc:arc"
+    exec "balls.cmd --gc:arc"
   else:
     exec "balls --threads:on --gc:arc"
+    exec "balls --gc:arc"
 
 task demo, "produce a demo":
   exec """demo docs/demo.svg "nim c --define:release --out=\$1 tests/test.nim""""
