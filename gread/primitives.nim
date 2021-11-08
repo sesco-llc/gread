@@ -69,6 +69,9 @@ proc toLitId(x: BiggestFloat; c: Primitives): LitId =
 proc toLitId(x: bool; c: Primitives): LitId =
   toLitId(cast[BiggestInt](x), c)
 
+proc identNode*[T](c: Primitives[T]; ident: string): AstNode[T] =
+  AstNode[T](kind: akIdent, operand: ident.toLitId(c).int32)
+
 proc initAst*[T](c: Primitives[T]; term: Terminal[T]): Ast[T] =
   result.nodes.add:
     case term.kind
@@ -83,7 +86,7 @@ proc initAst*[T](c: Primitives[T]; term: Terminal[T]): Ast[T] =
       of String:
         AstNode[T](kind: akStrLit, operand: term.strVal.toLitId(c).int32)
     of Symbol:
-      AstNode[T](kind: akIdent, operand: term.ident.toLitId(c).int32)
+      c.identNode term.ident
 
 proc initAst*[T](c: Primitives[T]; fun: Function[T]): Ast[T] =
   result.nodes.add:
