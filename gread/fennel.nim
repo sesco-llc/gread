@@ -382,7 +382,7 @@ when compileOption"threads":
 
     var leader: Hash
     var evoTime = getTime()
-    while true:
+    while evo.population.generations.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
       for invalid in invalidPrograms(args):
