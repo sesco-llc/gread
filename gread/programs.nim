@@ -11,6 +11,9 @@ const
   programCache* = true
 
 type
+  ProgramFlag* = enum
+    FinestKnown
+
   Program*[T] = ref object
     core*: Option[int]        ## ideally holds the core where we were invented
     runtime*: MovingStat[float32]  ## tracks the runtime for this program
@@ -18,6 +21,7 @@ type
     generation*: Generation   ## the generation number in which we arrived
     hash*: Hash               ## pre-generated hash for the program's ast
     score*: Score             ## the score of this program when last evaluated
+    flags*: set[ProgramFlag]  ## flag enums associated with the program
     ast*: Ast[T]              ## the ast of the program itself
     when programCache:
       cache: LPTab[Hash, Score] ## cache of score given symbol set hash
@@ -64,8 +68,9 @@ proc newProgram*[T](a: Ast[T]): Program[T] =
   newProgram(a, NaN)
 
 proc clone*[T](p: Program[T]): Program[T] =
+  ## it's not a clone if it's different
   Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
-             core: p.core, generation: p.generation)
+             flags: p.flags, core: p.core, generation: p.generation)
 
 proc isValid*(p: Program): bool =
   ## true if the program is valid; this will raise a defect

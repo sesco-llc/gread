@@ -126,6 +126,7 @@ proc maybeResetFittest[T](pop: Population[T]; p: Program[T]) =
     if p.score.isValid:
       if pop.fittest.isNil or pop.fittest.score < p.score:
         pop.fittest = p
+        p.flags.incl FinestKnown
 
 template growNaNs(pop: Population; field: typed): untyped =
   while pop.programs.len > field.len:
