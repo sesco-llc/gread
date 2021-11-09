@@ -248,7 +248,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
     try:
       # pass the program and the training inputs
       let began = getTime()
-      let stack = evaluate(fnl.vm, render(fnl.primitives, p.ast), locals)
+      let stack = evaluate(fnl.vm, render(fnl.primitives, p), locals)
       fnl.runtime.push (getTime() - began).inMilliseconds.float
       fnl.errors.push 0.0
       # score a resultant value if one was produced
@@ -256,7 +256,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
         result = fit(locals, stack.value)
     except LuaError as e:
       when semanticErrorsAreFatal:
-        debugEcho render(fnl.primitives, p.ast)
+        debugEcho render(fnl.primitives, p)
         debugEcho p
         debugEcho e.msg
         quit 1
@@ -275,7 +275,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
         0.0
 
 proc dumpScore*(fnl: Fennel; p: FProg) =
-  let code = render(fnl.primitives, p.ast)
+  let code = render(fnl.primitives, p)
   var s =
     if p.score.isValid:
       $p.score
@@ -464,4 +464,4 @@ when greadTS:
     if tree.kind != fennelProgram:
       raise ValueError.newException "expected a program; got " & $tree.kind
     else:
-      result = newProgram tree.toAst(c)
+      result = c.newProgram tree.toAst(c)

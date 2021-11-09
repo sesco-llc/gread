@@ -5,6 +5,7 @@ import pkg/adix/stat
 import pkg/adix/lptabz
 
 import gread/ast
+import gread/primitives
 import gread/spec
 
 const
@@ -14,7 +15,11 @@ type
   ProgramFlag* = enum
     FinestKnown
 
+  #ProgramObj[T] = object
+  #Program*[T] = ref ProgramObj[T]
   Program*[T] = ref object
+    primitives*: Primitives[T]
+    code: Option[string]      ## cache of the serialized source code
     core*: Option[int]        ## ideally holds the core where we were invented
     runtime*: MovingStat[float32]  ## tracks the runtime for this program
     source*: int              ## usually the threadId where we were invented
@@ -26,9 +31,10 @@ type
     when programCache:
       cache: LPTab[Hash, Score] ## cache of score given symbol set hash
 
-  Fitness*[T: ref] = proc(q: T; p: Program[T]): Score ##
-  ## a function that takes your custom Language object and
-  ## a suitable program as input; the result is a Score
+when defined(ProgramObj):
+  proc `=destroy`*[T](p: var ProgramObj[T]) =
+    `=destroy`(p.primitives)
+    system.`=destroy`(p)
 
 proc zombie*(p: Program): bool {.inline.} =
   ## true if the program is invalid and may only be used for genetic data
@@ -42,9 +48,26 @@ func len*(p: Program): int =
   ## some objective measurement of the program; ast length
   p.ast.len
 
-proc `$`*[T](p: Program[T]): string =
-  ## renders the program as raw ast
-  $p.ast
+proc render*(c: Primitives; p: Program): string =
+  if p.code.isSome:
+    result = get p.code
+  else:
+    result =
+      if p.primitives.isNil:
+        render(c, p.ast)
+      else:
+        render(p.primitives, p.ast)
+    p.code = some result
+
+proc `$`*(p: Program): string =
+  ## renders the program as source code if possible; else raw ast
+  if p.code.isSome:
+    result = p.code.get
+  elif p.primitives.isNil:
+    result = $p.ast
+    raise
+  else:
+    result = render(p.primitives, p)
 
 proc `<`*[T](a, b: Program[T]): bool =
   ## some objective measurement of two programs; score
@@ -67,9 +90,16 @@ proc newProgram*[T](a: Ast[T]): Program[T] =
   ## instantiate a new program from the given ast
   newProgram(a, NaN)
 
+proc newProgram*[T](c: Primitives[T]; a: Ast[T]): Program[T] =
+  ## instantiate a new program from the given ast; the program
+  ## will use the supplied primitives for rendering, etc.
+  result = newProgram(a, NaN)
+  result.primitives = c
+
 proc clone*[T](p: Program[T]): Program[T] =
   ## it's not a clone if it's different
   Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
+             primitives: p.primitives,
              flags: p.flags, core: p.core, generation: p.generation)
 
 proc isValid*(p: Program): bool =

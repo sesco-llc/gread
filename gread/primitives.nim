@@ -32,8 +32,8 @@ proc newPrimitives*[T](): Primitives[T] =
   when compileOption"threads":
     result = newSharedPtr PrimitivesObj[T]()
   else:
-    result = cast[Primitives[T]](alloc sizeof(PrimitivesObj[T]))
-    result[] = PrimitivesObj[T]()
+    result = cast[Primitives[T]](allocShared sizeof(PrimitivesObj[T]))
+  result[] = PrimitivesObj[T]()
 
 proc `functions=`*[T](c: Primitives[T];
                       a: openArray[Function[T]]) =

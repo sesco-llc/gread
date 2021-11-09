@@ -34,4 +34,4 @@ proc randAst*[T](c: Primitives[T]; size: var int;
 proc randProgram*[T](c: Primitives[T]; size = 10): Program[T] =
   ## produce a random program of, roughly, the given size
   var size = size
-  result = newProgram randAst(c, size, {Node})
+  result = c.newProgram randAst(c, size, {Node})
