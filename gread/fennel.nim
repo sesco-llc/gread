@@ -31,6 +31,9 @@ export lunacy
 const
   semanticErrorsAreFatal = false
   initialCacheSize = 32*1024
+  greadTS* = defined(greadTreeSitter) and
+             (defined(gcArc) or defined(gcOrc)) and
+             not compileOption"threads"
 
 type
   Fennel* = ref object
@@ -415,7 +418,7 @@ when compileOption"threads":
         if p.score.isNaN:
           negativeCache(args, p)
 
-when not compileOption"threads":
+when greadTS:
   import pkg/hmisc/wrappers/treesitter
   import pkg/htsparse/fennel/fennel as parsefen
 

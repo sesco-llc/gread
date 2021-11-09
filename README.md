@@ -60,7 +60,10 @@ switches:
 
 ## Debugging
 
-Profiling of individual parts of the system happens when you `--define:greadProfile`.
+### defines
+
+- `greadProfile` profiles some interesting parts of the system
+- `greadTreeSitter` enables creating programs from source code; you must have the tree-sitter library installed
 
 ## Documentation
 
