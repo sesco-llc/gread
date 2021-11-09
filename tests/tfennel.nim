@@ -52,6 +52,12 @@ when not compileOption"threads":
     suite "parsing and serializing":
       var p: FProg
       block:
+        ## parse a fennel program with multi-symbols
+        const program = "(/ math.pi math.pi)"
+        p = newProgram(c, program)
+        check c.render(p.ast) == "(/ math.pi math.pi)"
+
+      block:
         ## parse a fennel program
         const program = "(+ 1   2.0  )"
         p = newProgram(c, program)

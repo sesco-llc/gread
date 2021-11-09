@@ -429,6 +429,12 @@ when not compileOption"threads":
       result = toAst(node[0], c)
     of fennelSymbol:
       result = Ast[Fennel](nodes: @[c.identNode node.strVal])
+    of fennelMultiSymbol:
+      # these are symbols like `math.pi`
+      var syms: seq[string]
+      for index, item in node.pairs:
+        syms.add item.toAst(c)[0].ident(c)
+      result = Ast[Fennel](nodes: @[c.identNode syms.join(".")])
     of fennelList:
       result = Ast[Fennel]()
       result.nodes.add:

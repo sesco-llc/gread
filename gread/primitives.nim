@@ -54,6 +54,8 @@ proc `constants=`*[T](c: Primitives[T];
 func terminals*[T](c: Primitives[T]): seq[Terminal[T]] =
   c[].constants & c.inputs & c.outputs
 
+converter toInt32(n: LitId): int32 = n.int32
+
 proc toLitId(x: string; c: Primitives): LitId =
   getOrIncl(c[].strings, x)
 
@@ -70,7 +72,7 @@ proc toLitId(x: bool; c: Primitives): LitId =
   toLitId(cast[BiggestInt](x), c)
 
 proc identNode*[T](c: Primitives[T]; ident: string): AstNode[T] =
-  AstNode[T](kind: akIdent, operand: ident.toLitId(c).int32)
+  AstNode[T](kind: akIdent, operand: ident.toLitId(c))
 
 proc initAst*[T](c: Primitives[T]; term: Terminal[T]): Ast[T] =
   result.nodes.add:
@@ -78,13 +80,13 @@ proc initAst*[T](c: Primitives[T]; term: Terminal[T]): Ast[T] =
     of Constant:
       case term.ck
       of Float:
-        AstNode[T](kind: akFloatLit, operand: term.floatVal.toLitId(c).int32)
+        AstNode[T](kind: akFloatLit, operand: term.floatVal.toLitId(c))
       of Boolean:
-        AstNode[T](kind: akBoolLit, operand: term.boolVal.toLitId(c).int32)
+        AstNode[T](kind: akBoolLit, operand: term.boolVal.toLitId(c))
       of Integer:
-        AstNode[T](kind: akIntLit, operand: term.intVal.toLitId(c).int32)
+        AstNode[T](kind: akIntLit, operand: term.intVal.toLitId(c))
       of String:
-        AstNode[T](kind: akStrLit, operand: term.strVal.toLitId(c).int32)
+        AstNode[T](kind: akStrLit, operand: term.strVal.toLitId(c))
     of Symbol:
       c.identNode term.ident
 
@@ -92,7 +94,7 @@ proc initAst*[T](c: Primitives[T]; fun: Function[T]): Ast[T] =
   result.nodes.add:
     @[
       AstNode[T](kind: akCall, operand: 1),
-      AstNode[T](kind: akIdent, operand: fun.ident.toLitId(c).int32)
+      AstNode[T](kind: akIdent, operand: fun.ident.toLitId(c))
     ]
 
 proc asAst*[T](term: Terminal[T]; c: Primitives[T]): Ast[T] =
@@ -178,3 +180,10 @@ proc inputs*[T](c: Primitives[T]): var seq[Terminal[T]] = c[].inputs
 proc outputs*[T](c: Primitives[T]): var seq[Terminal[T]] = c[].outputs
 proc constants*[T](c: Primitives[T]): var seq[Terminal[T]] = c[].constants
 proc functions*[T](c: Primitives[T]): var seq[Function[T]] = c[].functions
+
+proc ident*[T](n: AstNode[T]; c: Primitives[T]): string =
+  case n.kind
+  of akIdent:
+    c[].strings[LitId n.operand]
+  else:
+    raise Defect.newException "unsupported form: " & $n
