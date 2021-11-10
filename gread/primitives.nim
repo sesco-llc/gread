@@ -19,7 +19,11 @@ proc hash*[T](c: Primitives[T]): Hash =
   hash c[]
 
 proc newPrimitives*[T](): Primitives[T] =
-  result = cast[Primitives[T]](allocShared0 sizeof(PrimitivesObj[T]))
+  # alloc0 works, alloc does not 🙄
+  when defined(gcArc) or defined(gcOrc):
+    result = cast[Primitives[T]](allocShared0 sizeof(PrimitivesObj[T]))
+  else:
+    result = cast[Primitives[T]](alloc0 sizeof(PrimitivesObj[T]))
   result[] = PrimitivesObj[T]()
 
 proc `functions=`*[T](c: Primitives[T];
