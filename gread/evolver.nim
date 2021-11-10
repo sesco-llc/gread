@@ -193,11 +193,4 @@ proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
   while result.len < evo.tableau.seedPopulation:
     let p = randProgram(evo.primitives, evo.tableau.seedProgramSize)
     p.core = evo.core
-    let s = evo.score(p) #evo.randomSymbols(), p)
-    if s.isSome:
-      if s.get.isNaN:
-        raise ValueError.newException:
-          "a fitness function produced NaN; this is unsupported for randomPop()"
-      else:
-        p.score = get s
-        result.add p
+    result.add p
