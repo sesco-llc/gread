@@ -1,10 +1,6 @@
 import std/hashes
 from std/json import escapeJson
 
-when compileOption"threads":
-  import pkg/sync
-  export isNil, `[]`
-
 import gread/ast
 
 import "$nim/compiler/ic/bitabs"
@@ -17,22 +13,13 @@ type
     outputs*: seq[Terminal[T]]
     strings: BiTable[string]
     numbers: BiTable[BiggestInt]
-
-when compileOption"threads":
-  type
-    Primitives*[T] = SharedPtr[PrimitivesObj[T]]
-else:
-  type
-    Primitives*[T] = ptr PrimitivesObj[T]
+  Primitives*[T] = ptr PrimitivesObj[T]
 
 proc hash*[T](c: Primitives[T]): Hash =
   hash c[]
 
 proc newPrimitives*[T](): Primitives[T] =
-  when compileOption"threads":
-    result = newSharedPtr PrimitivesObj[T]()
-  else:
-    result = cast[Primitives[T]](allocShared sizeof(PrimitivesObj[T]))
+  result = cast[Primitives[T]](allocShared0 sizeof(PrimitivesObj[T]))
   result[] = PrimitivesObj[T]()
 
 proc `functions=`*[T](c: Primitives[T];
