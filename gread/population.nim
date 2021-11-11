@@ -77,6 +77,9 @@ template forget(pop: Population; p: Program; pos: int) =
     pop.ken.ages.pop float(int p.generation)
   else:
     dec pop.ken.immigrants
+  if not pop.fittest.isNil:
+    if p.hash == pop.fittest.hash:
+      pop.fittest = nil
 
 template withInitialized*(pop: Population; logic: untyped): untyped =
   if pop.isNil:
@@ -264,17 +267,21 @@ when populationCache:
     withInitialized pop:
       p.hash in pop.cache
 
-proc scoreChanged*(pop: Population; p: Program; s: Score; index: int) =
+proc scoreChanged*(pop: Population; p: Program; s: Option[Score]; index: int) =
   withInitialized pop:
-    if s.isValid:
-      pop.scores[index] = penalizeSize(pop, s, p.len).float
+    if s.isSome:
+      pop.scores[index] = penalizeSize(pop, get s, p.len).float
       # the lengths could be NaN for this program if it was
       # entered without a valid score... or something.
       pop.lengths[index] = p.len.float
+      p.score = get s
+      p.zombie = false
       maybeResetFittest(pop, p)
     else:
       pop.scores[index] = NaN
       pop.lengths[index] = NaN
+      p.score = NaN
+      p.zombie = true
 
 when false:
   proc penalized*(pop: Population; index: int): Score =
