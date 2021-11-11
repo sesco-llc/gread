@@ -63,13 +63,13 @@ suite "basic fennel stuff":
           ## parse a fennel program with multi-symbols
           const program = "(/ math.pi math.pi)"
           p = newProgram(c, program)
-          check c.render(p.ast) == "(/ math.pi math.pi)"
+          check $p == "(/ math.pi math.pi)"
 
         block:
           ## parse a fennel program
           const program = "(+ 1   2.0  )"
           p = newProgram(c, program)
-          check c.render(p.ast) == "(+ 1.0 2.0)"
+          check $p == "(+ 1.0 2.0)"
 
         block:
           ## run a fennel program
@@ -88,7 +88,7 @@ suite "basic fennel stuff":
           ## run a fennel program with inputs
           const program = "(+ a b)"
           p = newProgram(c, program)
-          check c.render(p.ast) == "(+ a b)"
+          check $p == "(+ a b)"
           # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
           var locals = initLocals:
             {

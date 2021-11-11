@@ -75,12 +75,12 @@ proc corker*(queue: CQ) {.thread.} =
             stdmsg().writeLine fmt"{e.name}: {e.msg}"
             stdmsg().writeLine "dismissing continuation..."
 
-for core in 1..processors:
+for core in 0..<processors:
   setLen(threads, threads.len + 1)
   setLen(shelf, shelf.len + 1)
   shelf[^1] = newLoonyQueue[C]()
   createThread(threads[^1], corker, shelf[^1])
-  pinToCpu(threads[^1], core-1)
+  pinToCpu(threads[^1], core)
 
 proc sendToCore(c: C; core: Natural) =
   shelf[core mod shelf.len].push c
