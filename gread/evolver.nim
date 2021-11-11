@@ -83,6 +83,9 @@ proc `dataset=`*[T, V](evo: var Evolver[T, V]; dataset: seq[(SymbolSet[T, V], Sc
   evo.dataset = mapIt(dataset, it[0])
   evo.targets = some mapIt(dataset, it[1])
 
+proc dataset*[T, V](evo: Evolver[T, V]): lent seq[SymbolSet[T, V]] =
+  evo.dataset
+
 proc `targets=`*[T, V](evo: var Evolver[T, V]; targets: seq[Score]) =
   evo.targets = some targets
 
@@ -136,30 +139,35 @@ proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
     if cached.len > 0:
       result = evo.fitmany(evo.platform, cached, p)
 
-proc score*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
-  ## score the program against all available symbol sets
+proc score*[T, V](evo: Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
+                  p: Program[T]): Option[Score] =
+  ## score a program against a series of symbol sets
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   if evo.fitmany.isNil:
     raise ValueError.newException "evolver needs fitmany assigned"
   else:
     block exit:
-      var scores = newSeqOfCap[(SymbolSet[T, V], Score)](evo.dataset.len)
-      for ss in evo.dataset.items:
+      var scores = newSeqOfCap[(SymbolSet[T, V], Score)](dataset.len)
+      for ss in dataset.items:
         let s = evo.score(ss, p)
         if s.isNone:
           result = none Score
           break exit
         else:
           scores.add (ss, get s)
-      let s = evo.fitmany(evo.platform, scores, p)
-      if s.isSome:
-        p.score = get s
-        # FIXME: find a better way to do this (ie. discover the index somehow?)
-        when false:
-          if not evo.population.isNil:
-            scoreChanged(evo.population, p, p.score, index = none int)  # 😢
-        result = s
+      result = evo.fitmany(evo.platform, scores, p)
+
+proc score*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
+  ## score the program against all available symbol sets
+  let s = evo.score(evo.dataset, p)
+  if s.isSome:
+    p.score = get s
+    # FIXME: find a better way to do this (ie. discover the index somehow?)
+    when false:
+      if not evo.population.isNil:
+        scoreChanged(evo.population, p, p.score, index = none int)  # 😢
+    result = s
 
 proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
   ## assign a new fitness function to the evolver
