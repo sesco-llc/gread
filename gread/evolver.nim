@@ -122,8 +122,7 @@ proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
       let began = getTime()
       result = evo.fitone(evo.platform, s, p)
       p.runtime.push (getTime() - began).inMilliseconds.float
-      if result.isSome:
-        p.addScoreToCache(s.hash, get result)
+      p.addScoreToCache(s.hash, result)
 
 proc collectCachedScores[T, V](evo: Evolver[T, V]; p: Program[T]): seq[(SymbolSet[T, V], Score)] =
   when programCache:
@@ -160,10 +159,7 @@ proc score*[T, V](evo: Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
 
 proc score*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
   ## score the program against all available symbol sets
-  let s = evo.score(evo.dataset, p)
-  if s.isSome:
-    p.score = get s
-    result = s
+  evo.score(evo.dataset, p)
 
 proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
   ## assign a new fitness function to the evolver
