@@ -36,6 +36,8 @@ proc initDataPoint*[T, V](name: string; value: V;
 
 proc initSymbolSet*[T, V](values: openArray[DataPoint[T, V]]): SymbolSet[T, V] =
   ## convert an openArray of DataPoints into a suitable SymbolSet
+  when SymbolSet[T, V] is ref:
+    new result
   result.values = @values
   result.hash = hash result.values
 
