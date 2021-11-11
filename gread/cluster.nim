@@ -88,8 +88,8 @@ proc sendToCore(c: C; core: Natural) =
 proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
                      primitives: Primitives[T] = nil;
                      operators: openArray[OperatorWeight[T, V]] = @[];
-                     fitone: FitOne[T, V] = nil; fitmany: FitMany[T, V] = nil;
                      dataset: seq[SymbolSet[T, V]] = @[];
+                     fitone: FitOne[T, V] = nil; fitmany: FitMany[T, V] = nil;
                      targets = none seq[Score];
                      core = none int; stats = 1000) =
   ## initialize a work object for passing setup instructions to worker threads;
