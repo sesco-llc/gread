@@ -33,15 +33,16 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
 
       p.generation = gen
       p.core = evo.core
-      profile "new score sampled across entire dataset":
-        # FIXME: optimization point
-        let s = evo.score(p)
+      # sample a single datapoint in order to check validity
+      let s = evo.score(evo.randomSymbols, p)
       if s.isSome:
         p.score = get s
-        # we only add valid programs to the population
-        evo.population.add p
       else:
         p.zombie = true
+
+      if not evo.tableau.requireValid or s.isSome:
+        profile "add to pop":
+          evo.population.add p
 
   finally:
     evo.generationTime (getTime() - clock).inMilliseconds.float
