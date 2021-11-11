@@ -19,41 +19,6 @@ type
     index: int
     program: Program[T]
 
-  Tourney*[T] = HeapQueue[Competitor[T]]
-
-proc initTourney[T, V](evo: Evolver[T, V]; size: int): Tourney[T] =
-  if evo.population.len < 1:
-    raise ValueError.newException:
-      "cannot run a tournament with empty population"
-
-  # figure out the size of the tourney
-  let size = max(1, min(evo.population.len, size))
-  # get some data to test all the programs with
-  let syms = evo.randomSymbols()
-  while result.len < size:
-    # pick a program; fetching the same program more than once is nbd
-    var (i, p) = randomMember evo.population
-    # score the program against the data
-    let s = evo.score(syms, p)
-
-    # take the opportunity to update the population
-    let c = evo.scoreFromCache(p)
-    if c.isSome:
-      evo.population.scoreChanged(p, get c, index = some i)
-
-    # resolve the score to a value we can sort with, maybe using parsimony
-    let score =
-      if s.isSome:
-        if evo.tableau.useParsimony:
-          penalizeSize(evo.population, get s, p.len)
-        else:
-          get s
-     else:
-       NaN
-    # push into the queue; the early index prevents "sort by program"
-    result.push (valid: s.isSome, score: score,
-                 len: -p.len, index: i, program: p)
-
 proc tournament*[T, V](evo: Evolver[T, V]; size: int;
                        order = Descending): Competitor[T] =
   ## find the fittest or least fit of a subset of the population
@@ -90,13 +55,7 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
     victims.add (valid: not p.zombie, score: Score NaN,
                  len: p.len, index: i, program: p)
 
-  when false:
-    #echo "victims: ", victims.len
-    for v in victims.items:
-      if v.program.isNil:
-        raise
-
-  try:
+  block byebye:
 
     # randomize the selection of datapoints
     var samples = newSeqOfCap[int](evo.dataset.len)
@@ -106,10 +65,6 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
 
     var data: seq[SymbolSet[T, V]]       # datapoints we've tested
     while samples.len > 0 and victims.len > 1:
-      when false:
-        for v in victims.items:
-          if v.program.isNil:
-            raise
       # pick a novel datapoint we have not tested previously
       data.add evo.dataset[pop samples]
 
@@ -137,8 +92,7 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
         if order == Ascending:
           # a loser this bad is arguably "none more bad"
           result = victims[i]
-          #echo "finally"
-          return
+          break byebye
         else:
           # just remove it from the tournament and continue on
           remover(victims, i)
@@ -154,24 +108,6 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
     # the result will be the greatest winner
     result = victims[0]
 
-    echo data.len
-
-  finally:
-    # remove the remaining victims to inform the population
-    while victims.len > 0:
-      remover(victims, victims.high)
-
-proc tournament2*[T, V](evo: Evolver[T, V]; size: int;
-                        order = Descending): Competitor[T] =
-  ## (old version of tournament)
-  var tourney = initTourney(evo, size)
-
-  # we want the program with the highest score...
-  if order == Descending:
-    while tourney.len > 1:
-      discard pop tourney
-
-  if tourney.len > 0:
-    result = pop tourney
-  else:
-    raise ValueError.newException "tournament unexpectedly empty"
+  # remove the remaining victims to inform the population
+  while victims.len > 0:
+    remover(victims, victims.high)
