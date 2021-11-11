@@ -417,6 +417,7 @@ when compileOption"threads":
 
         if p.score.isNaN:
           negativeCache(args, p)
+    quit 0
 
 when greadTS:
   import pkg/hmisc/wrappers/treesitter
