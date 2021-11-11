@@ -98,9 +98,12 @@ proc newProgram*[T](c: Primitives[T]; a: Ast[T]): Program[T] =
 
 proc clone*[T](p: Program[T]): Program[T] =
   ## it's not a clone if it's different
-  Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
-             primitives: p.primitives,
-             flags: p.flags, core: p.core, generation: p.generation)
+  result =
+    Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
+               primitives: p.primitives, flags: p.flags, core: p.core,
+               generation: p.generation)
+  when programCache:
+    init(result.cache, initialSize = 2)
 
 proc isValid*(p: Program): bool =
   ## true if the program is valid; this will raise a defect
