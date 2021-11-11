@@ -36,7 +36,7 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
         NaN
     c.program.score = score
     c.program.zombie = score.isValid
-    evo.population.scoreChanged(c.program, score, index = some index)
+    evo.population.scoreChanged(c.program, score, index = some c.index)
     del(competitors, index)
 
   if evo.population.len < 1:
