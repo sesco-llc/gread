@@ -234,7 +234,6 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
     result = popStack vm
 
 proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
-  if p.zombie or p.hash in fnl.cache: return NaN
   var h = hash(p, locals)
   try:
     # try to fetch the score from cache
@@ -313,6 +312,8 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
     var ideals: seq[float]
     for index, value in training.pairs:
       let s = evaluate(fnl, p, value[0], fenfit)
+      if not s.isValid:
+        return
       if 0 == index mod samples or index == training.high:
         let delta = s.float
         if delta in [0.0, -0.0]:
@@ -322,10 +323,11 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
       if s.isValid:
         results.add s.float
         ideals.add abs(value[1].float)
-    checkpoint "stddev:", stddev(results),
-               "corr:", correlation(results, ideals).percent,
-               "ss:", ss(results, ideals),
-               "of ideal:", (sum(results) / sum(ideals)).percent
+    if results.len > 0:
+      checkpoint "stddev:", stddev(results),
+                 "corr:", correlation(results, ideals).percent,
+                 "ss:", ss(results, ideals),
+                 "of ideal:", (sum(results) / sum(ideals)).percent
     fnl.dumpScore p
 
 proc dumpStats*(fnl: Fennel; pop: Population; evoTime: Time;
