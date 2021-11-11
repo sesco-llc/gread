@@ -129,7 +129,7 @@ proc collectCachedScores[T, V](evo: Evolver[T, V]; p: Program[T]): seq[(SymbolSe
   when programCache:
     result = newSeqOfCap[(SymbolSet[T, V], Score)](evo.dataset.len)
     for ss in evo.dataset.items:
-      let s = getScoreFromCache(p, ss.hash)
+      let s = p.getScoreFromCache(ss.hash)
       if s.isSome:
         result.add (ss, get s)
 
@@ -163,10 +163,6 @@ proc score*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
   let s = evo.score(evo.dataset, p)
   if s.isSome:
     p.score = get s
-    # FIXME: find a better way to do this (ie. discover the index somehow?)
-    when false:
-      if not evo.population.isNil:
-        scoreChanged(evo.population, p, p.score, index = none int)  # 😢
     result = s
 
 proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
@@ -201,4 +197,5 @@ proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
   while result.len < evo.tableau.seedPopulation:
     let p = randProgram(evo.primitives, evo.tableau.seedProgramSize)
     p.core = evo.core
-    result.add p
+    if not evo.tableau.requireValid or evo.score(evo.randomSymbols, p).isSome:
+      result.add p
