@@ -29,7 +29,7 @@ type
     flags*: set[ProgramFlag]  ## flag enums associated with the program
     ast*: Ast[T]              ## the ast of the program itself
     when programCache:
-      cache: LPTab[Hash, Score] ## cache of score given symbol set hash
+      cache: LPTab[Hash, Option[Score]] ## cache of score given symbol set hash
 
 when defined(ProgramObj):
   proc `=destroy`*[T](p: var ProgramObj[T]) =
@@ -115,17 +115,16 @@ proc isValid*(p: Program): bool =
   else:
     true
 
-proc addScoreToCache*(p: Program; h: Hash; s: Score) =
+proc addScoreToCache*(p: Program; h: Hash; s: Option[Score]) =
   when programCache:
-    if s.isValid:
-      p.cache[h] = s
+    p.cache[h] = s
 
 proc getScoreFromCache*(p: Program; h: Hash): Option[Score] =
   # FIXME: use withValue when cb fixes adix
   when programCache:
     if h in p.cache:
-      result = some p.cache[h]
+      result = p.cache[h]
 
-proc getCacheSize*(p: Program): int =
+proc cacheSize*(p: Program): int =
   when programCache:
     result = p.cache.len
