@@ -264,26 +264,17 @@ when populationCache:
     withInitialized pop:
       p.hash in pop.cache
 
-proc scoreChanged*(pop: Population; p: Program; s: Score; index = none int) =
+proc scoreChanged*(pop: Population; p: Program; s: Score; index: int) =
   withInitialized pop:
-    if index.isSome:
-      if s.isValid:
-        pop.scores[get index] = penalizeSize(pop, s, p.len).float
-        # the lengths could be NaN for this program if it was
-        # entered without a valid score... or something.
-        pop.lengths[get index] = p.len.float
-      else:
-        pop.scores[get index] = NaN
-        pop.lengths[get index] = NaN
+    if s.isValid:
+      pop.scores[index] = penalizeSize(pop, s, p.len).float
+      # the lengths could be NaN for this program if it was
+      # entered without a valid score... or something.
+      pop.lengths[index] = p.len.float
+      maybeResetFittest(pop, p)
     else:
-      when false:
-        # FIXME: find a better way to do this
-        for i, q in pop.programs.pairs:
-          if q.hash == p.hash:
-            scoreChanged(pop, p, s, index = some i)
-            break
-        raise ValueError.newException:
-          "program does not exist in this population"
+      pop.scores[index] = NaN
+      pop.lengths[index] = NaN
 
 when false:
   proc penalized*(pop: Population; index: int): Score =
@@ -294,19 +285,30 @@ proc core*(pop: Population): CoreSpec =
   withInitialized pop:
     pop.ken.core
 
+proc resetScoreMetrics(pop: Population) =
+  withInitialized pop:
+    clear pop.ken.validity
+    clear pop.ken.scores
+    for p in pop.items:
+      if p.score.isValid:
+        pop.ken.validity.push 1.0
+        pop.ken.scores.push p.score
+      else:
+        pop.ken.validity.push 0.0
+
 proc metrics*(pop: Population): PopMetrics =
   ## returns a copy of the population's metrics
-  withInitialized pop:
-    result = pop.ken
-    result.size = pop.len
-    if not pop.fittest.isNil:
-      result.bestSize = pop.fittest.len
-      result.bestScore = pop.fittest.score
-      result.bestGen = pop.fittest.generation
-      if pop.fittest.core == pop.ken.core:
-        let current = pop.ken.generation.int.float
-        result.staleness = (current - pop.fittest.generation.float) / current
-        result.usurper = none int
-      else:
-        result.staleness = NaN
-        result.usurper = pop.fittest.core
+  resetScoreMetrics pop
+  result = pop.ken
+  result.size = pop.len
+  if not pop.fittest.isNil:
+    result.bestSize = pop.fittest.len
+    result.bestScore = pop.fittest.score
+    result.bestGen = pop.fittest.generation
+    if pop.fittest.core == pop.ken.core:
+      let current = pop.ken.generation.int.float
+      result.staleness = (current - pop.fittest.generation.float) / current
+      result.usurper = none int
+    else:
+      result.staleness = NaN
+      result.usurper = pop.fittest.core
