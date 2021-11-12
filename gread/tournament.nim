@@ -72,6 +72,7 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
       victims.add (valid: not p.zombie, score: Score NaN,
                    len: p.len, index: i, program: p)
   caches = ceil(caches / victims.len.float)
+  #caches = min(caches, evo.dataset.len.float / 10.0)
   #debug "victims:"
   #debug victims
 
@@ -89,7 +90,7 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
     debug samples
 
     var data: seq[SymbolSet[T, V]]       # datapoints we've tested
-    while samples.len > 0 and victims.len > 1 and data.len < caches.int:
+    while samples.len > 0 and victims.len > 1: # and data.len < caches.int:
       # pick a novel datapoint we have not tested previously
       data.add evo.dataset[pop samples]
 
@@ -100,53 +101,55 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
         let p = victims[i].program
         if p.isNil:
           raise
-        let s = evo.score(data[^1], p)
-        if s.isSome and s.get.isValid:
-          block:
-            # re-score the program against all datapoints tested to date
-            let s = evo.score(data, p)
-            #let s = evo.scoreFromCache(p)  # use the best number we have!
-            if s.isNone:
-              # weird, but we must treat this as a very bad failure
-              debug "victim ", i, " failed score against all data"
-              break
-            else:
-              # update the competitor and move to the next victim
-              debug "victim ", i, " was ", victims[i].score, " now ", get s
-              victims[i].score = get s
-              victims[i].valid = victims[i].score.isValid
-              debug "victim ", i, " ", victims[i].program
-              inc i
-              continue
+        if p.cacheSize >= samples.len:
+          inc i
         else:
-          debug "victim ", i, " failed score against ", data[^1]
-          debug "victim ", i, " ", victims[i].program
+          let s = evo.score(data[^1], p)
           if s.isSome:
-            debug "victim ", i, " scored ", get s
-          victims[i].score = NaN
-          victims[i].valid = false
+            inc i
+          else:
+            debug "victim ", i, " failed score against ", data[^1]
+            debug "victim ", i, " ", victims[i].program
+            victims[i].score = NaN
+            victims[i].valid = false
 
-        debug "victim ", i, " is invalid"
+            debug "victim ", i, " is invalid"
 
-        # the program failed a fitone or a fitmany; toss it
-        if order == Ascending:
-          # a loser this bad is arguably "none more bad"
-          result = victims[i]
-          break byebye
+            # the program failed a fitone or a fitmany; toss it
+            if order == Ascending:
+              # a loser this bad is arguably "none more bad"
+              result = victims[i]
+              break byebye
+            else:
+              # just remove it from the tournament and continue on
+              remover(victims, i)
+
+      i = 0
+      while i <= victims.high and victims.len > 1:
+        let p = victims[i].program
+        if p.isNil:
+          raise
+        # re-score the program against all datapoints tested to date
+        let s = evo.score(data, p)
+        if s.isSome:
+          # update the competitor and move to the next victim
+          debug "victim ", i, " was ", victims[i].score, " now ", get s
+          victims[i].score = get s
+          victims[i].valid = victims[i].score.isValid
+          debug "victim ", i, " ", victims[i].program
+          inc i
         else:
-          # just remove it from the tournament and continue on
           remover(victims, i)
 
-      if data.len >= caches.int:
-        # if programs remain,
-        if victims.len > 1:
-          # sort the remainder, and
-          sort(victims, order)
-          debug "removing victims worse than ", victims[0].score
+      # if programs remain,
+      if victims.len > 1:
+        # sort the remainder, and
+        sort(victims, order)
+        debug "removing victims worse than ", victims[0].score
 
-          # remove any losers
-          while victims[^1].score != victims[0].score:
-            remover(victims, victims.high)
+        # remove any losers
+        while victims[^1].score != victims[0].score:
+          remover(victims, victims.high)
 
       debug "loop done at ", i, " with data len ", data.len, " order ", order
 
