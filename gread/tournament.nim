@@ -43,12 +43,13 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
     ## used to update the population with a score change prior to removal
     let c = competitors[i]
     let s = evo.scoreFromCache(c.program)
-    let score =
-      if s.isSome:
-        get s
-      else:
-        NaN
-    debug "rm ", i, " was ", c.program.score, " now ", score
+    when debugging:
+      let score =
+        if s.isSome:
+          get s
+        else:
+          NaN
+      debug "rm ", i, " was ", c.program.score, " now ", score
     evo.population.scoreChanged(c.program, s, c.index)
     del(competitors, i)
 
