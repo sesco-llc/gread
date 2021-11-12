@@ -32,8 +32,7 @@ const
   semanticErrorsAreFatal = false
   initialCacheSize = 32*1024
   greadTS* = defined(greadTreeSitter) and
-             (defined(gcArc) or defined(gcOrc)) and
-             not compileOption"threads"
+             (defined(gcArc) or defined(gcOrc))
 
 type
   Fennel* = ref object
@@ -423,33 +422,29 @@ when compileOption"threads":
     quit 0
 
 when greadTS:
-  import pkg/hmisc/wrappers/treesitter
-  import pkg/htsparse/fennel/fennel as parsefen
+  import pkg/htsparse/fennel/fennel_core_only as parsefen
 
-  proc toAst(node: HtsNode[TsFennelNode, FennelNodeKind];
-             c: Primitives[Fennel]): Ast[Fennel] =
-    #echo "  node kind: ", node.kind
-    #echo "node string: ", node.getTs.nodeString
-    #echo "node strval: ", node.strVal
+  proc toAst(node: TsFennelNode; c: Primitives[Fennel];
+             s: string): Ast[Fennel] =
     case node.kind
     of fennelProgram:
-      result = toAst(node[0], c)
+      result = node[0].toAst(c, s)
     of fennelSymbol:
-      result = Ast[Fennel](nodes: @[c.identNode node.strVal])
+      result = Ast[Fennel](nodes: @[c.identNode s[node]])
     of fennelMultiSymbol:
       # these are symbols like `math.pi`
       var syms: seq[string]
       for index, item in node.pairs:
-        syms.add item.toAst(c)[0].ident(c)
+        syms.add item.toAst(c, s)[0].ident(c)
       result = Ast[Fennel](nodes: @[c.identNode syms.join(".")])
     of fennelList:
       result = Ast[Fennel]()
       result.nodes.add:
         AstNode[Fennel](kind: akCall, operand: 1)
       result.nodes.add:
-        node[0].toAst(c)[0]  # convert the symbol to ast, grab first node
+        node[0].toAst(c, s)[0] # symbol to ast, then grab first node
       for item in node[1..^1]:
-        result = result.append toAst(item, c)
+        result = result.append item.toAst(c, s)
     of fennelComment:
       result = Ast[Fennel]()
     of fennelFalseTok:
@@ -457,15 +452,15 @@ when greadTS:
     of fennelTrueTok:
       result = initAst(c, term true)
     of fennelBoolean:
-      result = initAst(c, term parseBool(node.strVal))
+      result = initAst(c, term parseBool(s[node]))
     of fennelNumber:
-      result = initAst(c, term parseFloat(node.strVal))
+      result = initAst(c, term parseFloat(s[node]))
     else:
       raise Defect.newException "unsupported node: " & $node.kind
 
   proc newProgram*[T: Fennel](c: Primitives[T]; s: string): Program[T] =
-    let tree = parseFennelString s
+    let tree = parseTsFennelString s
     if tree.kind != fennelProgram:
       raise ValueError.newException "expected a program; got " & $tree.kind
     else:
-      result = c.newProgram tree.toAst(c)
+      result = c.newProgram tree.toAst(c, s)

@@ -1,6 +1,8 @@
 import std/hashes
 from std/json import escapeJson
 
+from pkg/frosty import frostyError, FreezeError, ThawError
+
 import gread/ast
 
 import "$nim/compiler/ic/bitabs"
@@ -178,3 +180,24 @@ proc ident*[T](n: AstNode[T]; c: Primitives[T]): string =
     c[].strings[LitId n.operand]
   else:
     raise Defect.newException "unsupported form: " & $n
+
+proc serialize*[S, T](output: var S; input: Primitives[T]) =
+  ## used by frosty to freeze programs
+  if input.isNil:
+    raise FreezeError.frostyError "unable to serialize nil primitives"
+  else:
+    serialize(output, 1'u8)
+    serialize(output, input[])
+
+proc deserialize*[S, T](input: var S; output: var Primitives[T]) =
+  ## used by frosty to thaw programs
+  if output.isNil:
+    raise ThawError.frostyError "unable to deserialize into nil primitives"
+  else:
+    var v: uint8
+    deserialize(input, v)
+    case v
+    of 1:
+      deserialize(input, output[])
+    else:
+      raise ThawError.frostyError "dunno how to deserialize primitives v" & $v

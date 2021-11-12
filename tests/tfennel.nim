@@ -1,13 +1,9 @@
 import std/json
 import std/options
-import std/strutils
-import std/sequtils
-import std/math
 
 import pkg/balls
 
 import gread
-
 import gread/fennel
 
 var c = newPrimitives[Fennel]()
@@ -63,18 +59,21 @@ suite "basic fennel stuff":
           ## parse a fennel program with multi-symbols
           const program = "(/ math.pi math.pi)"
           p = newProgram(c, program)
+          checkpoint $p
           check $p == "(/ math.pi math.pi)"
 
         block:
           ## parse a fennel program
           const program = "(+ 1   2.0  )"
           p = newProgram(c, program)
+          checkpoint $p
           check $p == "(+ 1.0 2.0)"
 
         block:
           ## run a fennel program
           var locals: Locals
           let score = fnl.evaluate(p, locals, fenfit)
+          checkpoint score
           check score.float == 3.0
 
         block:
@@ -82,12 +81,14 @@ suite "basic fennel stuff":
           let popsicle = freeze p
           var puddle: FProg
           thaw(popsicle, puddle)
+          checkpoint c.render(p.ast)
           check c.render(p.ast) == c.render(puddle.ast)
 
         block:
           ## run a fennel program with inputs
           const program = "(+ a b)"
           p = newProgram(c, program)
+          checkpoint $p
           check $p == "(+ a b)"
           # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
           var locals = initLocals:

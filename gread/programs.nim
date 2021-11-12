@@ -4,6 +4,8 @@ import std/hashes
 import pkg/adix/stat
 import pkg/adix/lptabz
 
+from pkg/frosty import frostyError, FreezeError, ThawError
+
 import gread/ast
 import gread/primitives
 import gread/spec
@@ -19,7 +21,7 @@ type
   #Program*[T] = ref ProgramObj[T]
   Program*[T] = ref object
     primitives*: Primitives[T]
-    code: Option[string]      ## cache of the serialized source code
+    code: Option[string]      ## cache of the rendered source code
     core*: Option[int]        ## ideally holds the core where we were invented
     runtime*: MovingStat[float32]  ## tracks the runtime for this program
     source*: int              ## usually the threadId where we were invented
@@ -128,3 +130,19 @@ proc getScoreFromCache*(p: Program; h: Hash): Option[Score] =
 proc cacheSize*(p: Program): int =
   when programCache:
     result = p.cache.len
+
+proc serialize*[S, T](output: var S; input: Program[T]) =
+  if input.primitives.isNil:
+    raise FreezeError.frostyError "program lacks primitives"
+  else:
+    serialize(output, input.primitives)
+    serialize(output, input.ast)
+    serialize(output, input.flags)
+
+proc deserialize*[S, T](input: var S; output: var Program[T]) =
+  var c: Primitives[T]
+  var ast: Ast[T]
+  deserialize(input, c)
+  deserialize(input, ast)
+  output = newProgram(c, ast)
+  deserialize(input, output.flags)
