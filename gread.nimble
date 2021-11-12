@@ -9,13 +9,11 @@ requires "https://github.com/nim-works/cps >= 0.4.4 & < 1.0.0"
 requires "https://github.com/c-blake/adix >= 0.2.1 & < 1.0.0"
 requires "https://github.com/c-blake/cligen < 1.5.20"  # for adix/stat
 requires "https://github.com/disruptek/redis < 1.0.0"
-requires "https://github.com/disruptek/frosty >= 2.1.1 & < 3.0.0"
+requires "https://github.com/disruptek/frosty >= 3.0.0 & < 4.0.0"
+requires "https://github.com/haxscramper/htsparse >= 0.1.8 & < 1.0.0"
 
 when defined(greadGraph):
   requires "https://github.com/Vindaar/ggplotnim > 0.4.0 & < 1.0.0"
-
-when defined(greadTreeSitter):
-  requires "https://github.com/haxscramper/htsparse >= 0.1.8 & < 1.0.0"
 
 when not defined(release):
   requires "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0"
