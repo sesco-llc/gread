@@ -92,8 +92,7 @@ for (js, ideal) in inputData.items:
 
 proc fenfit(inputs: Locals; output: LuaValue): Score =
   if output.kind == TNumber:
-    # delta between output and the target for the given inputs
-    output.toFloat - targets[hash inputs].toFloat
+    output.toFloat
   else:
     NaN
 
@@ -101,18 +100,20 @@ proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
   ## convenience capture
   let s = evaluate(fnl, p, locals, fenfit)
   if not s.isNaN and s notin [-Inf, Inf]:
-    result = some Score(-abs s)
+    result =
+      some:
+        Score -(abs targets[hash locals].toFloat - s.float)
 
-proc fitmany(fnl: Fennel; ss: openArray[(Locals, Score)];
+proc fitmany(fnl: Fennel; data: openArray[(Locals, Score)];
              p: FProg): Option[Score] =
-  var results = newSeqOfCap[float](ss.len)
-  for locals, s in ss.items:
+  var results = newSeqOfCap[float](data.len)
+  for locals, s in data.items:
     if s.isNaN or s in [-Inf, Inf]:
       return none Score
     else:
       results.add s
   if results.len > 0:
-    result = some Score -(stddev results)
+    result = some Score -ss(results)
 
 template dumpStats() {.dirty.} =
   dumpStats(fnl, pop, et, genTime)

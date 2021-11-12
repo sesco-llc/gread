@@ -16,7 +16,7 @@ import pkg/loony
 import pkg/adix/lptabz
 
 const
-  goodEnough = -0.0      # termination condition
+  goodEnough = 0.1      # termination condition
   statFrequency = 10000  # report after this many generations
 
 var prims = newPrimitives[Fennel]()
@@ -29,8 +29,8 @@ prims.constants = @[term 1.0, term 0.1]
 # you can adjust these weights to change mutation rates
 let operators = {
   randomCrossover[Fennel, LuaValue]:    1.0,
-  pointPromotion[Fennel, LuaValue]:     5.0,
-  removeOneLeaf[Fennel, LuaValue]:      5.0,
+  pointPromotion[Fennel, LuaValue]:    15.0,
+  removeOneLeaf[Fennel, LuaValue]:     30.0,
   appendOneLeaf[Fennel, LuaValue]:      2.0,
   pointMutation[Fennel, LuaValue]:      4.0,
   subtreeCrossover[Fennel, LuaValue]:  90.0,
@@ -42,29 +42,30 @@ const
 
 # preparing the data for use in the fitness()
 prims.inputs.add [sym"x"]
-var training: seq[Locals]
-var targets: LPTab[Hash, LuaValue]
-init(targets, initialSize = data.len)
+var dataset: seq[Locals]
 for (x, y) in data.items:
-  var locals = initLocals [("x", x.toLuaValue)]
-  targets[hash locals] = y.toLuaValue
-  training.add locals
+  dataset.add:
+    initLocals [("x", x.toLuaValue), ("y", y.toLuaValue)]
 
 proc fenfit(inputs: Locals; output: LuaValue): Score =
   ## fenfit gates program output such that producing a NaN will terminate
   ## scoring of the program early, and mark the program as invalid
   if output.kind == TNumber:
-    targets[hash inputs].toFloat - output.toFloat  # the residual
+    output.toFloat
   else:
     NaN
 
 proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
+  ## given a datapoint, run the program and return the residual
   let s = evaluate(fnl, p, locals, fenfit)
   if not s.isNaN:
-    result = some Score(-abs s)
+    result =
+      some:
+        Score -abs(locals["y"].toFloat - s.float)
 
 proc fitmany(fnl: Fennel; data: openArray[(Locals, Score)];
              p: FProg): Option[Score] =
+  ## given several residuals, return the sum of squares
   var results = newSeqOfCap[float](data.len)
   for locals, s in data.items:
     if s.isNaN:
@@ -83,31 +84,39 @@ when isMainModule:
   # the main loop monitors inventions
   proc main(work: Work; inputs, outputs: LoonyQueue[FProg]) =
     let fnl = newFennel(work.primitives)
-    var best = Score NaN
-    while not best.isValid or best < goodEnough:
+    var best: Program[Fennel]
+    while true:
       let p = pop inputs
       if p.isNil:
         sleep 10
       else:
-        if p.score > best or best.isNaN:
-          best = p.score
-          dumpPerformance(fnl, p, training, fenfit)
+        if FinestKnown in p.flags:
+          if p.score.isValid:
+            if best.isNil or best.score < p.score:
+              best = p
+              dumpPerformance(fnl, best, dataset, fenfit)
+              if best.score > goodEnough:
+                break
         push(outputs, p)
 
   # now setup the workers with their unique populations, etc.
   var tab = defaultTableau
   tab.useParsimony = false  # our scoring isn't -1.0..1.0
-  tab.seedPopulation = 10000
-  tab.maxPopulation = 10000
+  tab.seedPopulation = 100
+  tab.maxPopulation = 100
+  tab.tournamentSize = 10
+  tab.sharingRate = 6.0
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()
   var args = clump.initWork()
-  initWork(args, tab, primitives = prims, operators = operators,
-           dataset = training,
+  initWork(args, tab, prims, operators = operators, dataset = dataset,
            fitone = fitone, fitmany = fitmany, stats = statFrequency)
 
-  clump.boot(whelp worker(args), args.core)
+  for core in 0..<countProcessors():
+    clump.boot(whelp worker(args), args.core)
+    clump.redress args
+    break
 
   # run the main loop to gatekeep inventions
   let (inputs, outputs) = clump.programQueues()
