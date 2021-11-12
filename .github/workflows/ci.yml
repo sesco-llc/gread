@@ -50,12 +50,22 @@ jobs:
         run: |
           sudo apt-get install -y libluajit-5.1-dev liblua5.1-0-dev
 
+      - name: Setup Tree-Sitter
+        if: ${{ matrix.os }} == 'ubuntu-latest'
+        env:
+          TS_VERSION: "0.20.0"
+        shell: bash
+        run: |
+          wget "https://github.com/tree-sitter/tree-sitter/archive/refs/tags/v${TS_VERSION}.tar.gz"
+          tar -xvf "v${TS_VERSION}.tar.gz"
+          cd "tree-sitter-${TS_VERSION}"
+          sudo make install PREFIX=/usr
+
       - name: Run tests
         shell: bash
         run: |
           cd ci
           nimble --accept develop
-          nimble --accept install "https://github.com/disruptek/balls"
           nimble test
 
       - name: Build docs
