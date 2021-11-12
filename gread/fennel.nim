@@ -417,8 +417,9 @@ when compileOption"threads":
           dumpStats(fnl, evo.population, evoTime, evo.generationTime)
           clearStats evo
 
-        if p.score.isNaN:
-          negativeCache(args, p)
+        when false:
+          if p.score.isNaN:
+            negativeCache(args, p)
     quit 0
 
 when greadTS:
