@@ -15,7 +15,7 @@ when defined(greadGraph):
   requires "https://github.com/Vindaar/ggplotnim > 0.4.0 & < 1.0.0"
 
 when defined(greadTreeSitter):
-  requires "https://github.com/haxscramper/htsparse >= 0.1.7 & < 1.0.0"
+  requires "https://github.com/haxscramper/htsparse >= 0.1.8 & < 1.0.0"
 
 when not defined(release):
   requires "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0"
