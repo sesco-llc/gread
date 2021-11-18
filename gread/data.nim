@@ -10,7 +10,6 @@ type
 
   DataPoint*[T, V] = object
     name*: string
-    kind*: AstKind
     value*: V
 
 converter toValue*[T, V](point: DataPoint[T, V]): V =
@@ -30,9 +29,8 @@ proc `$`*(ss: SymbolSet): string =
   result.add mapIt(ss.values, $it).join(" ")
   result.add "]"
 
-proc initDataPoint*[T, V](name: string; value: V;
-                          kind = akNone): DataPoint[T, V] =
-  DataPoint[T, V](name: name, value: value, kind: kind)
+proc initDataPoint*[T, V](name: string; value: V): DataPoint[T, V] =
+  DataPoint[T, V](name: name, value: value)
 
 proc initSymbolSet*[T, V](values: openArray[DataPoint[T, V]]): SymbolSet[T, V] =
   ## convert an openArray of DataPoints into a suitable SymbolSet
