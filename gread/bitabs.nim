@@ -1,20 +1,27 @@
+import std/hashes
+
 ## A BiTable is a table that can be seen as an optimized pair
 ## of (Table[LitId, Val], Table[Val, LitId]).
-
-import std/hashes
+##
+## this impl is copied from $nim/compiler/ic/bitabs and tweaked
+##
 
 type
   LitId* = distinct uint32
-
   BiTable*[T] = object
-    vals: seq[T] # indexed by LitId
-    keys: seq[LitId]  # indexed by hash(val)
+    vals: seq[T]      # indexed by LitId; length is thus that of the table
+    keys: seq[LitId]  # indexed by hash(val); length is thus >= that of vals
+
+const
+  idStart = 256 ## we currently use this to add significance to
+  ## an operand value of 0, which we sem as having no literal
+
+template idToIdx(x: LitId): int = x.int - idStart
+template isFilled(x: LitId): bool = x.uint32 > 0'u32
+template maxHash(t): untyped = high(t.keys)
 
 proc nextTry(h, maxHash: Hash): Hash {.inline.} =
   result = (h + 1) and maxHash
-
-template maxHash(t): untyped = high(t.keys)
-template isFilled(x: LitId): bool = x.uint32 > 0'u32
 
 proc `$`*(x: LitId): string {.borrow.}
 proc `<`*(x, y: LitId): bool {.borrow.}
@@ -22,21 +29,34 @@ proc `<=`*(x, y: LitId): bool {.borrow.}
 proc `==`*(x, y: LitId): bool {.borrow.}
 proc hash*(x: LitId): Hash {.borrow.}
 
-
 proc len*[T](t: BiTable[T]): int = t.vals.len
 
 proc mustRehash(length, counter: int): bool {.inline.} =
   assert length > counter
   result = (length * 2 < counter * 3) or (length - counter < 4)
 
-const
-  idStart = 256 ## we'll retain this in case it becomes useful later
+when false:
+  #[
 
-template idToIdx(x: LitId): int = x.int - idStart
+  omitting these until a need presents itself
 
-proc hasLitId*[T](t: BiTable[T]; x: LitId): bool =
-  let idx = idToIdx(x)
-  result = idx >= 0 and idx < t.vals.len
+  ]#
+  proc contains*[T](t: BiTable[T]; x: LitId): bool =
+    let idx = idToIdx(x)
+    result = idx >= 0 and idx <= t.vals.high
+
+  proc `[]`[T](t: BiTable[T]; v: T): LitId =
+    let origH = hash(v)
+    var h = origH and maxHash(t)
+    if t.keys.len != 0:
+      while true:
+        let litId = t.keys[h]
+        if not isFilled(litId):
+          break
+        if t.vals[idToIdx t.keys[h]] == v:
+          return litId
+        h = nextTry(h, maxHash(t))
+    raise KeyError.newException "key not found"
 
 proc enlarge[T](t: var BiTable[T]) =
   var n: seq[LitId]
@@ -49,19 +69,6 @@ proc enlarge[T](t: var BiTable[T]) =
       while isFilled(t.keys[j]):
         j = nextTry(j, maxHash(t))
       t.keys[j] = move n[i]
-
-proc getKeyId*[T](t: BiTable[T]; v: T): LitId =
-  let origH = hash(v)
-  var h = origH and maxHash(t)
-  if t.keys.len != 0:
-    while true:
-      let litId = t.keys[h]
-      if not isFilled(litId):
-        break
-      if t.vals[idToIdx t.keys[h]] == v:
-        return litId
-      h = nextTry(h, maxHash(t))
-  raise KeyError.newException "key not found"
 
 proc getOrIncl*[T](t: var BiTable[T]; v: T): LitId =
   let origH = hash(v)
@@ -89,14 +96,14 @@ proc getOrIncl*[T](t: var BiTable[T]; v: T): LitId =
   t.keys[h] = result
   t.vals.add v
 
-proc `[]`*[T](t: var BiTable[T]; LitId: LitId): var T {.inline.} =
-  let idx = idToIdx LitId
-  assert idx <= t.vals.high
+proc `[]`*[T](t: var BiTable[T]; id: LitId): var T {.inline.} =
+  let idx = idToIdx id
+  assert idx <= t.vals.high, "idx " & $idx
   result = t.vals[idx]
 
-proc `[]`*[T](t: BiTable[T]; LitId: LitId): lent T {.inline.} =
-  let idx = idToIdx LitId
-  assert idx <= t.vals.high
+proc `[]`*[T](t: BiTable[T]; id: LitId): lent T {.inline.} =
+  let idx = idToIdx id
+  assert idx <= t.vals.high, "idx " & $idx
   result = t.vals[idx]
 
 proc hash*[T](t: BiTable[T]): Hash =
