@@ -2,7 +2,7 @@
 
 [![Test Matrix](https://github.com/disruptek/gread/workflows/CI/badge.svg)](https://github.com/disruptek/gread/actions?query=workflow%3ACI)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/disruptek/gread?style=flat)](https://github.com/disruptek/gread/releases/latest)
-![Minimum supported Nim version](https://img.shields.io/badge/nim-1.6.0%2B-informational?style=flat&logo=nim)
+![Minimum supported Nim version](https://img.shields.io/badge/nim-1.6.1%2B-informational?style=flat&logo=nim)
 [![License](https://img.shields.io/github/license/disruptek/gread?style=flat)](#license)
 
 Grammar-Evolving Algorithm Designer
@@ -12,15 +12,15 @@ Grammar-Evolving Algorithm Designer
 It's currently a very basic genetic programming system built to explore some
 ideas for algorithm design, and specifically, grammatical evolution.
 
-The architecture is generic to the user's choice of genome; while we're
+*The architecture is _generic_ to the user's choice of genome*; while we're
 currently experimenting with tree-based grammars, we do technically support
 linear genome definitions, etc.
 
-## Does It Evolve Nim Programs?
-
-It's technically possible, but the Nim VM is fairly complex and has quite a few
-bugs which make it difficult to use for ingesting code which is, at this early
-stage, likely to be invalid.  The Nim VM is also relatively expensive to run.
+This means that language support is generalized by a generic language type.
+You must merely implement a few key functions in order to add novel language
+support to the framework. Future support here will probably revolve around
+tighter integration with htsparse (tree-sitter) so that if tree-sitter supports
+your language, so will gread.
 
 ## So It's _Bring Your Own Language_?
 
@@ -39,6 +39,12 @@ evaluated after being compiled into Lua.
 
 Fennel contributes a syntax convenient for subtree swapping and yet still
 provides the complexity of a macro system for evolving new grammar forms.
+
+## Does It Evolve Nim Programs?
+
+It's possible to evolve Nim programs with Gread. The Nim VM is fairly complex
+and expensive to run. It also has quite a few crash bugs which make it
+difficult to use for ingesting code produced at random.
 
 ## Installation
 
