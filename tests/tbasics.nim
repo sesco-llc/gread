@@ -159,7 +159,7 @@ suite "basic machinery":
 
 suite "trees":
   var prims = newPrimitives[G]()
-  var trees: seq[GProg]
+  var trees: seq[Program[G]]
   block:
     ## tree tests
     prims.constants = @[term 1, term 2, term 3, sym"a", sym"b", sym"c"]
