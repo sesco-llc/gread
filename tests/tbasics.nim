@@ -1,6 +1,6 @@
 import std/json
 import std/options
-import std/strutils
+#import std/strutils
 import std/sequtils
 import std/math
 
@@ -13,6 +13,17 @@ include glang
 var prims = newPrimitives[G]()
 prims.functions = @[fun"+"]
 
+proc asAst*[T](term: Terminal[T]; c: Primitives[T]): Ast[T] =
+  ## convenience
+  c.initAst term
+
+proc asAst*[T](fun: Function[T]; c: Primitives[T];
+               args: varargs[Ast[T], asAst]): Ast[T] =
+  ## convenience
+  result = c.initAst fun
+  for a in args.items:
+    result = result.insert(result.len, a)
+
 when false:
   var j = prims.initAst fun"+"
   j = j.append prims.initAst(term 2.0)
@@ -23,14 +34,14 @@ suite "basic machinery":
     ## ast node
     var a = prims.initAst fun"+"
     check a.len == 2
-    check a[0].kind == akCall
+    check a[0].kind == Dad
     check a[0].isParent
     check a.sizeOfSubtree(0) == 2
     checkpoint prims.render(a)
     check prims.render(a) == "(+)"
     check countParents(a) == 1
-    check countChildren(a, 0) == 1
-    check countChildren(a, 1) == 0
+    check numberOfChildren(a[0]) == 1
+    check numberOfChildren(a[1]) == 0
     check a.peer(0) == 2
     check a.peer(1) == -1
     a = delete(a, a.high)
@@ -45,9 +56,10 @@ suite "basic machinery":
     checkpoint prims.render(a)
     check prims.render(a) == "(+ 2.0)"
     check countParents(a) == 1
-    check countChildren(a, 0) == 2
-    check countChildren(a, 1) == 0
-    check countChildren(a, 2) == 0
+    check numberOfChildren(a[0]) == 2
+    check numberOfChildren(a[1]) == 0
+    check numberOfChildren(a[2]) == 0
+    # this ast is broken... it shouldn't render, right?
     a = delete(a, 1)
     check a.len == 2
     checkpoint prims.render(a)
@@ -61,12 +73,12 @@ suite "basic machinery":
     check a.len == 4
     checkpoint prims.render(a)
     check prims.render(a) == "(+ 2.0 3.0)"
-    check prims.render(a[1]) == "+"
-    check prims.render(a[2]) == "2.0"
-    check prims.render(a[3]) == "3.0"
-    check a[2].kind == akFloatLit
+    check a.render(a[1]) == "+"
+    check a.render(a[2]) == "2.0"
+    check a.render(a[3]) == "3.0"
+    check a[2].kind == Flo
     check countParents(a) == 1
-    check countChildren(a, 0) == 3
+    check numberOfChildren(a[0]) == 3
     a = delete(a, 2)
     check a.len == 3
     checkpoint prims.render(a)
@@ -87,8 +99,8 @@ suite "basic machinery":
     checkpoint prims.render(a)
     check prims.render(a) == "(+ 2.0 (- 6.0 1.0) 3.0)"
     check countParents(a) == 2
-    check countChildren(a, 0) == 4
-    check countChildren(a, 3) == 3
+    check numberOfChildren(a[0]) == 4
+    check numberOfChildren(a[3]) == 3
     a = delete(a, 2)
     check a.len == 7
     checkpoint prims.render(a)
@@ -108,8 +120,8 @@ suite "basic machinery":
     checkpoint prims.render(a)
     check prims.render(a) == "(+ (- 6.0 1.0) 3.0)"
     check countParents(a) == 2
-    check countChildren(a, 0) == 3
-    check countChildren(a, 2) == 3
+    check numberOfChildren(a[0]) == 3
+    check numberOfChildren(a[2]) == 3
     check sizeOfSubtree(a, 2) == 4
     check a.parentOf(2).get == 0
     a = delete(a, 2)
@@ -130,8 +142,8 @@ suite "basic machinery":
     checkpoint prims.render(a)
     check prims.render(a) == "(+ 3.0 (- 6.0 1.0))"
     check countParents(a) == 2
-    check countChildren(a, 0) == 3
-    check countChildren(a, 3) == 3
+    check numberOfChildren(a[0]) == 3
+    check numberOfChildren(a[3]) == 3
 
   block:
     ## supporting math

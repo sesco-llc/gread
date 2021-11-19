@@ -7,13 +7,13 @@ import std/hashes
 import std/options
 import std/strutils
 
-import pkg/lunacy
+import pkg/lunacy except Integer
 import pkg/adix/lptabz
 import pkg/adix/stat
 import pkg/balls
 import pkg/cps
 import pkg/frosty/streams as brrr
-export brrr
+import pkg/htsparse/fennel/fennel_core_only as parsefen
 
 import gread/spec
 import gread/ast
@@ -58,6 +58,12 @@ type
   Locals* = SymbolSet[Fennel, LuaValue]
 
   FenFit = proc(locals: Locals; ideal: LuaValue): Score
+
+proc `$`*[T: Fennel](n: AstNode[T]): string =
+  ## rendering fennel ast kinds
+  result = $(FennelNodeKind n.kind) & "." & $n.operand
+  if n.flags != {}:
+    result.add "/" & $n.flags
 
 proc serialize*[S](output: var S; input: LuaValue) =
   ## serialize a LuaValue; used internally by frosty
@@ -161,29 +167,27 @@ proc fun*(s: string; arity = 0; args = arity..int.high): Fun =
   Fun(ident: s, arity: max(arity, args.a), args: args)
 
 proc term*(value: float): Term =
-  Term(kind: Constant, ck: Float, floatVal: value)
+  Term(kind: Float, floatVal: value)
 proc term*(value: bool): Term =
-  Term(kind: Constant, ck: Boolean, boolVal: value)
+  Term(kind: Boolean, boolVal: value)
 proc str*(value: string): Term =
-  Term(kind: Constant, ck: String, strVal: value)
+  Term(kind: String, strVal: value)
 proc sym*(value: string): Term =
-  Term(kind: Symbol, ident: value)
+  Term(kind: Symbol, name: value)
 proc term*(value: int): Term =
-  Term(kind: Constant, ck: ConstantKind.Integer, intVal: value)
+  Term(kind: Integer, intVal: value)
 
 proc pushGlobal*(vm: PState; name: string; value: Term) =
   ## push a name/value pair into the vm as a global
   case value.kind
-  of Constant:
-    case value.ck
-    of Float:
-      vm.pushNumber value.floatVal
-    of Boolean:
-      vm.pushNumber value.boolVal.float
-    of String:
-      vm.pushString value.strVal.cstring
-    of ConstantKind.Integer:
-      vm.pushNumber value.intVal.float
+  of Float:
+    vm.pushNumber value.floatVal
+  of Boolean:
+    vm.pushNumber value.boolVal.float
+  of String:
+    vm.pushString value.strVal.cstring
+  of Integer:
+    vm.pushNumber value.intVal.float
   else:
     raise ValueError.newException "unsupported term"
   vm.setGlobal name
@@ -195,28 +199,77 @@ proc hash(p: FProg; locals: Locals): Hash =
   h = h !& locals.hash
   result = !$h
 
-when false:
-  proc render*(c: Primitives[Fennel]; a: Ast[Fennel]): string =
-    ## render fennel ast in a form that can be compiled
-    var i = 0
-    var s = newSeqOfCap[int](a.len)
-    template maybeAddSpace {.dirty.} =
-      if result.len > 0 and result[^1] notin {'('}:
-        result.add " "
-    template closeParens {.dirty.} =
-      while s.len > 0 and i >= s[^1]:
-        result.add ")"
-        discard pop s
-    while i < a.len:
-      closeParens()
-      maybeAddSpace()
-      if a[i].isParent:
-        result.add "("
-        s.add i+sizeOfSubtree(a, i)      # pop when you get past index+size
-      else:
-        result.add render(c, a[i])
-      inc i
+converter toFennelNodeKind*(n: int16): FennelNodeKind {.inline.} = FennelNodeKind n
+converter toInt16(n: FennelNodeKind): int16 {.inline.} = int16 n
+
+func isParent*(n: AstNode[Fennel]): bool {.inline.} =
+  n.kind in {fennelProgram, fennelList, fennelMultiSymbol}
+
+func isSymbol*(n: AstNode[Fennel]): bool {.inline.} =
+  n.kind == fennelSymbol
+
+func isStringLit*(n: AstNode[Fennel]): bool {.inline.} =
+  n.kind == fennelString
+
+func isNumberLit*(n: AstNode[Fennel]): bool {.inline.} =
+  n.kind in {fennelNumber, fennelBoolean}
+
+func isEmpty*(n: AstNode[Fennel]): bool {.inline.} =
+  n.kind == fennelNil
+
+proc render[T](a: Ast[T]; n: AstNode[T]; i = 0): string =
+  ## render a fennel node from Ast `a`
+  if n.isParent:
+    case n.kind
+    of fennelMultiSymbol:
+      var syms: seq[string]
+      for sym in children(a, i):
+        syms.add sym.name(0)
+      syms.join(".")
+    of fennelProgram:
+      ""
+    else:
+      $n
+  elif n.isSymbol:
+    a.strings[LitId n.operand]
+  elif n.isStringLit:
+    escapeJson(a.strings[LitId n.operand], result)
+    result
+  elif n.isEmpty:
+    "nil"
+  elif n.isNumberLit:
+    $cast[BiggestFloat](a.numbers[LitId n.operand])
+  else:
+    "«" & $n.kind & "»"
+
+proc render*(c: Primitives[Fennel]; a: Ast[Fennel]): string =
+  ## render fennel ast in a form that can be compiled
+  var i = 0
+  var s = newSeqOfCap[int](a.len)
+  template maybeAddSpace {.dirty.} =
+    if result.len > 0 and result[^1] notin {'('}:
+      result.add " "
+  template closeParens {.dirty.} =
+    while s.len > 0 and i >= s[^1]:
+      result.add ")"
+      discard pop s
+  while i <= a.high:
     closeParens()
+    maybeAddSpace()
+    case a[i].kind
+    of fennelProgram:
+      inc i                            # program is merely a semantic
+    of fennelList:
+      result.add "("
+      s.add i+sizeOfSubtree(a, i)      # pop when you get past index+size
+      inc i
+    elif a[i].isParent:
+      result.add a.render(a[i], i)     # probably just a multi.symbol
+      inc(i, sizeOfSubtree(a, i))      # skip the parent's subtree
+    else:
+      result.add a.render(a[i], i)     # rendering an individual node
+      inc i
+  closeParens()
 
 proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   ## compile and evaluate the program as fennel; the result of
@@ -366,6 +419,80 @@ proc dumpStats*(fnl: Fennel; pop: Population; evoTime: Time;
   """
   clearStats fnl
 
+proc programNode*[T: Fennel](a: var Ast[T]): AstNode[T] =
+  ## create a head node for the program
+  AstNode[T](kind: fennelProgram)
+
+proc emptyNode*[T: Fennel](a: var Ast[T]): AstNode[T] =
+  ## create an "empty" node suitable as a placeholder
+  AstNode[T](kind: fennelNil)
+
+proc terminalNode*[T: Fennel](a: var Ast[T]; term: Terminal[T]): AstNode[T] =
+  ## convert a terminal into an ast node
+  case term.kind
+  of Token:
+    tokenNode(a, term.token, text = term.text)
+  of None:
+    AstNode[T](kind: fennelNil)
+  of Symbol:
+    AstNode[T](kind: fennelSymbol, operand: a.strings.getOrIncl term.name)
+  of String:
+    AstNode[T](kind: fennelString, operand: a.strings.getOrIncl term.strVal)
+  of Float:
+    AstNode[T](kind: fennelNumber,
+               operand: a.numbers.getOrIncl cast[BiggestInt](term.floatVal))
+  of Integer:
+    AstNode[T](kind: fennelNumber,  # transcode it to a float...
+               operand: a.numbers.getOrIncl cast[BiggestInt](float term.intVal))
+  of Boolean:
+    AstNode[T](kind: fennelBoolean,
+               operand: a.numbers.getOrIncl cast[BiggestInt](term.boolVal))
+
+proc composeCall*[T: Fennel](fun: Function[T]): Ast[T] =
+  ## create a call of the given function
+  result.nodes.add:
+    terminalNode(result, Terminal[T](kind: Token, token: int16 fennelList))
+  result =
+    result.append(Terminal[T](kind: Symbol, name: fun.ident), parent = 0)
+
+proc isFunctionSymbol*[T: Fennel](a: Ast[T]; index: int): bool {.deprecated: "nonsensical".} =
+  if index > 0 and index < a.high:
+    if not a[index].isParent:
+      result = a[index].isSymbol and a[index-1].kind == fennelList
+
+proc toAst[T: Fennel](node: TsFennelNode; s: string): Ast[T] =
+  case node.kind
+  of fennelSymbol:
+    result = result.append Terminal[T](kind: Symbol, name: s[node])
+  of fennelList, fennelMultiSymbol, fennelProgram:
+    result = result.append Terminal[T](kind: Token, token: node.kind)
+    for item in node.items:
+      # create each child and add them to the parent
+      result = result.append(toAst[T](item, s), parent = 0)
+  of fennelComment:
+    discard
+  of fennelFalseTok:
+    result = result.append: term false
+  of fennelTrueTok:
+    result = result.append: term true
+  of fennelBoolean:
+    result = result.append: term parseBool(s[node])
+  of fennelNumber:
+    result = result.append: term parseFloat(s[node])
+  else:
+    raise Defect.newException "unimplemented node: " & $node.kind
+
+proc newProgram*[T: Fennel](s: string): Program[T] =
+  let tree = parseTsFennelString s
+  if tree.kind != fennelProgram:
+    raise ValueError.newException "expected a program; got " & $tree.kind
+  else:
+    result = newProgram toAst[T](tree, s)
+
+proc newProgram*[T: Fennel](c: Primitives[T]; s: string): Program[T] =
+  ## working around cps call operator
+  newProgram[Fennel](s)
+
 when compileOption"threads":
   import gread/cluster
   import gread/generation
@@ -420,47 +547,3 @@ when compileOption"threads":
           if p.score.isNaN:
             negativeCache(args, p)
     quit 0
-
-when greadTS:
-  import pkg/htsparse/fennel/fennel_core_only as parsefen
-
-  proc toAst(node: TsFennelNode; c: Primitives[Fennel];
-             s: string): Ast[Fennel] =
-    case node.kind
-    of fennelProgram:
-      result = node[0].toAst(c, s)
-    of fennelSymbol:
-      result = Ast[Fennel](nodes: @[c.identNode s[node]])
-    of fennelMultiSymbol:
-      # these are symbols like `math.pi`
-      var syms: seq[string]
-      for index, item in node.pairs:
-        syms.add item.toAst(c, s)[0].ident(c)
-      result = Ast[Fennel](nodes: @[c.identNode syms.join(".")])
-    of fennelList:
-      result = Ast[Fennel]()
-      result.nodes.add:
-        AstNode[Fennel](kind: akCall, operand: 1)
-      result.nodes.add:
-        node[0].toAst(c, s)[0] # symbol to ast, then grab first node
-      for item in node[1..^1]:
-        result = result.append item.toAst(c, s)
-    of fennelComment:
-      result = Ast[Fennel]()
-    of fennelFalseTok:
-      result = initAst(c, term false)
-    of fennelTrueTok:
-      result = initAst(c, term true)
-    of fennelBoolean:
-      result = initAst(c, term parseBool(s[node]))
-    of fennelNumber:
-      result = initAst(c, term parseFloat(s[node]))
-    else:
-      raise Defect.newException "unsupported node: " & $node.kind
-
-  proc newProgram*[T: Fennel](c: Primitives[T]; s: string): Program[T] =
-    let tree = parseTsFennelString s
-    if tree.kind != fennelProgram:
-      raise ValueError.newException "expected a program; got " & $tree.kind
-    else:
-      result = c.newProgram tree.toAst(c, s)

@@ -11,6 +11,8 @@ type
 proc randAst*[T](c: Primitives[T]; size: var int;
                  kinds = {Node, Leaf}): Ast[T] =
   ## produce a random tree of ast using `size` as a guideline
+  mixin terminalNode
+  mixin composeCall
   if c.isNil:
     raise Defect.newException "unable to create ast without primitives"
   dec size
@@ -19,16 +21,16 @@ proc randAst*[T](c: Primitives[T]; size: var int;
             else: kinds
   case sample kinds
   of Leaf:
-    result = c.initAst sample(c.terminals)
+    result.nodes.add terminalNode(result, sample c.terminals)
   of Node:
     let fun = sample(c.functions)
-    result = c.initAst fun
+    result = composeCall fun
     if fun.args.b > 0:
       let lo = max(fun.arity, fun.args.a)
       let hi = max(lo, fun.args.b)
       let arity = lo + rand min(size, hi-lo)
       for argument in 0..<arity:
-        result = result.append(c.randAst(size), parent = 0)
+        result = result.append(c.randAst(size), parent = 0)  # XXX: 🤔
   audit result: echo "random: ", result
 
 proc randProgram*[T](c: Primitives[T]; size = 10): Program[T] =

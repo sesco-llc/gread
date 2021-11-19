@@ -1,11 +1,14 @@
 import std/hashes
-from std/json import escapeJson
 
 from pkg/frosty import frostyError, FreezeError, ThawError
 
 import gread/ast
 
-import "$nim/compiler/ic/bitabs"
+##[
+
+this whole module is essentially deprecated by grammar
+
+]##
 
 type
   PrimitivesObj[T] = object
@@ -64,63 +67,20 @@ proc toLitId(x: BiggestFloat; c: Primitives): LitId =
 proc toLitId(x: bool; c: Primitives): LitId =
   toLitId(cast[BiggestInt](x), c)
 
-proc identNode*[T](c: Primitives[T]; ident: string): AstNode[T] =
-  AstNode[T](kind: akIdent, operand: ident.toLitId(c))
-
 proc initAst*[T](c: Primitives[T]; term: Terminal[T]): Ast[T] =
-  result.nodes.add:
-    case term.kind
-    of Constant:
-      case term.ck
-      of Float:
-        AstNode[T](kind: akFloatLit, operand: term.floatVal.toLitId(c))
-      of Boolean:
-        AstNode[T](kind: akBoolLit, operand: term.boolVal.toLitId(c))
-      of Integer:
-        AstNode[T](kind: akIntLit, operand: term.intVal.toLitId(c))
-      of String:
-        AstNode[T](kind: akStrLit, operand: term.strVal.toLitId(c))
-    of Symbol:
-      c.identNode term.ident
+  ## support earlier api
+  mixin terminalNode
+  result.nodes.add result.terminalNode(term)
 
 proc initAst*[T](c: Primitives[T]; fun: Function[T]): Ast[T] =
-  result.nodes.add:
-    @[
-      AstNode[T](kind: akCall, operand: 1),
-      AstNode[T](kind: akIdent, operand: fun.ident.toLitId(c))
-    ]
-
-proc asAst*[T](term: Terminal[T]; c: Primitives[T]): Ast[T] =
-  c.initAst term
-
-proc asAst*[T](fun: Function[T]; c: Primitives[T];
-               args: varargs[Ast[T], asAst]): Ast[T] =
-  result = c.initAst fun
-  for a in args.items:
-    result = result.insert(result.len, a)
-
-proc render*[T](c: Primitives[T]; n: AstNode[T]): string =
-  case n.kind
-  of akParents:
-    "→"
-  of akIdent:
-    c[].strings[LitId n.operand]
-  of akStrLit:
-    escapeJson(c[].strings[LitId n.operand], result)
-    result
-  of akNilLit:
-    "nil"
-  of akBoolLit:
-    $cast[bool](c[].numbers[LitId n.operand])
-  of akIntLit:
-    $cast[BiggestInt](c[].numbers[LitId n.operand])
-  of akFloatLit:
-    $cast[BiggestFloat](c[].numbers[LitId n.operand])
-  else:
-    "«" & $n.kind & "»"
+  ## support earlier api
+  mixin composeCall
+  result = composeCall fun
 
 proc render*[T](c: Primitives[T]; a: Ast[T]): string =
   ## it's the fennel renderer for other languages 🤷
+  mixin isParent
+  mixin render
   if c.isNil:
     raise Defect.newException "unable to render without primitives"
   audit a: echo "render: ", repr(a)
@@ -140,34 +100,33 @@ proc render*[T](c: Primitives[T]; a: Ast[T]): string =
       result.add "("
       s.add i+sizeOfSubtree(a, i)      # pop when you get past index+size
     else:
-      result.add c.render(a[i])
+      result.add a.render(a[i])
     inc i
   closeParens()
 
 proc toTerminal*[T](c: Primitives[T]; a: Ast; index: int): Terminal[T] =
+  mixin isNumberLit
+  mixin isStringLit
+  mixin isEmpty
+  mixin isSymbol
   template n: AstNode[T] = a[index]
-  case n.kind
-  of akIdent:
-    Terminal[T](kind: Symbol, ident: c[].strings[LitId n.operand])
-  of akFloatLit:
-    Terminal[T](kind: Constant, ck: Float,
-                floatVal: cast[BiggestFloat](c[].numbers[LitId n.operand]))
-  of akIntLit:
-    Terminal[T](kind: Constant, ck: Integer,
-                intVal: c[].numbers[LitId n.operand])
-  of akStrLit:
-    Terminal[T](kind: Constant, ck: String,
-                strVal: c[].strings[LitId n.operand])
-  of akBoolLit:
-    Terminal[T](kind: Constant, ck: Boolean,
-                boolVal: cast[bool](c[].numbers[LitId n.operand]))
+  if n.isSymbol:
+    Terminal[T](kind: Symbol, name: a.strings[LitId n.operand])
+  elif n.isNumberLit:
+    #of akFloatLit:
+    #  Terminal[T](kind: Float,
+    #              floatVal: cast[BiggestFloat](c[].numbers[LitId n.operand]))
+    #Terminal[T](kind: Boolean,
+    #            boolVal: cast[bool](c[].numbers[LitId n.operand]))
+    Terminal[T](kind: Integer,
+                intVal: a.numbers[LitId n.operand])
+  elif n.isStringLit:
+    Terminal[T](kind: String,
+                strVal: a.strings[LitId n.operand])
+  elif n.isEmpty:
+    Terminal[T](kind: None)
   else:
     raise Defect.newException "unsupported form: " & $n
-
-proc isFunctionSymbol*(a: Ast; index: int): bool =
-  if index > 0 and index < a.high:
-    if not a[index].isParent:
-      result = a[index].kind == akIdent and a[index-1].kind == akCall
 
 proc inputs*[T](c: Primitives[T]): var seq[Terminal[T]] = c[].inputs
 proc outputs*[T](c: Primitives[T]): var seq[Terminal[T]] = c[].outputs
@@ -175,29 +134,33 @@ proc constants*[T](c: Primitives[T]): var seq[Terminal[T]] = c[].constants
 proc functions*[T](c: Primitives[T]): var seq[Function[T]] = c[].functions
 
 proc ident*[T](n: AstNode[T]; c: Primitives[T]): string =
-  case n.kind
-  of akIdent:
+  mixin isSymbol
+  if n.isSymbol:
     c[].strings[LitId n.operand]
   else:
     raise Defect.newException "unsupported form: " & $n
 
-proc serialize*[S, T](output: var S; input: Primitives[T]) =
-  ## used by frosty to freeze programs
-  if input.isNil:
-    raise FreezeError.frostyError "unable to serialize nil primitives"
-  else:
-    serialize(output, 1'u8)
-    serialize(output, input[])
-
-proc deserialize*[S, T](input: var S; output: var Primitives[T]) =
-  ## used by frosty to thaw programs
-  if output.isNil:
-    raise ThawError.frostyError "unable to deserialize into nil primitives"
-  else:
-    var v: uint8
-    deserialize(input, v)
-    case v
-    of 1:
-      deserialize(input, output[])
+when false:
+  proc serialize*[S, T](output: var S; input: Primitives[T]) =
+    ## used by frosty to freeze programs
+    if input.isNil:
+      #raise FreezeError.frostyError "unable to serialize nil primitives"
+      raise
     else:
-      raise ThawError.frostyError "dunno how to deserialize primitives v" & $v
+      serialize(output, 1'u8)
+      serialize(output, input[])
+
+  proc deserialize*[S, T](input: var S; output: var Primitives[T]) =
+    ## used by frosty to thaw programs
+    if output.isNil:
+      #raise ThawError.frostyError "unable to deserialize into nil primitives"
+      raise
+    else:
+      var v: uint8
+      deserialize(input, v)
+      case v
+      of 1:
+        deserialize(input, output[])
+      else:
+        #raise ThawError.frostyError "dunno how to deserialize primitives v" & $v
+        raise

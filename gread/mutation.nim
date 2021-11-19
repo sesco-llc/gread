@@ -7,9 +7,10 @@ import gread/ast
 import gread/primitives
 
 proc mutateFunction[T](c: Primitives[T]; a: Ast[T]; i: int): Ast[T] =
+  mixin composeCall
   if c.isNil:
     raise Defect.newException "unable to mutate ast without primitives"
-  template arity: int = countChildren(a, i) - 1
+  template arity: int = numberOfChildren(a[i]) - 1
   let funs = c.functions.filterIt(arity in it.args.a .. it.args.b)
   if funs.len == 0:
     # we're here because a program we're mutating is invalid according
@@ -18,10 +19,14 @@ proc mutateFunction[T](c: Primitives[T]; a: Ast[T]; i: int): Ast[T] =
     # situation worse...  it's possible the program will be repaired.
     return a
 
-  # initAst produces two nodes; you want only the last one here
-  a.delete(1).insert(1): @[c.initAst(sample funs).nodes[^1]]
+  # composing a new ast with the function symbol so we can swap it in
+  var ast: Ast[T]
+  ast = ast.append Terminal[T](kind: Symbol, name: (sample funs).ident)
+  result = a.replace(1, ast)
 
 proc pointMutation*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
+  mixin isSymbol
+  mixin isParent
   audit a: echo "1pt mut: ", a
   if c.isNil:
     raise Defect.newException "unable to mutate ast without primitives"
@@ -29,33 +34,33 @@ proc pointMutation*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
   if a[i].isParent:
     result = mutateFunction(c, a, i)
   else:
-    let prior = c.toTerminal(a, i)
     # short-circuit swaps of the function call symbol
-    if prior.kind == Symbol and i > 0 and a[i-1].kind == akCall:
+    if a[i].isSymbol and i > 0 and a[i-1].isParent:
       result = mutateFunction(c, a, i-1)
     else:
+      let prior = c.toTerminal(a, i)
+      # FIXME: temporary hack for lua/fennel
+      let k = if prior.kind == Integer: Float else: prior.kind
       var terms =
-        case prior.kind
-        of Constant:
-          c.terminals.filterIt(it.kind == prior.kind and it.ck == prior.ck)
+        case k
+        of Float, Integer, String, Boolean, None, Token:
+          c.terminals.filterIt(it.kind == k)
         of Symbol:
           let x = (c.inputs & c.outputs)
           if x.len < 1 or x[^1].kind != Symbol:
             echo "I/O ", repr(x)
             raise Defect.newException "unable to find suitable terminal"
-          (c.inputs & c.outputs).filterIt(it.kind == prior.kind)
+          (c.inputs & c.outputs).filterIt(it.kind == k)
       if terms.len == 0:
         echo "PRIOR ", repr(prior)
         echo "TERMINALS ", repr(c.terminals)
         raise Defect.newException "unable to find suitable terminal"
-      let chunk = c.initAst(sample terms)
-      result = a                                      # copy the whole ast
-      result.nodes[i] = chunk.nodes[0]                # swap the new node in
-      if a.nodes[i].isParent:                         # if it's a parent,
-        result.nodes[i].operand = a.nodes[i].operand  # fixup its length
+      result = a.replace(i, c.initAst(sample terms))
   audit result: echo "2pt mut: ", result
 
 proc pointPromotion*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
+  mixin isSymbol
+  mixin isParent
   audit a: echo "promote: ", a
   if c.isNil:
     raise Defect.newException "unable to mutate ast without primitives"
@@ -67,7 +72,7 @@ proc pointPromotion*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
       # special case punt on symbols which are apparently functions
       if not a[i].isParent:
         let prior = c.toTerminal(a, i)
-        if prior.kind == Symbol and a[i-1].kind == akCall:
+        if prior.kind == Symbol and a[i-1].isParent:
           continue
       # okay; it's not going to present a problem...
       let p = a.parentOf(i)
@@ -88,6 +93,8 @@ proc pointPromotion*[T](c: Primitives[T]; a: Ast[T]): Ast[T] =
       break
 
 proc removeOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
+  mixin isSymbol
+  mixin isParent
   audit a: echo "remove: ", a
   if c.isNil:
     raise Defect.newException "unable to mutate ast without primitives"
@@ -97,13 +104,14 @@ proc removeOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
     while true:
       let i = rand a.high
       if not a[i].isParent:
-        let prior = c.toTerminal(a, i)
-        if prior.kind != Symbol or a[i-1].kind != akCall:
+        if not a[i].isSymbol or not a[i-1].isParent:
           result = a.delete(i)
           break
   audit result: echo "remove result: ", result
 
 proc appendOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
+  mixin isSymbol
+  mixin isParent
   audit a: echo "append: ", a
   if c.isNil:
     raise Defect.newException "unable to mutate ast without primitives"
@@ -123,9 +131,9 @@ proc appendOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
           if c.terminals.len == 0:
             raise Defect.newException "no terminals means no leaves"
           let leaf = c.initAst(sample c.terminals).nodes[^1]
-          let offset = rand 0..<countChildren(a, i)  # offset some number of kids
+          let offset = rand 0..<numberOfChildren(a[i])  # offset some number of kids
           let index =
-            if a[i].kind == akCall:
+            if a[i].isParent:
               i + 2 + offset # insert it after the function symbol
             else:
               i + 1 + offset # it's not a call?  insert it wherever...

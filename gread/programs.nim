@@ -17,9 +17,8 @@ type
   ProgramFlag* = enum
     FinestKnown
 
-  #ProgramObj[T] = object
-  #Program*[T] = ref ProgramObj[T]
-  Program*[T] = ref object
+  #Program*[T] = ref object
+  ProgramObj[T] = object
     primitives*: Primitives[T]
     code: Option[string]      ## cache of the rendered source code
     core*: Option[int]        ## ideally holds the core where we were invented
@@ -32,6 +31,7 @@ type
     ast*: Ast[T]              ## the ast of the program itself
     when programCache:
       cache: LPTab[Hash, Option[Score]] ## cache of score given symbol set hash
+  Program*[T] = ref ProgramObj[T]
 
 when defined(ProgramObj):
   proc `=destroy`*[T](p: var ProgramObj[T]) =
@@ -65,9 +65,6 @@ proc `$`*(p: Program): string =
   ## renders the program as source code if possible; else raw ast
   if p.code.isSome:
     result = p.code.get
-  elif p.primitives.isNil:
-    result = $p.ast
-    raise
   else:
     result = render(p.primitives, p)
 
@@ -131,18 +128,29 @@ proc cacheSize*(p: Program): int =
   when programCache:
     result = p.cache.len
 
-proc serialize*[S, T](output: var S; input: Program[T]) =
-  if input.primitives.isNil:
-    raise FreezeError.frostyError "program lacks primitives"
-  else:
-    serialize(output, input.primitives)
+when false:
+  proc serialize*[S, T](output: var S; input: ProgramObj[T]) =
+    if input.primitives.isNil:
+      raise FreezeError.frostyError "program lacks primitives"
+    else:
+      serialize(output, input.primitives)
+      serialize(output, input.ast)
+      serialize(output, input.flags)
+
+  proc deserialize*[S, T](input: var S; output: var ProgramObj[T]) =
+    var c: Primitives[T]
+    var ast: Ast[T]
+    deserialize(input, c)
+    frosty.deserialize(input, ast)
+    output = newProgram(c, ast)
+    frosty.deserialize(input, output.flags)
+elif false:
+  proc serialize*[S, T](output: var S; input: ProgramObj[T]) =
     serialize(output, input.ast)
     serialize(output, input.flags)
 
-proc deserialize*[S, T](input: var S; output: var Program[T]) =
-  var c: Primitives[T]
-  var ast: Ast[T]
-  deserialize(input, c)
-  deserialize(input, ast)
-  output = newProgram(c, ast)
-  deserialize(input, output.flags)
+  proc deserialize*[S, T](input: var S; output: var ProgramObj[T]) =
+    var ast: Ast[T]
+    deserialize(input, ast)
+    output = newProgram(ast)
+    deserialize(input, output.flags)
