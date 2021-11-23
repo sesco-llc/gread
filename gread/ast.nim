@@ -148,6 +148,9 @@ proc hash*(a: Terminal): Hash =
   h = h !& hash(a.kind)
   result = !$h
 
+proc `==`*(a, b: Terminal): bool =
+  a.kind == b.kind and a.hash == b.hash
+
 func high*(a: Ast): int {.inline.} = a.nodes.high
 func low*(a: Ast): int {.inline.} = a.nodes.low
 
