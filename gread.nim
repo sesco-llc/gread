@@ -11,6 +11,7 @@ import gread/tableau
 import gread/tournament
 import gread/data
 import gread/evolver
+import gread/grammar
 
 export ast
 export fertilizer
@@ -25,3 +26,4 @@ export tableau
 export tournament
 export data
 export evolver
+export grammar
