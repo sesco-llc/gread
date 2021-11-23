@@ -142,6 +142,9 @@ proc hash*(a: Terminal): Hash =
     h = h !& hash(a.strVal)
   of Symbol:
     h = h !& hash(a.name)
+  of Token:
+    h = h !& hash(a.token)
+    h = h !& hash(a.text)
   h = h !& hash(a.kind)
   result = !$h
 
