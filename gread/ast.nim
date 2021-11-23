@@ -166,6 +166,7 @@ proc `[]`*[T](a: Ast[T]; s: Slice[int]): Ast[T] =
 proc `@`*[T](a: Ast[T]): seq[AstNode[T]] = a.nodes
 
 proc peer*[T](a: Ast[T]; index = 0): int =
+  ## the subsequent peer node's index or -1 if no such peer exists
   mixin isParent
   if index == a.high:
     result = -1
@@ -185,6 +186,7 @@ func numberOfChildren*[T](n: AstNode[T]): int =
     0
 
 proc sizeOfSubtree*[T](a: Ast[T]; index = 0): int =
+  ## the size, in nodes, of the tree at the given index
   mixin isParent
   audit a: echo "sizeof subtree: ", a
   if not a[index].isParent:
@@ -219,9 +221,11 @@ proc countAsChildren*[T](a: openArray[AstNode[T]]): int =
     inc index
 
 proc subtree*(a: Ast; index: int): Ast =
+  ## the subtree at the given index, as new ast
   a[index ..< index+sizeOfSubtree(a, index)]
 
 proc parentOf*[T](a: Ast[T]; index: int): Option[int] =
+  ## the parent index of a given index, should one exist
   mixin isParent
   var i = index - 1
   while i >= a.low:
@@ -240,6 +244,7 @@ proc countParents*(a: Ast): int =
       inc result
 
 iterator children*[T](a: Ast[T]; index: int): Ast[T] =
+  ## yields each subtree of child nodes at the given parent index
   if index <= a.high:
     var kids = numberOfChildren a[index]
     var i = index + 1
@@ -249,6 +254,7 @@ iterator children*[T](a: Ast[T]; index: int): Ast[T] =
       dec kids
 
 template copyAst[T](a, b: typed; size: int) =
+  ## sugar around copying ast of `size` nodes
   template nodeSize: int = sizeof AstNode[T]
   if size > 0:
     copyMem(addr a, unsafeAddr b, nodeSize*size)
@@ -286,6 +292,7 @@ proc resetLiterals[T](a: var Ast[T]; index: int; b: Ast[T]) =
       node.operand = a.strings.getOrIncl b.strings[LitId node.operand]
 
 proc delete*[T](a: Ast[T]; index: int): Ast[T] =
+  ## remove the node, and any of its children, at the given index
   audit a: echo "delete entry: ", a
   let size = a.sizeOfSubtree(index)
   if a.len - size < 0:
@@ -318,6 +325,7 @@ proc delete*[T](a: Ast[T]; index: int): Ast[T] =
 
 proc insert*[T](a: Ast[T]; index: int; values: Ast[T];
                 parent = -1): Ast[T] =
+  ## insert the `values` ast before `index` in `a`
   audit values: echo "insert ast: ", values
   audit a: echo a
   if index > a.len:
@@ -370,20 +378,25 @@ proc insert*[T](a: Ast[T]; index: int; values: Ast[T];
       echo "insert/copy result: ", result
 
 proc append*[T](a: Ast[T]; values: Ast[T]; parent = -1): Ast[T] =
+  ## add `values` to `a`; if the `parent` index is not -1,
+  ## the `values` will be children of `a[parent]`
   insert(a, a.len, values, parent = parent)
 
 proc append*[T](a: Ast[T]; term: Terminal[T]; parent = -1): Ast[T] =
+  ## convenience to directly append a terminal to the ast
   mixin terminalNode
   var b: Ast[T]
   b.nodes.add terminalNode(b, term)
   result = a.append(b, parent = parent)
 
 proc append*[T](a: Ast[T]; fun: Function[T]; parent = -1): Ast[T] =
+  ## convenience to directly append a function to the ast
   mixin composeCall
   var b = composeCall fun
   result = a.append(b, parent = parent)
 
 proc replace*[T](a: Ast[T]; index: int; values: Ast[T]): Ast[T] =
+  ## replace the subtree in `a` at `index` with `values`
   insert(delete(a, index), index, values)
 
 proc hash*(a: Ast): Hash =
@@ -418,6 +431,7 @@ proc tokenNode*[T](a: var Ast[T]; token: int16; text = ""): AstNode[T] =
   AstNode[T](kind: token, operand: int32 op)
 
 proc name*[T](a: Ast[T]; index: int): string =
+  ## convenience to fetch the name of a symbol at the given index
   mixin isSymbol
   if a[index].isSymbol:
     result = a.strings[LitId a[index].operand]

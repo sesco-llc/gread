@@ -1,13 +1,13 @@
 type
   Tableau* = object
-    maxGenerations*: int
-    maxPopulation*: int
-    seedPopulation*: int
-    seedProgramSize*: int
-    tournamentSize*: int
-    useParsimony*: bool
-    sharingRate*: float
-    requireValid*: bool
+    maxGenerations*: int   ## recommend termination after N generations
+    maxPopulation*: int    ## evict via tournament due to over-crowding
+    seedPopulation*: int   ## initial size of the population
+    seedProgramSize*: int  ## initial bound on the size of random programs
+    tournamentSize*: int   ## tournaments are comprised of N individuals
+    useParsimony*: bool    ## whether to attempt to use parsimony
+    sharingRate*: float    ## likelihood of sharing fittest members
+    requireValid*: bool    ## the population ignores invalid additions
 
 const
   defaultTableau* =

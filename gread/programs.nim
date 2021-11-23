@@ -105,8 +105,8 @@ proc clone*[T](p: Program[T]): Program[T] =
     init(result.cache, initialSize = 2)
 
 proc isValid*(p: Program): bool =
-  ## true if the program is valid; this will raise a defect
-  ## if we have not scored the program yet
+  ## true if the program is known to yield valid output; this will raise
+  ## a defect if we have not scored the program yet
   if p.zombie:
     false
   elif p.score.isNaN:
@@ -115,16 +115,19 @@ proc isValid*(p: Program): bool =
     true
 
 proc addScoreToCache*(p: Program; h: Hash; s: Option[Score]) =
+  ## record the score for a given input hash
   when programCache:
     p.cache[h] = s
 
 proc getScoreFromCache*(p: Program; h: Hash): Option[Score] =
+  ## attempt to retrieve the cached score for a given hash of the input
   # FIXME: use withValue when cb fixes adix
   when programCache:
     if h in p.cache:
       result = p.cache[h]
 
 proc cacheSize*(p: Program): int =
+  ## the size of a program's score cache
   when programCache:
     result = p.cache.len
 

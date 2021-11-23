@@ -9,18 +9,22 @@ import gread/evolver
 import gread/primitives
 
 proc pointPromotion*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  ## promote a random child to its parent's place in the tree, discarding
+  ## both the parent and any peers of the child
   template size: int = evo.tableau.tournamentSize
   template c: Primitives[T] = evo.primitives
   let a = tournament(evo, size).program
   result = some: c.newProgram pointPromotion(evo.primitives, a.ast)
 
 proc pointMutation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  ## mutate a single node in the tree without altering any children
   template size: int = evo.tableau.tournamentSize
   template c: Primitives[T] = evo.primitives
   let a = tournament(evo, size).program
   result = some: c.newProgram pointMutation(evo.primitives, a.ast)
 
 proc removeOneLeaf*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  ## remove a single terminal from the tree
   template size: int = evo.tableau.tournamentSize
   template c: Primitives[T] = evo.primitives
   let a = tournament(evo, size).program
@@ -28,6 +32,7 @@ proc removeOneLeaf*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
                                           size = evo.tableau.seedProgramSize)
 
 proc appendOneLeaf*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  ## add a single terminal to a random parent in the tree
   template size: int = evo.tableau.tournamentSize
   template c: Primitives[T] = evo.primitives
   let a = tournament(evo, size).program
@@ -35,6 +40,7 @@ proc appendOneLeaf*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
                                           size = evo.tableau.seedProgramSize)
 
 proc randomCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  ## perform crossover between a subtree and a novel tree constructed at random
   template size: int = evo.tableau.tournamentSize
   template c: Primitives[T] = evo.primitives
   let a = tournament(evo, size).program
@@ -42,6 +48,7 @@ proc randomCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
   result = some: c.newProgram subtreeCrossover(a.ast, b.ast)
 
 proc subtreeCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  ## perform crossover between subtrees from two parents to form a new child
   template size: int = evo.tableau.tournamentSize
   template c: Primitives[T] = evo.primitives
   let a = tournament(evo, size).program

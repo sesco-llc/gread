@@ -82,12 +82,14 @@ template forget(pop: Population; p: Program; pos: int) =
       pop.fittest = nil
 
 template withInitialized*(pop: Population; logic: untyped): untyped =
+  ## execute the body only when the population is initialized
   if pop.isNil:
     raise Defect.newException "initialize your population first"
   else:
     logic
 
 template withPopulated*(pop: Population; logic: untyped): untyped =
+  ## execute the body only when the population has members
   withInitialized pop:
     if pop.len == 0:
       raise ValueError.newException "population is empty"
@@ -95,6 +97,7 @@ template withPopulated*(pop: Population; logic: untyped): untyped =
       logic
 
 proc newPopulation*[T](size = 0; core = none int): Population[T] =
+  ## create a new population with the given capacity and core
   result = Population[T](programs: newSeqOfCap[Program[T]](size))
   result.ken.core = core
   result.ken.parsimony = defaultParsimony
@@ -111,6 +114,7 @@ func best*(pop: Population): Score =
   return NaN.Score
 
 func fittest*[T](pop: Population[T]): Program[T] =
+  ## the fittest member of the population
   withInitialized pop:
     pop.fittest
 
@@ -268,6 +272,8 @@ when populationCache:
       p.hash in pop.cache
 
 proc scoreChanged*(pop: Population; p: Program; s: Option[Score]; index: int) =
+  ## inform the population of a change to the score of `p` at `index`; this
+  ## is used to update metrics, parsimony, and the `fittest` population member
   withInitialized pop:
     if s.isSome:
       pop.scores[index] = penalizeSize(pop, get s, p.len).float
@@ -293,6 +299,7 @@ proc core*(pop: Population): CoreSpec =
     pop.ken.core
 
 proc resetScoreMetrics(pop: Population) =
+  ## reset validity and score metrics in the population; O(n)
   withInitialized pop:
     clear pop.ken.validity
     clear pop.ken.scores

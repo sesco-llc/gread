@@ -124,7 +124,9 @@ proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
       p.runtime.push (getTime() - began).inMilliseconds.float
       p.addScoreToCache(s.hash, result)
 
-proc collectCachedScores[T, V](evo: Evolver[T, V]; p: Program[T]): seq[(SymbolSet[T, V], Score)] =
+proc collectCachedScores[T, V](evo: Evolver[T, V];
+                               p: Program[T]): seq[(SymbolSet[T, V], Score)] =
+  ## select input and score pairs from prior evaluations of the program
   when programCache:
     result = newSeqOfCap[(SymbolSet[T, V], Score)](evo.dataset.len)
     for ss in evo.dataset.items:
@@ -133,6 +135,7 @@ proc collectCachedScores[T, V](evo: Evolver[T, V]; p: Program[T]): seq[(SymbolSe
         result.add (ss, get s)
 
 proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
+  ## compute a new score for the program using prior evaluations
   profile "score from cache":
     let cached = collectCachedScores(evo, p)
     if cached.len > 0:
@@ -166,6 +169,7 @@ proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
   evo.fitone = fitter
 
 proc fitone*[T, V](evo: Evolver[T, V]): FitOne[T, V] =
+  ## the currently configured fitness function for a single symbol set
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   else:
@@ -176,12 +180,14 @@ proc `fitmany=`*[T, V](evo: var Evolver[T, V]; fitter: FitMany[T, V]) =
   evo.fitmany = fitter
 
 proc fitmany*[T, V](evo: Evolver[T, V]): FitMany[T, V] =
+  ## the currently configured fitness function for multiple outputs
   if evo.fitmany.isNil:
     raise ValueError.newException "evolver needs fitmany assigned"
   else:
     evo.fitmany
 
 proc randomSymbols*[T, V](evo: Evolver[T, V]): SymbolSet[T, V] =
+  ## select a random symbol set from the dataset
   if evo.dataset.len == 0:
     raise ValueError.newException "evolver needs dataset assigned"
   else:
