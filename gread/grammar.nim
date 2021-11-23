@@ -14,9 +14,10 @@ type
     case kind*: ComponentKind
     of ckToken:
       token: int16
+      text: string
     of ckRule:
-      name*: string
-      rule*: Production[T]
+      name: string
+      rule: Production[T]
     of ckTerminal:
       term: Terminal[T]
 
@@ -116,7 +117,7 @@ proc bnf(s: string): seq[Component[void]] =
     list       <- *(term * s):
       lists.add list
       setLen(list, 0)
-    term       <- >literal | "<" * >rule_name * ">":
+    term       <- >literal | >token | >("<" * rule_name * ">"):
       let s = $1
       if s.startsWith("\"") or s.startsWith("\'"):
         let s = s[1..^2]
@@ -126,13 +127,17 @@ proc bnf(s: string): seq[Component[void]] =
         list.add:
           Component[void](kind: ckTerminal,
                           term: Terminal[void](kind: None))
+      elif s.startsWith("<"):
+        let s = s[1..^2]
+        list.add Component[void](kind: ckRule, name: s)
       else:
-        list.add:
-          Component[void](kind: ckRule, name: s)
+        list.add Component[void](kind: ckToken, text: s)
+    token      <- (symbolNoS | Alpha) * *(symbolNoS | Alpha | Digit)
     literal    <- '"' * text1 * '"' | "'" * text2 * "'"
     text1      <- *("\"\"" | character1)
     text2      <- *("''" | character2)
     character  <- Alpha | Digit | symbol
+    symbolNoS  <- {'!','#','$','%','&','(',')','*','+',',','-','.','/',':',';','>','=','<','?','@','[','\\',']','^','_','`','{','}','~'}
     symbol     <- {'|',' ','!','#','$','%','&','(',')','*','+',',','-','.','/',':',';','>','=','<','?','@','[','\\',']','^','_','`','{','}','~'}
     character1 <- character | "'"
     character2 <- character | '"'
@@ -144,8 +149,8 @@ proc bnf(s: string): seq[Component[void]] =
     result = emits
   else:
     raise ValueError.newException:
-      "error parsing grammar at: $#" %
-        s[r.matchLen..min(s.high, r.matchMax+20)]
+      "error parsing grammar at `$#`" %
+        s[(r.matchLen-1)..min(s.high, r.matchMax+30)]
 
 proc bnf[T](gram: Grammar[T]; s: string): seq[Component[T]] =
   ## basically a convenience to cast the `T` type
@@ -163,12 +168,19 @@ proc initGrammar*[T](gram: var Grammar[T]) =
 
 proc initGrammar*[T](gram: var Grammar[T]; syntax: string) =
   ## initialize a grammar with the provided bnf syntax specification
+  mixin parseToken
   initGrammar gram
-  for r in gram.bnf(syntax).items:
-    gram.p.add(r.name, r.rule)
-    for c in r.rule.items:
+  var rules = gram.bnf(syntax)
+  for r in rules.mitems:
+    for c in r.rule.mitems:
       case c.kind
+      of ckToken:
+        c.token = int16 parseToken[T](c.text)
       of ckTerminal:
-        gram.t.incl c.term
+        if c.term.kind == Token:
+          c.term.token = int16 parseToken[T](c.term.text)
+        else:
+          gram.t.incl c.term
       else:
         discard
+    gram.p.add(r.name, r.rule)

@@ -210,7 +210,7 @@ suite "data":
 
 suite "grammar":
   block:
-    ## parse a grammar
+    ## parse the reference grammar
     const example = """
      <start>          ::= <rule> | <rule> <start>
      <rule>           ::= <opt-whitespace> "<" <rule-name> ">" <opt-whitespace> "::=" <opt-whitespace> <expression> <line-end>
@@ -250,3 +250,11 @@ suite "grammar":
         fail "unexpected terminal kind"
     check "sD" in seen
     check "i3" in seen
+
+  block:
+    ## parse glang grammar
+    var gram: Grammar[G]
+    gram.initGrammar(glangGrammar)
+    for name, production in gram.pairs:
+      if name == "terminate":
+        checkpoint production

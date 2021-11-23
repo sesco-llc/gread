@@ -1,3 +1,5 @@
+import std/strutils
+
 type
   G = object  ## our genetic programming language
   GKind = enum ## some "native" glang ast node types
@@ -9,6 +11,26 @@ type
     Bul = "bullean"
     Dad = "parent"
     Pro = "program"
+  GToken = enum
+    gReturn = "return"
+    gIf = "if"
+    gElse = "else"
+    gThen = "then"
+    gEnd = "end"
+    gLessThan = "<"
+    gMoreThan = ">"
+    gEqual = "=="
+    gLeftPar = "("
+    gRightPar = ")"
+
+const
+  glangGrammar = """
+    <start>        ::= <terminate>
+    <expr>         ::= if <expr> then <expr> else <expr> end | ( <value> <operator> <value> ) | <value>
+    <operator>     ::= ">" | "<" | "==" | "+" | "-"
+    <value>        ::= "1" | "0"
+    <terminate>    ::= return <expr>
+  """
 
 # a convenience
 converter toInt16(gk: GKind): int16 = int16 gk
@@ -89,3 +111,6 @@ proc render*[T: G](a: Ast[T]; n: AstNode[T]; index = 0): string =
     $(cast[bool](a.numbers[LitId n.operand]))
   else:
     "«" & $n.kind & "»"
+
+proc parseToken*[T: G](s: string): GToken =
+  parseEnum[GToken](s)

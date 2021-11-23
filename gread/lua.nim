@@ -455,6 +455,14 @@ proc newProgram*[T: Lua](c: Primitives[T]; s: string): Program[T] =
   ## working around cps call operator
   newProgram[Lua](s)
 
+proc parseToken*[T: Lua](s: string): LuaNodeKind =
+  case s
+  of "if": luaIfTok
+  of "else": luaElseTok
+  of "elseif": luaElseifTok
+  else:
+    raise ValueError.newException "unsupported token: " & s
+
 when compileOption"threads":
   import gread/cluster
   import gread/generation
