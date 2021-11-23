@@ -1,3 +1,4 @@
+import std/sets
 import std/strutils
 import std/macros
 
@@ -23,21 +24,34 @@ type
 
   GrammarObj[T] = object
     s: Component[T]
-    p: LPTab[Component[T], Production[T]]
-    t: seq[Terminal[T]]
-    n: seq[Function[T]]
+    p: LPTab[string, Production[T]]
+    t: HashSet[Terminal[T]]
+    n: HashSet[Function[T]]
   Grammar*[T] = ptr GrammarObj[T]
 
   Genotype* = seq[int]
 
-proc initGrammar*[T](gram: var Grammar[T]) =
-  if not gram.isNil:
-    dealloc gram
-  gram = cast[Grammar[T]](allocShared0 sizeof(GrammarObj[T]))
-  if gram.isNil:
-    raise ValueError.newException "unable to create grammar"
+proc start*[T](gram: Grammar[T]): Component[T] = gram.s
+
+iterator terminals*[T](gram: Grammar[T]): Terminal[T] =
+  for t in gram.t.items:
+    yield t
+
+iterator functions*[T](gram: Grammar[T]): Function[T] =
+  for n in gram.n.items:
+    yield n
+
+iterator productions*[T](gram: Grammar[T]; rule: string): Production[T] =
+  for key, value in gram.p.pairs:
+    if key == rule:
+      yield value
+
+iterator pairs*[T](gram: Grammar[T]): (string, Production[T]) =
+  for key, value in gram.p.pairs:
+    yield (key, value)
 
 proc toAst[T](prod: Production[T]): Ast[T] =
+  ## map a production to matching ast
   mixin emptyNode
   mixin terminalNode
   result.nodes = newSeqOfCap[AstNode[T]](prod.len)
@@ -52,6 +66,7 @@ proc toAst[T](prod: Production[T]): Ast[T] =
         terminalNode[T](component.term)
 
 proc πGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
+  ## map a genotype using the given grammar
   mixin programNode
   var nts: seq[int]                             # indices of unresolved nodes
   nts.add 0                                     # prime them with the head node
@@ -72,25 +87,45 @@ proc πGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
         nts.add:
           result.high - (rhs.high-index)
 
-proc bnf*(s: string): seq[Component[void]] =
+proc toTerminal[T](s: string): Terminal[T] =
+  ## turn a string into a Terminal
+  try:
+    let n = parseInt s
+    result = Terminal[T](kind: Integer, intVal: n)
+  except ValueError:
+    try:
+      let f = parseFloat s
+      result = Terminal[T](kind: Float, floatVal: f)
+    except ValueError:
+      result = Terminal[T](kind: String, strVal: s)
+
+proc bnf(s: string): seq[Component[void]] =
+  ## parse bnf to a sequence of components (production rules)
   var list: Production[void]
+  var lists: seq[Production[void]]
   var emits: seq[Component[void]]
-  var literal: string
   let p = peg "start":
     EOL        <- "\n" | "\r\n"
     s          <- *" "
     start      <- *rule * s * !1
     rule       <- s * "<" * >rule_name * ">" * s * "::=" * s * expression * s * EOL:
-      emits.add Component[void](kind: ckRule, name: $1, rule: list)
-      setLen(list, 0)
+      for list in lists.items:
+        emits.add Component[void](kind: ckRule, name: $1, rule: list)
+      setLen(lists, 0)
     expression <- list * s * *("|" * s * list)
-    list       <- *(term * s)
+    list       <- *(term * s):
+      lists.add list
+      setLen(list, 0)
     term       <- >literal | "<" * >rule_name * ">":
       let s = $1
       if s.startsWith("\"") or s.startsWith("\'"):
+        let s = s[1..^2]
+        list.add:
+          Component[void](kind: ckTerminal, term: toTerminal[void](s))
+      elif s == "":
         list.add:
           Component[void](kind: ckTerminal,
-                          term: Terminal[void](kind: String, strVal: s[1..^2]))
+                          term: Terminal[void](kind: None))
       else:
         list.add:
           Component[void](kind: ckRule, name: s)
@@ -109,7 +144,31 @@ proc bnf*(s: string): seq[Component[void]] =
     result = emits
   else:
     raise ValueError.newException:
-      "error parsing grammar at: $#" % s[r.matchLen..min(s.high, r.matchMax+20)]
+      "error parsing grammar at: $#" %
+        s[r.matchLen..min(s.high, r.matchMax+20)]
 
-proc bnf*(gram: Grammar; s: string): seq[Component[void]] =
-  bnf s
+proc bnf[T](gram: Grammar[T]; s: string): seq[Component[T]] =
+  ## basically a convenience to cast the `T` type
+  for rule in bnf(s).items:
+    result.add cast[Component[T]](rule)  # lie to the compiler
+
+proc initGrammar*[T](gram: var Grammar[T]) =
+  ## initialize a grammar
+  if not gram.isNil:
+    dealloc gram
+  gram = createShared(GrammarObj[T])
+  if gram.isNil:
+    raise ValueError.newException "unable to create grammar"
+  init gram.p
+
+proc initGrammar*[T](gram: var Grammar[T]; syntax: string) =
+  ## initialize a grammar with the provided bnf syntax specification
+  initGrammar gram
+  for r in gram.bnf(syntax).items:
+    gram.p.add(r.name, r.rule)
+    for c in r.rule.items:
+      case c.kind
+      of ckTerminal:
+        gram.t.incl c.term
+      else:
+        discard
