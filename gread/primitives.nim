@@ -1,6 +1,6 @@
 import std/hashes
 
-from pkg/frosty import frostyError, FreezeError, ThawError
+#from pkg/frosty import frostyError, FreezeError, ThawError
 
 import gread/ast
 
@@ -50,7 +50,7 @@ proc `constants=`*[T](c: Primitives[T];
 func terminals*[T](c: Primitives[T]): seq[Terminal[T]] =
   c[].constants & c.inputs & c.outputs
 
-converter toInt32(n: LitId): int32 = n.int32
+converter toInt32(n: LitId): int32 {.used.} = n.int32
 
 proc toLitId(x: string; c: Primitives): LitId =
   getOrIncl(c[].strings, x)

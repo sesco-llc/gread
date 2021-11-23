@@ -25,7 +25,7 @@ type
   ## a fitness function that runs against a series of symbolsets
 
   Operator*[T, V] = proc(pop: var Evolver[T, V]): Option[Program[T]] {.nimcall.}
-  Weight = float or float64
+  #Weight = float or float64
   OperatorWeight*[T, V] = tuple[operator: Operator[T, V]; weight: float64]
 
   Evolver*[T, V] = object

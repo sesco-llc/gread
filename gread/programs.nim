@@ -4,7 +4,7 @@ import std/hashes
 import pkg/adix/stat
 import pkg/adix/lptabz
 
-from pkg/frosty import frostyError, FreezeError, ThawError
+#from pkg/frosty import frostyError, FreezeError, ThawError
 
 import gread/ast
 import gread/primitives
