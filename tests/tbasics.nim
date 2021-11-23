@@ -1,3 +1,4 @@
+import std/sets
 import std/json
 import std/options
 #import std/strutils
@@ -232,10 +233,20 @@ suite "grammar":
     """
 
     var gram: Grammar[G]
-    initGrammar gram
-    for s in gram.bnf(example):
-      check s.kind == ckRule
-      check s.name != ""
-      check s.rule.len > 0
-      checkpoint s.name, " ", s.rule.len
-      #echo repr(s)
+    gram.initGrammar(example)
+    var seen: HashSet[string]
+    for name, production in gram.pairs:
+      check name != ""
+      check production.len > 0
+    for term in gram.terminals:
+      case term.kind
+      of String:
+        seen.incl "s" & term.strVal
+      of Integer:
+        seen.incl "i" & $term.intVal
+      of Float:
+        seen.incl "f" & $term.floatVal
+      else:
+        fail "unexpected terminal kind"
+    check "sD" in seen
+    check "i3" in seen
