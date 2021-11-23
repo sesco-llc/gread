@@ -1,31 +1,36 @@
+import std/strutils
+import std/macros
+
 import pkg/adix/lptabz
+import pkg/npeg
 
 import gread/aliasmethod
 import gread/ast
 
 type
-  ComponentKind = enum ckToken, ckRule, ckTerminal
-  Component[T] = object
-    case kind: ComponentKind
+  ComponentKind* = enum ckToken, ckRule, ckTerminal
+  Component*[T] = object
+    case kind*: ComponentKind
     of ckToken:
       token: int16
     of ckRule:
-      rule: Production[T]
+      name*: string
+      rule*: Production[T]
     of ckTerminal:
       term: Terminal[T]
 
-  Production[T] = seq[Component[T]]
+  Production*[T] = seq[Component[T]]
 
   GrammarObj[T] = object
     s: Component[T]
     p: LPTab[Component[T], Production[T]]
     t: seq[Terminal[T]]
     n: seq[Function[T]]
-  Grammar[T] = ptr GrammarObj[T]
+  Grammar*[T] = ptr GrammarObj[T]
 
-  Genotype = seq[int]
+  Genotype* = seq[int]
 
-proc initGrammar[T](gram: Grammar[T]) =
+proc initGrammar*[T](gram: var Grammar[T]) =
   if not gram.isNil:
     dealloc gram
   gram = cast[Grammar[T]](allocShared0 sizeof(GrammarObj[T]))
@@ -46,7 +51,7 @@ proc toAst[T](prod: Production[T]): Ast[T] =
       of ckTerminal:
         terminalNode[T](component.term)
 
-proc πGE[T](gram: Grammar; geno: Genotype): Ast[T] =
+proc πGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
   mixin programNode
   var nts: seq[int]                             # indices of unresolved nodes
   nts.add 0                                     # prime them with the head node
@@ -66,3 +71,45 @@ proc πGE[T](gram: Grammar; geno: Genotype): Ast[T] =
       if component.kind == ckRule:
         nts.add:
           result.high - (rhs.high-index)
+
+proc bnf*(s: string): seq[Component[void]] =
+  var list: Production[void]
+  var emits: seq[Component[void]]
+  var literal: string
+  let p = peg "start":
+    EOL        <- "\n" | "\r\n"
+    s          <- *" "
+    start      <- *rule * s * !1
+    rule       <- s * "<" * >rule_name * ">" * s * "::=" * s * expression * s * EOL:
+      emits.add Component[void](kind: ckRule, name: $1, rule: list)
+      setLen(list, 0)
+    expression <- list * s * *("|" * s * list)
+    list       <- *(term * s)
+    term       <- >literal | "<" * >rule_name * ">":
+      let s = $1
+      if s.startsWith("\"") or s.startsWith("\'"):
+        list.add:
+          Component[void](kind: ckTerminal,
+                          term: Terminal[void](kind: String, strVal: s[1..^2]))
+      else:
+        list.add:
+          Component[void](kind: ckRule, name: s)
+    literal    <- '"' * text1 * '"' | "'" * text2 * "'"
+    text1      <- *("\"\"" | character1)
+    text2      <- *("''" | character2)
+    character  <- Alpha | Digit | symbol
+    symbol     <- {'|',' ','!','#','$','%','&','(',')','*','+',',','-','.','/',':',';','>','=','<','?','@','[','\\',']','^','_','`','{','}','~'}
+    character1 <- character | "'"
+    character2 <- character | '"'
+    rule_name  <- Alpha * *rule_char
+    rule_char  <- Alpha | Digit | "-"
+
+  let r = p.match(s)
+  if r.ok:
+    result = emits
+  else:
+    raise ValueError.newException:
+      "error parsing grammar at: $#" % s[r.matchLen..min(s.high, r.matchMax+20)]
+
+proc bnf*(gram: Grammar; s: string): seq[Component[void]] =
+  bnf s
