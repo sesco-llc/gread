@@ -7,6 +7,7 @@ import pkg/npeg
 
 import gread/aliasmethod
 import gread/ast
+import gread/genotype
 
 type
   ComponentKind* = enum ckToken, ckRule, ckTerminal
@@ -29,8 +30,6 @@ type
     t: HashSet[Terminal[T]]
     n: HashSet[Function[T]]
   Grammar*[T] = ptr GrammarObj[T]
-
-  Genotype* = seq[int]
 
 proc start*[T](gram: Grammar[T]): Component[T] = gram.s
 
@@ -66,6 +65,19 @@ proc toAst[T](prod: Production[T]): Ast[T] =
       of ckTerminal:
         terminalNode[T](component.term)
 
+proc naiveGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
+  ## map a genotype using the given grammar
+  mixin programNode
+  result.nodes.add programNode[T]()             # this is that head node
+
+  var i: PC                                     # start at the genotype's head
+  var codon: uint16
+  while canRead[uint16](geno, i):
+    geno.read(codon, i)
+    let rule = gram.production(codon)           # select the correct rule
+    let rhs = rule.toAst[T]()                   # convert rule to nodes
+    result = result.append rhs                  # add the nodes to the result
+
 proc πGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
   ## map a genotype using the given grammar
   mixin programNode
@@ -73,10 +85,11 @@ proc πGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
   nts.add 0                                     # prime them with the head node
   result.nodes.add programNode[T]()             # this is that head node
 
-  var i = 0                                     # start at the genotype's head
-  while i+2 < geno.high and nts.len > 0:
-    let order = geno[i]; inc i                  # order coden
-    let codon = geno[i]; inc i                  # content coden
+  var i: PC                                     # start at the genotype's head
+  var order, codon: uint16
+  while nts.len > 0 and canRead[uint16](geno, i, 2):
+    geno.read(order, i)                         # read the order codon
+    geno.read(codon, i)                         # read the content codon
     let index = order mod nts.len               # select from non-terminals list
     let chose = nts[index]                      # the LHS component to resolve
     let options = gram.p[chose]                 # RHS productions to choose from
@@ -100,6 +113,10 @@ proc toTerminal[T](s: string): Terminal[T] =
     except ValueError:
       result = Terminal[T](kind: String, strVal: s)
 
+#
+# we produce [void] generics here because otherwise, npeg will not
+# compile due to out-of-phase sem of the peg capture clauses
+#
 proc bnf(s: string): seq[Component[void]] =
   ## parse bnf to a sequence of components (production rules)
   var list: Production[void]
@@ -152,10 +169,21 @@ proc bnf(s: string): seq[Component[void]] =
       "error parsing grammar at `$#`" %
         s[(r.matchLen-1)..min(s.high, r.matchMax+30)]
 
+#
+# here we perform a recovery of the grammar type
+#
 proc bnf[T](gram: Grammar[T]; s: string): seq[Component[T]] =
   ## basically a convenience to cast the `T` type
   for rule in bnf(s).items:
     result.add cast[Component[T]](rule)  # lie to the compiler
+
+func isReferential(c: Component): bool =
+  ## true if the component is a pointer to a production as
+  ## opposed to a materialized production definition itself
+  if c.kind == ckRule:
+    c.rule.len == 0
+  else:
+    raise ValueError.newException "nonsensical outside of production rules"
 
 proc initGrammar*[T](gram: var Grammar[T]) =
   ## initialize a grammar
@@ -181,6 +209,7 @@ proc initGrammar*[T](gram: var Grammar[T]; syntax: string) =
           c.term.token = int16 parseToken[T](c.term.text)
         else:
           gram.t.incl c.term
-      else:
-        discard
+      of ckRule:
+        if not c.isReferential:
+          raise ValueError.newException "unexpected rule definition"
     gram.p.add(r.name, r.rule)
