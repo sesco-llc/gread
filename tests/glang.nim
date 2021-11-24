@@ -1,8 +1,22 @@
+import std/json
 import std/strutils
 
+import gread/ast
+
+const
+  # demonstration of supported syntax
+  glangGrammar* = """
+    <start>        ::= <terminate>
+    <expr>         ::= ( <value> <operator> <value> )
+    <expr>         ::= <value>
+    <operator>     ::= ">" | "<" | "==" | "+" | "-"
+    <value>        ::= "1" | "0"
+    <terminate>    ::= return <expr>
+  """
+
 type
-  G = object  ## our genetic programming language
-  GKind = enum ## some "native" glang ast node types
+  G* = object  ## our genetic programming language
+  GKind* = enum ## some "native" glang ast node types
     Nop = "nope"
     Sym = "symbol"
     Str = "string"
@@ -11,7 +25,7 @@ type
     Bul = "bullean"
     Dad = "parent"
     Pro = "program"
-  GToken = enum
+  GToken* = enum
     gReturn = "return"
     gIf = "if"
     gElse = "else"
@@ -23,17 +37,8 @@ type
     gLeftPar = "("
     gRightPar = ")"
 
-const
-  glangGrammar = """
-    <start>        ::= <terminate>
-    <expr>         ::= if <expr> then <expr> else <expr> end | ( <value> <operator> <value> ) | <value>
-    <operator>     ::= ">" | "<" | "==" | "+" | "-"
-    <value>        ::= "1" | "0"
-    <terminate>    ::= return <expr>
-  """
-
 # a convenience
-converter toInt16(gk: GKind): int16 = int16 gk
+converter toInt16(gk: GKind): int16 {.used.} = int16 gk
 
 proc `$`*[T: G](n: AstNode[T]): string =
   ## tweaking the rendering of glang ast nodes to render our GKind
@@ -41,11 +46,11 @@ proc `$`*[T: G](n: AstNode[T]): string =
   if n.flags != {}:
     result.add "/" & $n.flags
 
-proc fun(s: string; arity = 0; args = arity..int.high): Function[G] =
+proc fun*(s: string; arity = 0; args = arity..int.high): Function[G] =
   ## shorthand for defining glang functions
   Function[G](ident: s, arity: max(arity, args.a), args: args)
 
-proc term(value: float): Terminal[G] =
+proc term*(value: float): Terminal[G] =
   ## shorthand for defining glang terminals
   Terminal[G](kind: Float, floatVal: value)
 

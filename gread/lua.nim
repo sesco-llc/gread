@@ -463,6 +463,11 @@ proc parseToken*[T: Lua](s: string): LuaNodeKind =
   else:
     raise ValueError.newException "unsupported token: " & s
 
+proc initLocals*[V](values: openArray[(string, V)]): SymbolSet[Lua, V] {.deprecated: "workaround for cps".} =
+  ## convert an openArray of (name, value) pairs into Locals
+  ## suitable for evaluate()
+  initSymbolSet[Lua, V](values)
+
 when compileOption"threads":
   import gread/cluster
   import gread/generation

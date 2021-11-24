@@ -7,6 +7,15 @@ import pkg/frosty/streams as brrr
 import gread
 import gread/lua
 
+const
+  luaGrammar = """
+    <start>        ::= <terminate>
+    <expr>         ::= if <expr> then <expr> else <expr> end | ( <value> <operator> <value> ) | <value>
+    <boolop>       ::= ">" | "<" | "=="
+    <numbop>       ::= "+" | "-"
+    <value>        ::= "1" | "0" | "0.5"
+    <terminate>    ::= return <expr>
+  """
 var c = newPrimitives[Lua]()
 c.functions = @[
   fun("+", arity=2), fun("-", arity=2),
@@ -92,10 +101,18 @@ suite "basic lua stuff":
           checkpoint $p
           check $p == "(+ a b)"
           # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
-          var locals = initSymbolSet[Lua, LuaValue]:
+          var locals = initLocals:
             {
               "a": 3.toLuaValue,
               "b": 5.toLuaValue,
             }
           let score = lua.evaluate(p, locals, luafit)
           check score.float == 8.0
+
+        block:
+          ## parse lua grammar
+          var gram: Grammar[Lua]
+          gram.initGrammar(luaGrammar)
+          for name, production in gram.pairs:
+            if name == "terminate":
+              checkpoint production
