@@ -10,12 +10,15 @@ import gread/lua
 const
   luaGrammar = """
     <start>        ::= <terminate>
-    <expr>         ::= if <expr> then <expr> else <expr> end | ( <value> <operator> <value> ) | <value>
-    <boolop>       ::= ">" | "<" | "=="
-    <numbop>       ::= "+" | "-"
+    <expr>         ::= if <boolexpr> then <expr> else <expr> end
+    <boolexpr>     ::= ( <expr> <boolop> <expr> )
+    <expr>         ::= <value>
+    <boolop>       ::= ">" | "<" | "==" | "<=" | ">="
+    <numbop>       ::= "+" | "-" | "*" | "/"
     <value>        ::= "1" | "0" | "0.5"
     <terminate>    ::= return <expr>
   """
+
 var c = newPrimitives[Lua]()
 c.functions = @[
   fun("+", arity=2), fun("-", arity=2),
@@ -55,64 +58,60 @@ when false:
           Score -ss(esses)
 
 suite "basic lua stuff":
+  var p: LProg
   var lua: Lua
   block:
     ## setup a lua vm
     lua = newLua c
 
   block:
-    ## tree-sitter suite
-    when greadTS:
-      suite "tree-sitter":
-        var p: LProg
-        block:
-          ## parse a lua program with multi-symbols
-          const program = "(/ math.pi math.pi)"
-          p = newProgram(c, program)
-          checkpoint $p
-          check $p == "(/ math.pi math.pi)"
+    ## parse a lua program with field expressions
+    const program = "math.pi / math.pi"
+    p = newProgram(c, program)
+    checkpoint $p
+    check $p == "math.pi / math.pi"
 
-        block:
-          ## parse a lua program
-          const program = "(+ 1   2.0  )"
-          p = newProgram(c, program)
-          checkpoint $p
-          check $p == "(+ 1.0 2.0)"
+  block:
+    ## parse a lua program
+    const program = "1 + 2.0"
+    p = newProgram(c, program)
+    checkpoint $p
+    check $p == "1.0 + 2.0"
 
-        block:
-          ## run a lua program
-          var locals: Locals
-          let score = lua.evaluate(p, locals, luafit)
-          checkpoint score
-          check score.float == 3.0
+  block:
+    ## run a lua program
+    var locals: Locals
+    let score = lua.evaluate(p, locals, luafit)
+    checkpoint score
+    check score.float == 3.0
 
-        block:
-          ## serde some lua ast
-          let popsicle = freeze p
-          var puddle: LProg
-          thaw(popsicle, puddle)
-          checkpoint c.render(p.ast)
-          check c.render(p.ast) == c.render(puddle.ast)
+  block:
+    ## serde some lua ast
+    let popsicle = freeze p
+    var puddle: LProg
+    thaw(popsicle, puddle)
+    checkpoint c.render(p.ast)
+    check c.render(p.ast) == c.render(puddle.ast)
 
-        block:
-          ## run a lua program with inputs
-          const program = "(+ a b)"
-          p = newProgram(c, program)
-          checkpoint $p
-          check $p == "(+ a b)"
-          # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
-          var locals = initLocals:
-            {
-              "a": 3.toLuaValue,
-              "b": 5.toLuaValue,
-            }
-          let score = lua.evaluate(p, locals, luafit)
-          check score.float == 8.0
+  block:
+    ## run a lua program with inputs
+    const program = "a + b"
+    p = newProgram(c, program)
+    checkpoint $p
+    check $p == "a + b"
+    # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
+    var locals = initLocals:
+      {
+        "a": 3.toLuaValue,
+        "b": 5.toLuaValue,
+      }
+    let score = lua.evaluate(p, locals, luafit)
+    check score.float == 8.0
 
-        block:
-          ## parse lua grammar
-          var gram: Grammar[Lua]
-          gram.initGrammar(luaGrammar)
-          for name, production in gram.pairs:
-            if name == "terminate":
-              checkpoint production
+  block:
+    ## parse lua grammar
+    var gram: Grammar[Lua]
+    gram.initGrammar(luaGrammar)
+    for name, production in gram.pairs:
+      if name == "terminate":
+        checkpoint production

@@ -28,11 +28,12 @@ export stat
 export lptabz
 export lunacy
 
+when defined(greadTreeSitter):
+  {.passL: "-lstdc++".}  # workaround buglet with htsparse(?)
+
 const
   semanticErrorsAreFatal = false
   initialCacheSize = 32*1024
-  greadTS* = defined(greadTreeSitter) and
-             (defined(gcArc) or defined(gcOrc))
 
 type
   Lua* = ref object
@@ -60,7 +61,7 @@ type
   FenFit = proc(locals: Locals; ideal: LuaValue): Score
 
 proc `$`*[T: Lua](n: AstNode[T]): string =
-  ## rendering fennel ast kinds
+  ## rendering lua ast kinds
   result = $(LuaNodeKind n.kind) & "." & $n.operand
   if n.flags != {}:
     result.add "/" & $n.flags
@@ -161,14 +162,20 @@ proc hash(p: LProg; locals: Locals): Hash =
 converter toLuaNodeKind*(n: int16): LuaNodeKind {.inline.} = LuaNodeKind n
 converter toInt16(n: LuaNodeKind): int16 {.inline.} = int16 n
 
-const
-  luaParents = {luaProgram, luaExpression, luaFunctionCall}
-
 func isParent*(n: AstNode[Lua]): bool {.inline.} =
-  n.kind in luaParents
+  luaAllowedSubnodes[n.kind] != {}
+
+const
+  luaParents =
+    block:
+      var s: set[LuaNodeKind]
+      for kind in LuanodeKind.items:
+        if luaAllowedSubnodes[kind] != {}:
+          s.incl kind
+      s
 
 func isSymbol*(n: AstNode[Lua]): bool {.inline.} =
-  n.kind == luaIdentifier
+  n.kind in {luaIdentifier, luaPropertyIdentifier}
 
 func isStringLit*(n: AstNode[Lua]): bool {.inline.} =
   n.kind == luaString
@@ -179,29 +186,38 @@ func isNumberLit*(n: AstNode[Lua]): bool {.inline.} =
 func isEmpty*(n: AstNode[Lua]): bool {.inline.} =
   n.kind == luaNil
 
-proc render[T](a: Ast[T]; n: AstNode[T]; i = 0): string =
+proc render[T: Lua](a: Ast[T]; n: AstNode[T]; i = 0): string =
   ## render a lua node from Ast `a`
-  if n.isParent:
-    case n.kind
-    of luaProgram:
-      ""
-    else:
-      $n
-  elif n.isSymbol:
+  proc renderedKids(a: Ast[Lua]; index: int): seq[string] =
+    for child in a.children(index):
+      result.add render(child, child[0])
+
+  case n.kind.LuaNodeKind  # workaround nim compiler crash bug
+  of luaProgram:
+    ""
+  of luaFieldExpression:
+    # a render of each child, joined with a "."
+    renderedKids(a, i).join(".")
+  of luaNil:     "nil"
+  of luaFalse:   "false"
+  of luaTrue:    "true"
+  of luaIdentifier, luaPropertyIdentifier:
     a.strings[LitId n.operand]
-  elif n.isStringLit:
+  of luaNumber:
+    $cast[BiggestFloat](a.numbers[LitId n.operand])
+  of luaString:
     escapeJson(a.strings[LitId n.operand], result)
     result
-  elif n.isEmpty:
-    "nil"
-  elif n.kind == luaFalse:
-    "false"
-  elif n.kind == luaTrue:
-    "true"
-  elif n.isNumberLit:
-    $cast[BiggestFloat](a.numbers[LitId n.operand])
+  of luaBinaryOperation:
+    # just append a render of each child 🤷
+    renderedKids(a, i).join(" ")
+  of luaTokenKinds:
+    strRepr n.kind
+  elif n.kind in luaParents:
+    $n
   else:
-    "«" & $n.kind & "»"
+    raise Defect.newException:
+      "unimpl node kind: $# ($#)" % [ strRepr(n.kind), $n.kind ]
 
 proc render*(c: Primitives[Lua]; a: Ast[Lua]): string =
   ## render lua ast in a form that can be compiled
@@ -225,8 +241,8 @@ proc render*(c: Primitives[Lua]; a: Ast[Lua]): string =
       s.add i+sizeOfSubtree(a, i)      # pop when you get past index+size
       inc i
     elif a[i].isParent:
-      result.add a.render(a[i], i)     # probably just a multi.symbol
-      inc(i, sizeOfSubtree(a, i))      # skip the parent's subtree
+      result.add a.render(a[i], i)     # append a render of the subtree
+      inc(i, sizeOfSubtree(a, i))      # and then move past it
     else:
       result.add a.render(a[i], i)     # rendering an individual node
       inc i
@@ -424,15 +440,30 @@ proc isFunctionSymbol*[T: Lua](a: Ast[T]; index: int): bool {.deprecated: "nonse
     if not a[index].isParent:
       result = a[index].isSymbol and a[index-1].kind == luaFunctionCall
 
+#
+# FIXME:
+# something as simple as a binary operation needs to be downcast into
+# an operator symbol and two arguments because the ast cannot store the
+# symbol name in a parent node; the problem is, we don't know how to
+# retrieve the symbol from the binary operation tree...  we can render
+# it, sure, but are we supposed to parse out the operator ourselves?
+#
+
 proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
   case node.kind
-  of luaIdentifier:
+  of luaIdentifier, luaPropertyIdentifier:
     result = result.append Terminal[T](kind: Symbol, name: s[node])
   of luaParents:
-    result = result.append Terminal[T](kind: Token, token: node.kind)
+    #echo "parent kind ", node.kind, " text ", s[node]
+    result = result.append Terminal[T](kind: Token,
+                                       token: node.kind)
     for item in node.items:
       # create each child and add them to the parent
       result = result.append(toAst[T](item, s), parent = 0)
+  of luaTokenKinds:
+    result = result.append Terminal[T](kind: Token,
+                                       text: s[node],
+                                       token: node.kind)
   of luaComment:
     discard
   of luaFalse:
@@ -449,6 +480,7 @@ proc newProgram*[T: Lua](s: string): Program[T] =
   if tree.kind != luaProgram:
     raise ValueError.newException "expected a program; got " & $tree.kind
   else:
+    #echo treeRepr(tree, s)
     result = newProgram toAst[T](tree, s)
 
 proc newProgram*[T: Lua](c: Primitives[T]; s: string): Program[T] =
@@ -457,11 +489,16 @@ proc newProgram*[T: Lua](c: Primitives[T]; s: string): Program[T] =
 
 proc parseToken*[T: Lua](s: string): LuaNodeKind =
   case s
-  of "if": luaIfTok
-  of "else": luaElseTok
-  of "elseif": luaElseifTok
+  of "if":            luaIfTok
+  of "else":          luaElseTok
+  of "elseif":        luaElseifTok
+  of "then":          luaThentok
+  of "end":           luaEndTok
+  of "(":             luaLParTok
+  of ")":             luaRParTok
+  of "return":        luaReturnTok
   else:
-    raise ValueError.newException "unsupported token: " & s
+    raise ValueError.newException "unsupported token: `$#`" % [ s ]
 
 proc initLocals*[V](values: openArray[(string, V)]): SymbolSet[Lua, V] {.deprecated: "workaround for cps".} =
   ## convert an openArray of (name, value) pairs into Locals
