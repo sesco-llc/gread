@@ -95,7 +95,7 @@ suite "basic lua stuff":
 
   block:
     ## run a lua program with inputs
-    const program = "(a + b)"
+    const program = "a + b"
     p = newProgram(c, program)
     checkpoint $p
     check $p == "(a + b)"

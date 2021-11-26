@@ -23,6 +23,7 @@ import gread/maths except variance
 import gread/primitives
 import gread/data
 import gread/evolver
+import gread/grammar
 
 export stat
 export lptabz
@@ -195,9 +196,6 @@ proc render[T: Lua](a: Ast[T]; n: AstNode[T]; i = 0): string =
   case n.kind.LuaNodeKind  # workaround nim compiler crash bug
   of luaProgram:
     ""
-  of luaFieldExpression:
-    # a render of each child, joined with a "."
-    renderedKids(a, i).join(".")
   of luaNil:     "nil"
   of luaFalse:   "false"
   of luaTrue:    "true"
@@ -208,14 +206,12 @@ proc render[T: Lua](a: Ast[T]; n: AstNode[T]; i = 0): string =
   of luaString:
     escapeJson(a.strings[LitId n.operand], result)
     result
-  of luaBinaryOperation:
-    # append a render of each child in the tail,
-    # joined by the name of the first child
-    renderedKids(a, i)[1..^1].join(" " & a.name(i+1) & " ")
   of luaTokenKinds:
     strRepr n.kind
+  elif n.kind in {luaFieldExpression}:
+    renderedKids(a, i).join("")
   elif n.kind in luaParents:
-    $n
+    renderedKids(a, i).join(" ")
   else:
     raise Defect.newException:
       "unimpl node kind: $# ($#)" % [ strRepr(n.kind), $n.kind ]
@@ -441,11 +437,18 @@ proc isFunctionSymbol*[T: Lua](a: Ast[T]; index: int): bool {.deprecated: "nonse
     if not a[index].isParent:
       result = a[index].isSymbol and a[index-1].kind == luaFunctionCall
 
-proc silly(node: TsLuaNode; index: int): TsLuaNode =
-  ## fetch a potentially unnamed node by index; working around
-  ## `{}` as provided by hmisc/wrappers/treesitter_core which does
-  ## not compile
-  TsLuaNode tsNodeChild(TSNode node, uint32 index)
+proc toAst[T: Lua](prod: Production[T]): Ast[T] =
+  ## map a grammatical production to matching ast
+  result.nodes = newSeqOfCap[AstNode[T]](prod.len)
+  for component in prod.items:
+    result.nodes.add:
+      case component.kind
+      of ckRule:
+        emptyNode[T]()
+      of ckToken:
+        AstNode[T](kind: component.token)
+      of ckTerminal:
+        terminalNode[T](component.term)
 
 proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
   case node.kind
@@ -455,19 +458,16 @@ proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
     #echo "parent kind ", node.kind, " text ", s[node]
     result = result.append Terminal[T](kind: Token,
                                        token: node.kind)
-    # snowflakes...
-    case node.kind
-    of luaBinaryOperation:
-      # inject the operator as the first argument for recovery in render()
-      let sym = Terminal[T](kind: Symbol, name: s[silly(node, 1)])
-      result = result.append(sym, parent = 0)
-    else:
-      discard
 
-    # ...and their children
-    for item in node.items:
+    # transcribe the children directly
+    for i in 0..<node.len(unnamed = true):
+      template item: TsLuaNode = node[i, unnamed = true]
       # create each child and add them to the parent
-      result = result.append(toAst[T](item, s), parent = 0)
+      if item.isNamed:
+        result = result.append(toAst[T](item, s), parent = 0)
+      else:
+        let sym = Terminal[T](kind: Symbol, name: s[node{i}])
+        result = result.append(sym, parent = 0)
 
   of luaTokenKinds:
     result = result.append Terminal[T](kind: Token,
