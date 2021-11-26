@@ -441,6 +441,12 @@ proc isFunctionSymbol*[T: Lua](a: Ast[T]; index: int): bool {.deprecated: "nonse
     if not a[index].isParent:
       result = a[index].isSymbol and a[index-1].kind == luaFunctionCall
 
+proc silly(node: TsLuaNode; index: int): TsLuaNode =
+  ## fetch a potentially unnamed node by index; working around
+  ## `{}` as provided by hmisc/wrappers/treesitter_core which does
+  ## not compile
+  TsLuaNode tsNodeChild(TSNode node, uint32 index)
+
 proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
   case node.kind
   of luaIdentifier, luaPropertyIdentifier:
@@ -453,7 +459,7 @@ proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
     case node.kind
     of luaBinaryOperation:
       # inject the operator as the first argument for recovery in render()
-      let sym = Terminal[T](kind: Symbol, name: s[node{1}])
+      let sym = Terminal[T](kind: Symbol, name: s[silly(node, 1)])
       result = result.append(sym, parent = 0)
     else:
       discard
