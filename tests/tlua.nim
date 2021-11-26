@@ -69,14 +69,14 @@ suite "basic lua stuff":
     const program = "math.pi / math.pi"
     p = newProgram(c, program)
     checkpoint $p
-    check $p == "math.pi / math.pi"
+    check $p == "(math.pi / math.pi)"
 
   block:
     ## parse a lua program
     const program = "1 + 2.0"
     p = newProgram(c, program)
     checkpoint $p
-    check $p == "1.0 + 2.0"
+    check $p == "(1.0 + 2.0)"
 
   block:
     ## run a lua program
@@ -95,10 +95,10 @@ suite "basic lua stuff":
 
   block:
     ## run a lua program with inputs
-    const program = "a + b"
+    const program = "(a + b)"
     p = newProgram(c, program)
     checkpoint $p
-    check $p == "a + b"
+    check $p == "(a + b)"
     # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
     var locals = initLocals:
       {

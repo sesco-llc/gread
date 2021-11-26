@@ -209,8 +209,9 @@ proc render[T: Lua](a: Ast[T]; n: AstNode[T]; i = 0): string =
     escapeJson(a.strings[LitId n.operand], result)
     result
   of luaBinaryOperation:
-    # just append a render of each child 🤷
-    renderedKids(a, i).join(" ")
+    # append a render of each child in the tail,
+    # joined by the name of the first child
+    renderedKids(a, i)[1..^1].join(" " & a.name(i+1) & " ")
   of luaTokenKinds:
     strRepr n.kind
   elif n.kind in luaParents:
@@ -440,15 +441,6 @@ proc isFunctionSymbol*[T: Lua](a: Ast[T]; index: int): bool {.deprecated: "nonse
     if not a[index].isParent:
       result = a[index].isSymbol and a[index-1].kind == luaFunctionCall
 
-#
-# FIXME:
-# something as simple as a binary operation needs to be downcast into
-# an operator symbol and two arguments because the ast cannot store the
-# symbol name in a parent node; the problem is, we don't know how to
-# retrieve the symbol from the binary operation tree...  we can render
-# it, sure, but are we supposed to parse out the operator ourselves?
-#
-
 proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
   case node.kind
   of luaIdentifier, luaPropertyIdentifier:
@@ -457,9 +449,20 @@ proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
     #echo "parent kind ", node.kind, " text ", s[node]
     result = result.append Terminal[T](kind: Token,
                                        token: node.kind)
+    # snowflakes...
+    case node.kind
+    of luaBinaryOperation:
+      # inject the operator as the first argument for recovery in render()
+      let sym = Terminal[T](kind: Symbol, name: s[node{1}])
+      result = result.append(sym, parent = 0)
+    else:
+      discard
+
+    # ...and their children
     for item in node.items:
       # create each child and add them to the parent
       result = result.append(toAst[T](item, s), parent = 0)
+
   of luaTokenKinds:
     result = result.append Terminal[T](kind: Token,
                                        text: s[node],
