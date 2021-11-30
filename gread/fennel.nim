@@ -547,3 +547,23 @@ when compileOption"threads":
           if p.score.isNaN:
             negativeCache(args, p)
     quit 0
+
+proc parseToken*[T: Fennel](s: string): FennelNodeKind =
+  case s
+  of "true":          fennelFalseTok
+  of "false":         fennelTrueTok
+  of "(":             fennelLParTok
+  of ")":             fennelRParTok
+  of "[":             fennelLBrackTok
+  of "]":             fennelRBrackTok
+  of ",":             fennelCommaTok
+  of ".":             fennelDotTok
+  of ":":             fennelColonTok
+  of "or":            fennelOrTok
+  of "nil":           fennelNil
+  of "?":             fennelQuestionTok
+  of "#":             fennelHashTok
+  of "&":             fennelAmpersandTok
+  of "&as":           fennelAmpersandasTok
+  else:
+    raise ValueError.newException "unsupported token: `$#`" % [ s ]
