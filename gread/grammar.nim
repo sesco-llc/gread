@@ -1,3 +1,4 @@
+import std/sequtils
 import std/sets
 import std/strutils
 import std/macros
@@ -59,47 +60,84 @@ proc toAst[T](prod: Production[T]): Ast[T] =
     result.nodes.add:
       case component.kind
       of ckRule:
-        emptyNode[T]()
+        #emptyNode[T](result)
+        #
+        # embed the rule name as a symbol so we can recover its name
+        terminalNode[T](result,
+                        Terminal[T](kind: Symbol, name: component.name))
       of ckToken:
         AstNode[T](kind: component.token)
       of ckTerminal:
-        terminalNode[T](component.term)
+        terminalNode[T](result, component.term)
 
-proc naiveGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
-  ## map a genotype using the given grammar
-  mixin programNode
-  result.nodes.add programNode[T]()             # this is that head node
+proc `[]`[T](tab: LPTab[string, Production[T]]; index: int): seq[Production[T]] =
+  ## find satisfying rules by index
+  var i = index
+  for key in tab.keys:
+    if i == 0:
+      for many, value in tab.pairs:
+        if many == key:
+          result.add value
+      return result
+    dec i
 
-  var i: PC                                     # start at the genotype's head
-  var codon: uint16
-  while canRead[uint16](geno, i):
-    geno.read(codon, i)
-    let rule = gram.production(codon)           # select the correct rule
-    let rhs = rule.toAst[T]()                   # convert rule to nodes
-    result = result.append rhs                  # add the nodes to the result
+when false:
+  proc naiveGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
+    ## map a genotype using the given grammar
+    mixin programNode
+    mixin toAst
+    result.nodes.add programNode[T]()             # this is that head node
+
+    var i: PC                                     # start at the genotype's head
+    var codon: uint16
+    while canRead[uint16](geno, i):
+      geno.read(codon, i)
+      let rule = gram.production(codon)           # select the correct rule
+      var rhs = rule.toAst[T]()                   # convert rule to nodes
+      for index, component in rule.pairs:       # resolve non-terminals
+        if component.kind == ckRule:
+          result.high - (rhs.high-index)
+      result = result.append rhs                  # add the nodes to the result
 
 proc πGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
   ## map a genotype using the given grammar
   mixin programNode
+  mixin terminalNode
+  mixin toAst
   var nts: seq[int]                             # indices of unresolved nodes
   nts.add 0                                     # prime them with the head node
-  result.nodes.add programNode[T]()             # this is that head node
+  result.nodes.add:
+    # we always start with the `start` production
+    terminalNode[T](result, Terminal[T](kind: Symbol, name: "start"))
 
   var i: PC                                     # start at the genotype's head
   var order, codon: uint16
   while nts.len > 0 and canRead[uint16](geno, i, 2):
-    geno.read(order, i)                         # read the order codon
-    geno.read(codon, i)                         # read the content codon
-    let index = order mod nts.len               # select from non-terminals list
+    geno.read(i, order)                         # read the order codon
+    geno.read(i, codon)                         # read the content codon
+    let index = order.int mod nts.len           # select from non-terminals
     let chose = nts[index]                      # the LHS component to resolve
-    let options = gram.p[chose]                 # RHS productions to choose from
-    let rule = options[codon mod options[].len] # select the correct rule
-    let rhs = rule.toAst[T]()                   # convert rule to nodes
-    result = result.append rhs                  # add the nodes to the result
-    for index, component in rule.pairs:         # add non-terminals to nts
+    del(nts, index)                             # don't worry about order
+    let options =
+      if result[chose].isSymbol:
+        let name = result.name(chose)               # resolve the nt name
+        toSeq gram.productions(name)  # RHS production choices
+      else:
+        gram.p[chose] # RHS production choices
+    let content = codon.int mod options.len     # choose content index
+    let rule = options[content]                 # select the content production
+    let rhs = rule.toAst()                      # convert rule to nodes
+    doAssert rule.len == rhs.len, "not yet supported"
+    result = result.replace(chose, rhs)         # add the nodes to the result
+    for item in nts.mitems:
+      if item > chose:
+        item = item + (rhs.len-1) # increment the indices
+    for n, component in rule.pairs:         # add non-terminals to nts
       if component.kind == ckRule:
-        nts.add:
-          result.high - (rhs.high-index)
+        nts.add chose + n # XXX: inserting them backwards...
+
+  if nts.len > 0:
+    raise ValueError.newException "insufficient genome"
 
 proc toTerminal[T](s: string): Terminal[T] =
   ## turn a string into a Terminal
@@ -111,7 +149,7 @@ proc toTerminal[T](s: string): Terminal[T] =
       let f = parseFloat s
       result = Terminal[T](kind: Float, floatVal: f)
     except ValueError:
-      result = Terminal[T](kind: String, strVal: s)
+      result = Terminal[T](kind: Symbol, name: s)
 
 #
 # we produce [void] generics here because otherwise, npeg will not

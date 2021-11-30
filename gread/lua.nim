@@ -505,6 +505,7 @@ proc parseToken*[T: Lua](s: string): LuaNodeKind =
   of "end":           luaEndTok
   of "(":             luaLParTok
   of ")":             luaRParTok
+  of ";":             luaSemicolonTok
   of "return":        luaReturnTok
   else:
     raise ValueError.newException "unsupported token: `$#`" % [ s ]

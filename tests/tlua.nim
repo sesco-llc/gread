@@ -1,3 +1,4 @@
+import std/random
 import std/json
 import std/options
 
@@ -6,17 +7,23 @@ import pkg/frosty/streams as brrr
 
 import gread
 import gread/lua
+import gread/genotype
+
+randomize()
 
 const
   luaGrammar = """
-    <start>        ::= <terminate>
-    <expr>         ::= if <boolexpr> then <expr> else <expr> end
-    <boolexpr>     ::= ( <expr> <boolop> <expr> )
+    <start>        ::= <expr>
+    <expr>         ::= if <boolexpr> then <terminate> else <terminate> end
+    <boolexpr>     ::= ( <value> <boolop> <value> )
+    <numexpr>      ::= ( <value> <numbop> <value> )
     <expr>         ::= <value>
-    <boolop>       ::= ">" | "<" | "==" | "<=" | ">="
+    <expr>         ::= <value>
+    <expr>         ::= <value>
+    <boolop>       ::= ">" | "<" | "~=" | "==" | "<=" | ">=" | "and" | "or"
     <numbop>       ::= "+" | "-" | "*" | "/"
-    <value>        ::= "1" | "0" | "0.5"
-    <terminate>    ::= return <expr>
+    <value>        ::= "1" | "0" | "0.5" | "2" | "3" | "5"
+    <terminate>    ::= return <numexpr> ;
   """
 
 var c = newPrimitives[Lua]()
@@ -115,3 +122,6 @@ suite "basic lua stuff":
     for name, production in gram.pairs:
       if name == "terminate":
         checkpoint production
+    let geno = randomGenotype(2000)
+    let p = newProgram gram.πGE(geno)
+    checkpoint $p
