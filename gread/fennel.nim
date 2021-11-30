@@ -31,8 +31,6 @@ export lunacy
 const
   semanticErrorsAreFatal = false
   initialCacheSize = 32*1024
-  greadTS* = defined(greadTreeSitter) and
-             (defined(gcArc) or defined(gcOrc))
 
 type
   Fennel* = ref object
