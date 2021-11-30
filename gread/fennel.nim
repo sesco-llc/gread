@@ -201,7 +201,7 @@ converter toFennelNodeKind*(n: int16): FennelNodeKind {.inline.} = FennelNodeKin
 converter toInt16(n: FennelNodeKind): int16 {.inline.} = int16 n
 
 func isParent*(n: AstNode[Fennel]): bool {.inline.} =
-  n.kind in {fennelProgram, fennelList, fennelMultiSymbol}
+  fennelAllowedSubnodes[n.kind] != {}
 
 func isSymbol*(n: AstNode[Fennel]): bool {.inline.} =
   n.kind == fennelSymbol
@@ -233,12 +233,13 @@ proc render[T](a: Ast[T]; n: AstNode[T]; i = 0): string =
   elif n.isStringLit:
     escapeJson(a.strings[LitId n.operand], result)
     result
-  elif n.isEmpty:
-    "nil"
+  elif n.kind in fennelTokenKinds:
+    strRepr n.kind
   elif n.isNumberLit:
     $cast[BiggestFloat](a.numbers[LitId n.operand])
   else:
-    "«" & $n.kind & "»"
+    raise Defect.newException:
+      "unimpl node kind: $# ($#)" % [ strRepr(n.kind), $n.kind ]
 
 proc render*(c: Primitives[Fennel]; a: Ast[Fennel]): string =
   ## render fennel ast in a form that can be compiled
