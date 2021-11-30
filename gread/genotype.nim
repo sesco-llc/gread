@@ -1,24 +1,28 @@
 import std/random
 
 type
-  Genotype* = distinct string
-  PC* = distinct int32
+  Genome* = distinct string    ## a series of genes comprising an individual
+  PC* = distinct int32         ## a program counter
 
-  GenoReadTypes = uint8 or uint16 or uint32 or uint64
+  Genes = uint8 or uint16 or uint32 or uint64  ## optional types of genes
 
 proc `$`*(pc: PC): string {.borrow.}
 proc inc(pc: var PC; n: int32) {.borrow.}
 
-proc high*(geno: Genotype): int {.borrow.}
-proc len*(geno: Genotype): int {.borrow.}
-proc add(geno: var Genotype; c: char) {.borrow.}
+proc high*(geno: Genome): int {.borrow.}
+proc len*(geno: Genome): int {.borrow.}
+proc add(geno: var Genome; c: char) {.borrow.}
 
-proc canRead*[T: GenoReadTypes](geno: Genotype; pc: PC; count = 1): bool =
+proc canRead*[T: Genes](geno: Genome; pc: PC; count = 1): bool =
+  ## true if there remain at least `count` genes `T between the
+  ## program counter `pc` and the end of the genome
   pc.int <= geno.high - (sizeof(T) * count)
 
-proc read*[T: GenoReadTypes](geno: Genotype; pc: var PC): T
+proc read*[T: Genes](geno: Genome; pc: var PC): T
 
-proc read*[T: GenoReadTypes](geno: Genotype; pc: var PC; into: var T) =
+proc read*[T: Genes](geno: Genome; pc: var PC; into: var T) =
+  ## read a gene of `T` into `into` from genome `geno` and
+  ## advance the program counter `pc`
   if canRead[T](geno, pc, count = 1):
     into =
       when T is uint8:
@@ -35,11 +39,13 @@ proc read*[T: GenoReadTypes](geno: Genotype; pc: var PC; into: var T) =
   else:
     raise IndexDefect.newException "ran out of genes"
 
-proc read*[T: GenoReadTypes](geno: Genotype; pc: var PC): T =
+proc read*[T: Genes](geno: Genome; pc: var PC): T =
+  ## read a gene of `T` from genome `geno` and
+  ## advance the program counter `pc`
   read(geno, pc, result)
 
-proc randomGenotype*(size: int): Genotype =
-  ## generate a random genotype of the given size
-  result = Genotype newStringOfCap(size)
+proc randomGenome*(size: int): Genome =
+  ## generate a random genome of the given size
+  result = Genome newStringOfCap(size)
   while result.len < size:
     result.add rand(int char.high).char

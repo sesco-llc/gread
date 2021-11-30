@@ -1,3 +1,4 @@
+import std/math
 import std/random
 import std/json
 import std/options
@@ -7,7 +8,6 @@ import pkg/frosty/streams as brrr
 
 import gread
 import gread/lua
-import gread/genotype
 
 randomize()
 
@@ -15,15 +15,42 @@ const
   luaGrammar = """
     <start>        ::= <expr>
     <expr>         ::= if <boolexpr> then <terminate> else <terminate> end
-    <boolexpr>     ::= ( <value> <boolop> <value> )
-    <numexpr>      ::= ( <value> <numbop> <value> )
-    <expr>         ::= <value>
-    <expr>         ::= <value>
-    <expr>         ::= <value>
-    <boolop>       ::= ">" | "<" | "~=" | "==" | "<=" | ">=" | "and" | "or"
+    <boolexpr>     ::= ( not <boolexpr> )
+    <boolexpr>     ::= ( <boolexpr> or <boolexpr> )
+    <boolexpr>     ::= ( <numexpr> <boolop> <numexpr> )
+    <boolexpr>     ::= ( <boolexpr> and <boolexpr> )
+    <numexpr>      ::= ( <numexpr> <numbop> <numexpr> )
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <boolop>       ::= ">" | "<" | "~=" | "==" | "<=" | ">="
     <numbop>       ::= "+" | "-" | "*" | "/"
-    <value>        ::= "1" | "0" | "0.5" | "2" | "3" | "5"
-    <terminate>    ::= return <numexpr> ;
+    <value>        ::= "1" | "0" | "0.5" | "2"
+    <value>        ::= "a" | "b"
+    <terminate>    ::= return <numexpr>
   """
 
 var c = newPrimitives[Lua]()
@@ -80,10 +107,10 @@ suite "basic lua stuff":
 
   block:
     ## parse a lua program
-    const program = "1 + 2.0"
+    const program = "return 1 + 2.0"
     p = newProgram(c, program)
     checkpoint $p
-    check $p == "(1.0 + 2.0)"
+    check $p == "return 1.0 + 2.0"
 
   block:
     ## run a lua program
@@ -102,10 +129,10 @@ suite "basic lua stuff":
 
   block:
     ## run a lua program with inputs
-    const program = "a + b"
+    const program = "return a + b"
     p = newProgram(c, program)
     checkpoint $p
-    check $p == "(a + b)"
+    check $p == "return a + b"
     # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
     var locals = initLocals:
       {
@@ -122,6 +149,14 @@ suite "basic lua stuff":
     for name, production in gram.pairs:
       if name == "terminate":
         checkpoint production
-    let geno = randomGenotype(2000)
+    let geno = randomGenome(2000)
     let p = newProgram gram.πGE(geno)
     checkpoint $p
+    var locals = initLocals:
+      {
+        "a": 3.toLuaValue,
+        "b": 5.toLuaValue,
+      }
+    let score = lua.evaluate(p, locals, luafit)
+    checkpoint $score
+    check not score.float.isNaN

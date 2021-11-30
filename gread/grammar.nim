@@ -82,7 +82,7 @@ proc `[]`[T](tab: LPTab[string, Production[T]]; index: int): seq[Production[T]] 
     dec i
 
 when false:
-  proc naiveGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
+  proc naiveGE*[T](gram: Grammar[T]; geno: Genome): Ast[T] =
     ## map a genotype using the given grammar
     mixin programNode
     mixin toAst
@@ -99,7 +99,7 @@ when false:
           result.high - (rhs.high-index)
       result = result.append rhs                  # add the nodes to the result
 
-proc πGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
+proc πGE*[T](gram: Grammar[T]; geno: Genome): Ast[T] =
   ## map a genotype using the given grammar
   mixin programNode
   mixin terminalNode
@@ -120,8 +120,8 @@ proc πGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
     del(nts, index)                             # don't worry about order
     let options =
       if result[chose].isSymbol:
-        let name = result.name(chose)               # resolve the nt name
-        toSeq gram.productions(name)  # RHS production choices
+        let name = result.name(chose)           # resolve the nt name
+        toSeq gram.productions(name)            # RHS production choices
       else:
         gram.p[chose] # RHS production choices
     let content = codon.int mod options.len     # choose content index
@@ -131,8 +131,8 @@ proc πGE*[T](gram: Grammar[T]; geno: Genotype): Ast[T] =
     result = result.replace(chose, rhs)         # add the nodes to the result
     for item in nts.mitems:
       if item > chose:
-        item = item + (rhs.len-1) # increment the indices
-    for n, component in rule.pairs:         # add non-terminals to nts
+        item = item + (rhs.len-1)               # increment the indices
+    for n, component in rule.pairs:             # add non-terminals to nts
       if component.kind == ckRule:
         nts.add chose + n # XXX: inserting them backwards...
 
@@ -237,6 +237,7 @@ proc initGrammar*[T](gram: var Grammar[T]; syntax: string) =
   mixin parseToken
   initGrammar gram
   var rules = gram.bnf(syntax)
+  var nonterminals = 0
   for r in rules.mitems:
     for c in r.rule.mitems:
       case c.kind
@@ -248,6 +249,10 @@ proc initGrammar*[T](gram: var Grammar[T]; syntax: string) =
         else:
           gram.t.incl c.term
       of ckRule:
-        if not c.isReferential:
+        if c.isReferential:
+          inc nonterminals
+        else:
           raise ValueError.newException "unexpected rule definition"
     gram.p.add(r.name, r.rule)
+  echo "nonterminal references: ", nonterminals
+  echo "       total terminals: ", gram.t.card

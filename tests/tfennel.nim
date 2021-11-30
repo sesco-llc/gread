@@ -1,3 +1,5 @@
+import std/math
+import std/random
 import std/json
 import std/options
 
@@ -6,6 +8,62 @@ import pkg/frosty/streams as brrr
 
 import gread
 import gread/fennel
+
+randomize()
+
+const
+  fennelGrammar = """
+    <start>        ::= <expr>
+    <expr>         ::= ( "if" <boolexpr> <expr> <expr> )
+    <expr>         ::= <numexpr>
+    <boolexpr>     ::= ( "not" <boolexpr> )
+    <boolexpr>     ::= ( "or" <boolexpr> <boolexpr> )
+    <boolexpr>     ::= ( "and" <boolexpr> <boolexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
+    <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
+    <boolop>       ::= ">" | "<" | "~=" | "not=" | "=" | "<=" | ">="
+    <numbop>       ::= "+" | "-" | "*" | "/"
+    <value>        ::= "1" | "0" | "0.5" | "2"
+    <value>        ::= "a" | "b"
+  """
 
 var c = newPrimitives[Fennel]()
 c.functions = @[
@@ -47,55 +105,70 @@ when false:
 
 suite "basic fennel stuff":
   var fnl: Fennel
+  var p: FProg
   block:
     ## setup a lua vm
     fnl = newFennel c
 
   block:
-    ## tree-sitter suite
-    when greadTS:
-      suite "tree-sitter":
-        var p: FProg
-        block:
-          ## parse a fennel program with multi-symbols
-          const program = "(/ math.pi math.pi)"
-          p = newProgram(c, program)
-          checkpoint $p
-          check $p == "(/ math.pi math.pi)"
+    ## parse a fennel program with multi-symbols
+    const program = "(/ math.pi math.pi)"
+    p = newProgram(c, program)
+    checkpoint $p
+    check $p == "(/ math.pi math.pi)"
 
-        block:
-          ## parse a fennel program
-          const program = "(+ 1   2.0  )"
-          p = newProgram(c, program)
-          checkpoint $p
-          check $p == "(+ 1.0 2.0)"
+  block:
+    ## parse a fennel program
+    const program = "(+ 1   2.0  )"
+    p = newProgram(c, program)
+    checkpoint $p
+    check $p == "(+ 1.0 2.0)"
 
-        block:
-          ## run a fennel program
-          var locals: Locals
-          let score = fnl.evaluate(p, locals, fenfit)
-          checkpoint score
-          check score.float == 3.0
+  block:
+    ## run a fennel program
+    var locals: Locals
+    let score = fnl.evaluate(p, locals, fenfit)
+    checkpoint score
+    check score.float == 3.0
 
-        block:
-          ## serde some fennel ast
-          let popsicle = freeze p
-          var puddle: FProg
-          thaw(popsicle, puddle)
-          checkpoint c.render(p.ast)
-          check c.render(p.ast) == c.render(puddle.ast)
+  block:
+    ## serde some fennel ast
+    let popsicle = freeze p
+    var puddle: FProg
+    thaw(popsicle, puddle)
+    checkpoint c.render(p.ast)
+    check c.render(p.ast) == c.render(puddle.ast)
 
-        block:
-          ## run a fennel program with inputs
-          const program = "(+ a b)"
-          p = newProgram(c, program)
-          checkpoint $p
-          check $p == "(+ a b)"
-          # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
-          var locals = initLocals:
-            {
-              "a": 3.toLuaValue,
-              "b": 5.toLuaValue,
-            }
-          let score = fnl.evaluate(p, locals, fenfit)
-          check score.float == 8.0
+  block:
+    ## run a fennel program with inputs
+    const program = "(+ a b)"
+    p = newProgram(c, program)
+    checkpoint $p
+    check $p == "(+ a b)"
+    # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
+    var locals = initLocals:
+      {
+        "a": 3.toLuaValue,
+        "b": 5.toLuaValue,
+      }
+    let score = fnl.evaluate(p, locals, fenfit)
+    check score.float == 8.0
+
+  block:
+    ## parse fennel grammar
+    var gram: Grammar[Fennel]
+    gram.initGrammar(fennelGrammar)
+    for name, production in gram.pairs:
+      if name == "start":
+        checkpoint production
+    let geno = randomGenome(2000)
+    let p = newProgram gram.πGE(geno)
+    checkpoint $p
+    var locals = initLocals:
+      {
+        "a": 3.toLuaValue,
+        "b": 5.toLuaValue,
+      }
+    let score = fnl.evaluate(p, locals, fenfit)
+    checkpoint $score
+    check not score.float.isNaN
