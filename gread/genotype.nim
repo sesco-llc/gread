@@ -12,11 +12,14 @@ proc inc(pc: var PC; n: int32) {.borrow.}
 proc high*(geno: Genome): int {.borrow.}
 proc len*(geno: Genome): int {.borrow.}
 proc add(geno: var Genome; c: char) {.borrow.}
+proc `[]`*[T, U: Ordinal](geno: Genome; hs: HSlice[T, U]): Genome =
+  ## essentially a `.borrow.` which works around a nim bug
+  Genome geno.string[hs]
 
 proc canRead*[T: Genes](geno: Genome; pc: PC; count = 1): bool =
   ## true if there remain at least `count` genes `T between the
   ## program counter `pc` and the end of the genome
-  pc.int <= geno.high - (sizeof(T) * count)
+  pc.int <= geno.len - (sizeof(T) * count)
 
 proc read*[T: Genes](geno: Genome; pc: var PC): T
 
