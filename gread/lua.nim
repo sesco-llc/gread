@@ -248,13 +248,10 @@ proc render*(c: Primitives[Lua]; a: Ast[Lua]): string =
 proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   ## evaluate the lua program; the result of the expression is
   ## assigned to the variable `result`.
-  vm.pushGlobal("result", term 0.0)
   for point in locals.items:
     discard vm.push point.value
     vm.setGlobal point.name.cstring
-  let source = "result = " & s
-  vm.checkLua vm.doString source.cstring:
-    vm.getGlobal "result"
+  vm.checkLua vm.doString s.cstring:
     result = popStack vm
 
 proc evaluate*(lua: Lua; p: LProg; locals: Locals; fit: FenFit): Score =
@@ -507,6 +504,9 @@ proc parseToken*[T: Lua](s: string): LuaNodeKind =
   of ")":             luaRParTok
   of ";":             luaSemicolonTok
   of "return":        luaReturnTok
+  of "not":           luaNotTok
+  of "and":           luaAndTok
+  of "or":            luaOrTok
   else:
     raise ValueError.newException "unsupported token: `$#`" % [ s ]
 
