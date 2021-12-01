@@ -29,13 +29,12 @@ export lptabz
 export lunacy
 
 const
-  semanticErrorsAreFatal = false
+  semanticErrorsAreFatal = true
   initialCacheSize = 32*1024
 
 type
   Fennel* = ref object
     core*: Option[int]
-    primitives: Primitives[Fennel]
     vm*: PState
     runs*: uint
     cache: LPTab[Hash, Score]
@@ -142,9 +141,9 @@ const
     )
   """
 
-proc newFennel*(c: Primitives[Fennel]; core = none int): Fennel =
+proc newFennel*(core = none int): Fennel =
   ## reset a Fennel instance and prepare it for running programs
-  result = Fennel(vm: newState(), primitives: c, core: core)
+  result = Fennel(vm: newState(), core: core)
   init(result.cache, initialSize = initialCacheSize)
   clearStats result
 
@@ -241,7 +240,7 @@ proc render[T](a: Ast[T]; n: AstNode[T]; i = 0): string =
     raise Defect.newException:
       "unimpl node kind: $# ($#)" % [ strRepr(n.kind), $n.kind ]
 
-proc render*(c: Primitives[Fennel]; a: Ast[Fennel]): string =
+proc render*(a: Ast[Fennel]): string =
   ## render fennel ast in a form that can be compiled
   var i = 0
   var s = newSeqOfCap[int](a.len)
@@ -298,7 +297,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
     try:
       # pass the program and the training inputs
       let began = getTime()
-      let stack = evaluate(fnl.vm, render(fnl.primitives, p), locals)
+      let stack = evaluate(fnl.vm, render(p.ast), locals)
       fnl.runtime.push (getTime() - began).inMilliseconds.float
       fnl.errors.push 0.0
       # score a resultant value if one was produced
@@ -306,7 +305,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
         result = fit(locals, stack.value)
     except LuaError as e:
       when semanticErrorsAreFatal:
-        debugEcho render(fnl.primitives, p)
+        debugEcho render(p.ast)
         debugEcho p
         debugEcho e.msg
         quit 1
@@ -325,7 +324,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
         0.0
 
 proc dumpScore*(fnl: Fennel; p: FProg) =
-  let code = render(fnl.primitives, p)
+  let code = render(p.ast)
   var s =
     if p.score.isValid:
       $p.score
@@ -346,7 +345,7 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
     for index, value in training.pairs:
       let s = evaluate(fnl, p, value, fenfit)
       if index < samples or index == training.high:
-        checkpoint $value, "->", s
+        checkpoint "ideal: ", $value, "-> gp: ", s
       if s.isValid:
         results.add s.float
     checkpoint "  stddev:", Score stddev(results)
@@ -361,19 +360,21 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
   if not p.isNil:
     var results: seq[float]
     var ideals: seq[float]
+    var deltas: seq[float]
     for index, value in training.pairs:
       let s = evaluate(fnl, p, value[0], fenfit)
-      if not s.isValid:
+      if s.isValid:
+        results.add s.float
+        ideals.add value[1].float
+        deltas.add abs(value[1].float - s.float)
+      else:
         return
       if 0 == index mod samples or index == training.high:
-        let delta = s.float
+        let delta = abs(value[1].float - s.float)
         if delta in [0.0, -0.0]:
           checkpoint fmt"{float(value[1]):>7.2f}"
         else:
-          checkpoint fmt"{float(value[1]):>7.2f} -> {delta:>7.2f}     -> {sum(results):>7.2f}    {index}"
-      if s.isValid:
-        results.add s.float
-        ideals.add abs(value[1].float)
+          checkpoint fmt"ideal: {float(value[1]):>7.2f} -> gp: {float(s):>7.2f}     -> {sum(deltas):>7.2f}    {index}"
     if results.len > 0:
       checkpoint "stddev:", stddev(results),
                  "corr:", correlation(results, ideals).percent,
@@ -499,10 +500,9 @@ when compileOption"threads":
   proc noop(c: C): C {.cpsMagic.} = c
 
   proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
-    let fnl = newFennel(args.primitives, core = args.core)
+    let fnl = newFennel(core = args.core)
     var evo: Evolver[Fennel, LuaValue]
     initEvolver(evo, fnl, args.tableau)
-    evo.primitives = args.primitives
     evo.operators = args.operators
     evo.dataset = args.dataset
     evo.core = fnl.core

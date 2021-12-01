@@ -23,30 +23,33 @@ const
   dataInaccurate = false     ## use faulty data
   statFrequency = 2000       ## how often to output statistics
 
-# define the symbols in our evolved code
-var prims = newPrimitives[Fennel]()
-prims.functions = @[
-  fun("+", args=2..2), fun("-", args=2..2),
-  fun("*", args=2..2), fun("/", args=2..2),
-]
-prims.constants = @[term 0.0, term 1.0, term 2.0]
-prims.inputs.add @[sym"hi", sym"lo"]
+  # define the grammar for our programs
+  averageGrammar = """
+    <start>        ::= <numexpr>
+    <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
+    <numexpr>      ::= <value>
+    <numbop>       ::= "+" | "-" | "*" | "/"
+    <value>        ::= "1" | "0" | "0.5" | "2"
+    <value>        ::= "hi" | "lo"
+  """
+
+var gram: Grammar[Fennel]
+initGrammar(gram, averageGrammar)
 
 # no point in slowing down this simple example
 var tab = defaultTableau
+tab.seedProgramSize = 200
+tab.maxPopulation = 500
 
 # define the different ways in which we evolve, and their weights
 let
   operators = {
-    randomCrossover[Fennel, LuaValue]:   1.0,
-    pointPromotion[Fennel, LuaValue]:    2.0,
-    removeOneLeaf[Fennel, LuaValue]:     5.0,
-    pointMutation[Fennel, LuaValue]:     5.0,
-    subtreeCrossover[Fennel, LuaValue]: 90.0,
+    geCrossover[Fennel, LuaValue]: 100.0,
+    geMutation[Fennel, LuaValue]:   95.0,
   }
 
 var
-  fnl = newFennel(prims)
+  fnl = newFennel()
   pop: FPop
   evo: FEvo
   # we want to make a function that returns the median of `lo` and `hi` inputs
@@ -79,16 +82,13 @@ else:
 
 # convert the json into lua values;
 var training: seq[(Locals, Score)]
-var targets: LPTab[Hash, LuaValue]
-init(targets, initialSize = inputData.len)
 for (js, ideal) in inputData.items:
   var paired: seq[(string, LuaValue)]
   for name, value in js.pairs:
     paired.add (name, value.toLuaValue)
+  paired.add ("ideal", ideal.toLuaValue)
   var locals = initLocals paired
-  let luaIdeal = ideal.toLuaValue
   training.add (locals, Score ideal)
-  targets[hash locals] = luaIdeal
 
 proc fenfit(inputs: Locals; output: LuaValue): Score =
   if output.kind == TNumber:
@@ -102,7 +102,7 @@ proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
   if not s.isNaN and s notin [-Inf, Inf]:
     result =
       some:
-        Score -(abs targets[hash locals].toFloat - s.float)
+        Score -abs(locals["ideal"].toFloat - s.float)
 
 proc fitmany(fnl: Fennel; data: openArray[(Locals, Score)];
              p: FProg): Option[Score] =
@@ -119,7 +119,9 @@ template dumpStats() {.dirty.} =
   dumpStats(fnl, pop, et, genTime)
 
 template dumpPerformance(p: FProg) {.dirty.} =
-  dumpPerformance(fnl, p, training, fenfit)
+  echo "---"
+  dumpPerformance(fnl, p, training, fenfit, samples = 1)
+  echo "---"
 
 suite "simulation":
   var et = getTime()
@@ -129,7 +131,7 @@ suite "simulation":
     ## created a random population of programs
     checkpoint "creating", tab.seedPopulation, "random programs..."
     initEvolver(evo, fnl, tab)
-    evo.primitives = prims
+    evo.grammar = gram
     evo.operators = operators
     evo.dataset = training
     evo.fitone = fitone

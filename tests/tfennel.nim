@@ -162,8 +162,14 @@ suite "basic fennel stuff":
       if name == "start":
         checkpoint production
     let geno = randomGenome(2000)
-    let p = newProgram gram.πGE(geno)
-    checkpoint $p
+    let (pc, ast) = gram.πGE(geno)
+    checkpoint "program counter: ", pc
+    var p = newProgram(ast, geno[0..<pc.int])
+    let s = $p
+    checkpoint s
+    checkpoint "genome length: ", p.genome.len
+    let (pc1, ast1) = gram.πGE(p.genome)
+    check $p == $newProgram(ast1, p.genome[0..<pc1.int])
     var locals = initLocals:
       {
         "a": 3.toLuaValue,
