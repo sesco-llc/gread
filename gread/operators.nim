@@ -7,6 +7,7 @@ import gread/fertilizer
 import gread/crossover
 import gread/evolver
 import gread/primitives
+import gread/grammar
 
 proc pointPromotion*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
   ## promote a random child to its parent's place in the tree, discarding
@@ -54,3 +55,23 @@ proc subtreeCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
   let a = tournament(evo, size).program
   let b = tournament(evo, size).program
   result = some: c.newProgram subtreeCrossover(a.ast, b.ast)
+
+proc geCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  ## perform GE crossover between two parents to form a new child
+  template size: int = evo.tableau.tournamentSize
+  let a = tournament(evo, size).program
+  let b = tournament(evo, size).program
+  if a.genome.len == 0 or b.genome.len == 0:
+    raise ValueError.newException:
+      "population contains programs without genomes"
+  let x = geCrossover(evo.grammar, a.genome, b.genome)
+  if x.isSome:
+    result = some: newProgram(x.get.ast, x.get.genome)
+
+proc geMutation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  ## perform GE mutation of a program to create novel offspring
+  template size: int = evo.tableau.tournamentSize
+  let a = tournament(evo, size).program
+  let x = geMutation(evo.grammar, a.genome)
+  if x.isSome:
+    result = some: newProgram(x.get.ast, x.get.genome)

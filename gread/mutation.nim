@@ -5,6 +5,8 @@ import std/random
 import gread/spec
 import gread/ast
 import gread/primitives
+import gread/grammar
+import gread/genotype
 
 proc mutateFunction[T](c: Primitives[T]; a: Ast[T]; i: int): Ast[T] =
   mixin composeCall
@@ -140,3 +142,16 @@ proc appendOneLeaf*[T](c: Primitives[T]; a: Ast[T]; size: int): Ast[T] =
           result = a.insert(index, @[leaf])
           break exit
   audit result: echo "append result: ", result
+
+proc geMutation*[T](gram: Grammar[T];
+                    a: Genome): Option[tuple[ast: Ast[T]; genome: Genome]] =
+  ## perform GE mutation of a program to create novel offspring
+  if a.len == 0:
+    raise ShortGenome.newException "received empty input genome"
+  var g = a
+  g.string[rand(g.high)] = rand(int char.high).char
+  try:
+    let (pc, ast) = gram.πGE(g)                       # map the new genome
+    result = some: (ast: ast, genome: g[0..<pc.int])  # throw away the tail
+  except ShortGenome:
+    discard
