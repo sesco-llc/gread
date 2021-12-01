@@ -4,6 +4,8 @@ import gread/spec
 import gread/ast
 import gread/primitives
 import gread/programs
+import gread/genotype
+import gread/grammar
 
 type
   ArchKinds = enum Node, Leaf
@@ -37,3 +39,9 @@ proc randProgram*[T](c: Primitives[T]; size = 10): Program[T] =
   ## produce a random program of, roughly, the given size
   var size = size
   result = c.newProgram randAst(c, size, {Node})
+
+proc randProgram*[T](gram: Grammar[T]; size = 20): Program[T] =
+  ## produce a random program of, roughly, the given size
+  let genome = randomGenome size
+  let (pc, ast) = gram.πGE(genome)
+  result = newProgram(ast, genome[0..<pc.int])
