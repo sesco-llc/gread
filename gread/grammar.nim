@@ -11,6 +11,7 @@ import gread/ast
 import gread/genotype
 
 type
+  ShortGenome* = object of ValueError
   ComponentKind* = enum ckToken, ckRule, ckTerminal
   Component*[T] = object
     case kind*: ComponentKind
@@ -99,16 +100,20 @@ when false:
           result.high - (rhs.high-index)
       result = result.append rhs                  # add the nodes to the result
 
-proc πGE*[T](gram: Grammar[T]; geno: Genome): Ast[T] =
+proc πGE*[T](gram: Grammar[T]; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
   ## map a genotype using the given grammar
   mixin programNode
   mixin terminalNode
   mixin toAst
+
+  if gram.isNil:
+    raise Defect.newException "unable to map genome with nil grammar"
+
   var nts: seq[int]                             # indices of unresolved nodes
   nts.add 0                                     # prime them with the head node
-  result.nodes.add:
+  result.ast.nodes.add:
     # we always start with the `start` production
-    terminalNode[T](result, Terminal[T](kind: Symbol, name: "start"))
+    terminalNode[T](result.ast, Terminal[T](kind: Symbol, name: "start"))
 
   var i: PC                                     # start at the genotype's head
   var order, codon: uint16
@@ -119,8 +124,8 @@ proc πGE*[T](gram: Grammar[T]; geno: Genome): Ast[T] =
     let chose = nts[index]                      # the LHS component to resolve
     del(nts, index)                             # don't worry about order
     let options =
-      if result[chose].isSymbol:
-        let name = result.name(chose)           # resolve the nt name
+      if result.ast[chose].isSymbol:
+        let name = result.ast.name(chose)       # resolve the nt name
         toSeq gram.productions(name)            # RHS production choices
       else:
         gram.p[chose] # RHS production choices
@@ -128,7 +133,7 @@ proc πGE*[T](gram: Grammar[T]; geno: Genome): Ast[T] =
     let rule = options[content]                 # select the content production
     let rhs = rule.toAst()                      # convert rule to nodes
     doAssert rule.len == rhs.len, "not yet supported"
-    result = result.replace(chose, rhs)         # add the nodes to the result
+    result.ast = result.ast.replace(chose, rhs) # add the nodes to the ast
     for item in nts.mitems:
       if item > chose:
         item = item + (rhs.len-1)               # increment the indices
@@ -137,7 +142,9 @@ proc πGE*[T](gram: Grammar[T]; geno: Genome): Ast[T] =
         nts.add chose + n # XXX: inserting them backwards...
 
   if nts.len > 0:
-    raise ValueError.newException "insufficient genome"
+    raise ShortGenome.newException "insufficient genome"
+
+  result.pc = i  # record the program counter to indicate the mapped size
 
 proc toTerminal[T](s: string): Terminal[T] =
   ## turn a string into a Terminal

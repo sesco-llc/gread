@@ -12,6 +12,7 @@ proc inc(pc: var PC; n: int32) {.borrow.}
 proc high*(geno: Genome): int {.borrow.}
 proc len*(geno: Genome): int {.borrow.}
 proc add(geno: var Genome; c: char) {.borrow.}
+proc `&`*(a, b: Genome): Genome {.borrow.}
 proc `[]`*[T, U: Ordinal](geno: Genome; hs: HSlice[T, U]): Genome =
   ## essentially a `.borrow.` which works around a nim bug
   Genome geno.string[hs]
