@@ -8,6 +8,7 @@ import pkg/adix/lptabz
 
 import gread/ast
 import gread/primitives
+import gread/genotype
 import gread/spec
 
 const
@@ -20,6 +21,7 @@ type
   #Program*[T] = ref object
   ProgramObj[T] = object
     primitives*: Primitives[T]
+    genome: Genome            ## the genome used to construct the program
     code: Option[string]      ## cache of the rendered source code
     core*: Option[int]        ## ideally holds the core where we were invented
     runtime*: MovingStat[float32]  ## tracks the runtime for this program
@@ -37,6 +39,10 @@ when defined(ProgramObj):
   proc `=destroy`*[T](p: var ProgramObj[T]) =
     `=destroy`(p.primitives)
     system.`=destroy`(p)
+
+proc genome*(p: Program): Genome {.inline.} =
+  ## the program's source genome
+  p.genome
 
 proc zombie*(p: Program): bool {.inline.} =
   ## true if the program is invalid and may only be used for genetic data
@@ -88,6 +94,11 @@ proc newProgram*[T](a: Ast[T]; score: Score): Program[T] =
 proc newProgram*[T](a: Ast[T]): Program[T] =
   ## instantiate a new program from the given ast
   newProgram(a, NaN)
+
+proc newProgram*[T](a: Ast[T]; geno: Genome): Program[T] =
+  ## instantiate a new program from the given ast and genome
+  result = newProgram(a, NaN)
+  result.genome = geno
 
 proc newProgram*[T](c: Primitives[T]; a: Ast[T]): Program[T] =
   ## instantiate a new program from the given ast; the program

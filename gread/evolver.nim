@@ -15,6 +15,7 @@ import gread/aliasmethod
 import gread/fertilizer
 import gread/tableau
 import gread/primitives
+import gread/grammar
 
 type
   FitOne*[T; V] = proc(q: T; s: SymbolSet[T, V]; p: Program[T]): Option[Score] ##
@@ -30,6 +31,7 @@ type
 
   Evolver*[T, V] = object
     platform: T
+    grammar: Grammar[T]
     fitone: FitOne[T, V]
     fitmany: FitMany[T, V]
     dataset: seq[SymbolSet[T, V]]
@@ -73,6 +75,12 @@ proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
 
 proc population*[T, V](evo: Evolver[T, V]): Population[T] =
   evo.population
+
+proc `grammar=`*[T, V](evo: var Evolver[T, V]; grammar: Grammar[T]) =
+  evo.grammar = grammar
+
+proc grammar*[T, V](evo: Evolver[T, V]): Grammar[T] =
+  evo.grammar
 
 proc `dataset=`*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]]) =
   ## assign a series of possible inputs
