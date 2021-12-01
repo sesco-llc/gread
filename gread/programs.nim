@@ -60,11 +60,7 @@ proc render*(c: Primitives; p: Program): string =
   if p.code.isSome:
     result = get p.code
   else:
-    result =
-      if p.primitives.isNil:
-        render(c, p.ast)
-      else:
-        render(p.primitives, p.ast)
+    result = render(p.ast)
     p.code = some result
 
 proc `$`*(p: Program): string =
@@ -80,7 +76,14 @@ proc `<`*[T](a, b: Program[T]): bool =
 
 proc `==`*[T](a, b: Program[T]): bool =
   ## some objective measurement of two programs; score
-  a.score == b.score
+  # this silliness works around a nim bug with our
+  # `==`() leaking into system/arc's reference counting
+  if a.isNil != b.isNil:
+    false
+  elif a.isNil:
+    true
+  else:
+    a.score == b.score
 
 proc `<=`*[T](a, b: Program[T]): bool =
   ## some objective measurement of two programs; score
@@ -111,7 +114,7 @@ proc clone*[T](p: Program[T]): Program[T] =
   result =
     Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
                primitives: p.primitives, flags: p.flags, core: p.core,
-               generation: p.generation)
+               genome: p.genome, generation: p.generation)
   when programCache:
     init(result.cache, initialSize = 2)
 
@@ -121,7 +124,7 @@ proc isValid*(p: Program): bool =
   if p.zombie:
     false
   elif p.score.isNaN:
-    raise Defect.newException "score the program before measuring validity"
+    false
   else:
     true
 
