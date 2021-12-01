@@ -34,7 +34,9 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
       p.generation = gen
       p.core = evo.core
       # sample a single datapoint in order to check validity
-      let s = evo.score(evo.randomSymbols, p)
+      #let s = evo.score(evo.randomSymbols, p)
+      # FIXME: optimization point
+      let s = evo.score(p)
       if s.isSome:
         p.score = get s
       else:

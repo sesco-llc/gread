@@ -205,7 +205,18 @@ proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
   ## create a new (random) population using the given evolver's parameters
   result = newPopulation[T](evo.tableau.seedPopulation, core = evo.core)
   while result.len < evo.tableau.seedPopulation:
-    let p = randProgram(evo.primitives, evo.tableau.seedProgramSize)
-    p.core = evo.core
-    if not evo.tableau.requireValid or evo.score(evo.randomSymbols, p).isSome:
-      result.add p
+    try:
+      let p =
+        if not evo.grammar.isNil:
+          randProgram(evo.grammar, evo.tableau.seedProgramSize)
+        elif not evo.primitives.isNil:
+          randProgram(evo.primitives, evo.tableau.seedProgramSize)
+        else:
+          raise ValueError.newException "need grammar or primitives"
+      p.core = evo.core
+      # FIXME: optimization point
+      discard evo.score(p)
+      if not evo.tableau.requireValid or evo.score(evo.randomSymbols, p).isSome:
+        result.add p
+    except ShortGenome:
+      discard

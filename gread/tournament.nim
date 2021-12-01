@@ -42,7 +42,12 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
   proc remover(competitors: var seq[Competitor[T]]; i: int) =
     ## used to update the population with a score change prior to removal
     let c = competitors[i]
-    let s = evo.scoreFromCache(c.program)
+    let s =
+      # FIXME: optimization point
+      when false:
+        evo.scoreFromCache(c.program)
+      else:
+        evo.score(c.program)
     when debugging:
       let score =
         if s.isSome:
