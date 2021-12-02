@@ -11,7 +11,8 @@ proc inc(pc: var PC; n: int32) {.borrow.}
 
 proc high*(geno: Genome): int {.borrow.}
 proc len*(geno: Genome): int {.borrow.}
-proc add(geno: var Genome; c: char) {.borrow.}
+proc add(geno: var Genome; c: char) {.borrow.}     # nim bug;
+proc add*(geno: var Genome; g: Genome) {.borrow.}  # the above is exported!
 proc `&`*(a, b: Genome): Genome {.borrow.}
 proc `[]`*[T, U: Ordinal](geno: Genome; hs: HSlice[T, U]): Genome =
   ## essentially a `.borrow.` which works around a nim bug
