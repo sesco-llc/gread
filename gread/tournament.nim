@@ -23,6 +23,7 @@ type
 
 const
   debugging = false
+  exhaustive = false
 template debug(args: varargs[untyped]): untyped =
   when debugging:
     echo args
@@ -42,7 +43,9 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
   proc remover(competitors: var seq[Competitor[T]]; i: int) =
     ## used to update the population with a score change prior to removal
     let c = competitors[i]
+    # FIXME: optimization point
     let s = evo.scoreFromCache(c.program)
+    #let s = evo.score(c.program)
     when debugging:
       let score =
         if s.isSome:
@@ -128,8 +131,6 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
       i = 0
       while i <= victims.high and victims.len > 1:
         let p = victims[i].program
-        if p.isNil:
-          raise
         # re-score the program against all datapoints tested to date
         let s = evo.score(data, p)
         if s.isSome:
@@ -142,15 +143,18 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
         else:
           remover(victims, i)
 
-      # if programs remain,
-      if victims.len > 1:
-        # sort the remainder, and
+      when exhaustive:
         sort(victims, order)
-        debug "removing victims worse than ", victims[0].score
+      else:
+        # if multiple programs remain,
+        if victims.len > 1:
+          # sort the remainder, and
+          sort(victims, order)
 
-        # remove any losers
-        while victims[^1].score != victims[0].score:
-          remover(victims, victims.high)
+          # remove any losers (or clones!)
+          debug "removing victims worse than ", victims[0].score
+          while victims.len > 1 and (victims[^1].score != victims[0].score or victims[^1].program.hash == victims[0].program.hash):
+            remover(victims, victims.high)
 
       debug "loop done at ", i, " with data len ", data.len, " order ", order
 
@@ -163,4 +167,5 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
 
   debug order, " program cache ", result.program.cacheSize, " average is ", Score caches
   debug "final result: ", result
+  debug "actual score of winner: ", result.program.score
   think result
