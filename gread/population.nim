@@ -131,7 +131,12 @@ proc maybeResetFittest[T](pop: Population[T]; p: Program[T]) =
   ## reset the fittest pointer if the argument is actually superior
   withInitialized pop:
     if p.score.isValid:
-      if pop.fittest.isNil or pop.fittest.score < p.score:
+      block:
+        if not pop.fittest.isNil:
+          if pop.fittest.score >= p.score:
+            break
+          if pop.fittest.hash == p.hash:
+            break
         pop.fittest = p
         p.flags.incl FinestKnown
 
