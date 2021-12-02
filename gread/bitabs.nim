@@ -16,6 +16,8 @@ const
   idStart = 256 ## we currently use this to add significance to
   ## an operand value of 0, which we sem as having no literal
 
+converter toInt32*(n: LitId): int32 = n.int32
+
 template idToIdx(x: LitId): int = x.int - idStart
 template isFilled(x: LitId): bool = x.uint32 > 0'u32
 template maxHash(t): untyped = high(t.keys)
