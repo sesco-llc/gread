@@ -65,12 +65,6 @@ const
     <value>        ::= "a" | "b"
   """
 
-var c = newPrimitives[Fennel]()
-c.functions = @[
-  fun("+", arity=2), fun("-", arity=2),
-  fun("*", arity=2), fun("/", arity=2),
-]
-
 proc fenfit(inputs: Locals; output: LuaValue): Score =
   Score:
     if output.kind == TNumber:
@@ -108,19 +102,19 @@ suite "basic fennel stuff":
   var p: FProg
   block:
     ## setup a lua vm
-    fnl = newFennel c
+    fnl = newFennel()
 
   block:
     ## parse a fennel program with multi-symbols
     const program = "(/ math.pi math.pi)"
-    p = newProgram(c, program)
+    p = newFennelProgram program
     checkpoint $p
     check $p == "(/ math.pi math.pi)"
 
   block:
     ## parse a fennel program
     const program = "(+ 1   2.0  )"
-    p = newProgram(c, program)
+    p = newFennelProgram program
     checkpoint $p
     check $p == "(+ 1.0 2.0)"
 
@@ -136,13 +130,13 @@ suite "basic fennel stuff":
     let popsicle = freeze p
     var puddle: FProg
     thaw(popsicle, puddle)
-    checkpoint c.render(p.ast)
-    check c.render(p.ast) == c.render(puddle.ast)
+    checkpoint render(p.ast)
+    check render(p.ast) == render(puddle.ast)
 
   block:
     ## run a fennel program with inputs
     const program = "(+ a b)"
-    p = newProgram(c, program)
+    p = newFennelProgram program
     checkpoint $p
     check $p == "(+ a b)"
     # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
@@ -157,7 +151,7 @@ suite "basic fennel stuff":
   block:
     ## parse fennel grammar
     var gram: Grammar[Fennel]
-    gram.initGrammar(fennelGrammar)
+    gram.initGrammar fennelGrammar
     for name, production in gram.pairs:
       if name == "start":
         checkpoint production

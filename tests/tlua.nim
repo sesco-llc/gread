@@ -96,19 +96,19 @@ suite "basic lua stuff":
   var lua: Lua
   block:
     ## setup a lua vm
-    lua = newLua c
+    lua = newLua()
 
   block:
     ## parse a lua program with field expressions
     const program = "math.pi / math.pi"
-    p = newProgram(c, program)
+    p = newLuaProgram program
     checkpoint $p
     check $p == "(math.pi / math.pi)"
 
   block:
     ## parse a lua program
     const program = "return 1 + 2.0"
-    p = newProgram(c, program)
+    p = newLuaProgram program
     checkpoint $p
     check $p == "return 1.0 + 2.0"
 
@@ -124,13 +124,13 @@ suite "basic lua stuff":
     let popsicle = freeze p
     var puddle: LProg
     thaw(popsicle, puddle)
-    checkpoint c.render(p.ast)
-    check c.render(p.ast) == c.render(puddle.ast)
+    checkpoint render(p.ast)
+    check render(p.ast) == render(puddle.ast)
 
   block:
     ## run a lua program with inputs
     const program = "return a + b"
-    p = newProgram(c, program)
+    p = newLuaProgram program
     checkpoint $p
     check $p == "return a + b"
     # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
@@ -150,8 +150,14 @@ suite "basic lua stuff":
       if name == "terminate":
         checkpoint production
     let geno = randomGenome(2000)
-    let p = newProgram gram.πGE(geno)
-    checkpoint $p
+    let (pc, ast) = gram.πGE(geno)
+    checkpoint "program counter: ", pc
+    var p = newProgram(ast, geno[0..<pc.int])
+    let s = $p
+    checkpoint s
+    checkpoint "genome length: ", p.genome.len
+    let (pc1, ast1) = gram.πGE(p.genome)
+    check $p == $newProgram(ast1, p.genome[0..<pc1.int])
     var locals = initLocals:
       {
         "a": 3.toLuaValue,

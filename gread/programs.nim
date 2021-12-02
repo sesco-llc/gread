@@ -7,7 +7,6 @@ import pkg/adix/lptabz
 #from pkg/frosty import frostyError, FreezeError, ThawError
 
 import gread/ast
-import gread/primitives
 import gread/genotype
 import gread/spec
 
@@ -20,7 +19,6 @@ type
 
   #Program*[T] = ref object
   ProgramObj[T] = object
-    primitives*: Primitives[T]
     genome: Genome            ## the genome used to construct the program
     code: Option[string]      ## cache of the rendered source code
     core*: Option[int]        ## ideally holds the core where we were invented
@@ -34,11 +32,6 @@ type
     when programCache:
       cache: LPTab[Hash, Option[Score]] ## cache of score given symbol set hash
   Program*[T] = ref ProgramObj[T]
-
-when defined(ProgramObj):
-  proc `=destroy`*[T](p: var ProgramObj[T]) =
-    `=destroy`(p.primitives)
-    system.`=destroy`(p)
 
 proc genome*(p: Program): Genome {.inline.} =
   ## the program's source genome
@@ -56,19 +49,20 @@ func len*(p: Program): int =
   ## some objective measurement of the program; ast length
   p.ast.len
 
-proc render*(c: Primitives; p: Program): string =
+proc render*(p: Program): string =
+  mixin render
   if p.code.isSome:
     result = get p.code
   else:
-    result = render(p.ast)
+    result = render p.ast
     p.code = some result
 
 proc `$`*(p: Program): string =
   ## renders the program as source code if possible; else raw ast
   if p.code.isSome:
-    result = p.code.get
+    p.code.get
   else:
-    result = render(p.primitives, p)
+    render p
 
 proc `<`*[T](a, b: Program[T]): bool =
   ## some objective measurement of two programs; score
@@ -89,32 +83,23 @@ proc `<=`*[T](a, b: Program[T]): bool =
   ## some objective measurement of two programs; score
   a.score < b.score or a.score == b.score
 
-proc newProgram*[T](a: Ast[T]; score: Score): Program[T] =
-  result = Program[T](ast: a, hash: hash a, score: score)
+proc newProgram*[T](a: Ast[T]): Program[T] =
+  ## instantiate a new program from the given ast
+  result = Program[T](ast: a, hash: hash a, score: NaN)
   when programCache:
     init(result.cache, initialSize = 2)
 
-proc newProgram*[T](a: Ast[T]): Program[T] =
-  ## instantiate a new program from the given ast
-  newProgram(a, NaN)
-
 proc newProgram*[T](a: Ast[T]; geno: Genome): Program[T] =
   ## instantiate a new program from the given ast and genome
-  result = newProgram(a, NaN)
+  result = newProgram(a)
   result.genome = geno
-
-proc newProgram*[T](c: Primitives[T]; a: Ast[T]): Program[T] =
-  ## instantiate a new program from the given ast; the program
-  ## will use the supplied primitives for rendering, etc.
-  result = newProgram(a, NaN)
-  result.primitives = c
 
 proc clone*[T](p: Program[T]): Program[T] =
   ## it's not a clone if it's different
   result =
     Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
-               primitives: p.primitives, flags: p.flags, core: p.core,
-               genome: p.genome, generation: p.generation)
+               flags: p.flags, core: p.core, genome: p.genome,
+               generation: p.generation)
   when programCache:
     init(result.cache, initialSize = 2)
 
@@ -147,27 +132,13 @@ proc cacheSize*(p: Program): int =
 
 when false:
   proc serialize*[S, T](output: var S; input: ProgramObj[T]) =
-    if input.primitives.isNil:
-      raise FreezeError.frostyError "program lacks primitives"
-    else:
-      serialize(output, input.primitives)
-      serialize(output, input.ast)
-      serialize(output, input.flags)
-
-  proc deserialize*[S, T](input: var S; output: var ProgramObj[T]) =
-    var c: Primitives[T]
-    var ast: Ast[T]
-    deserialize(input, c)
-    frosty.deserialize(input, ast)
-    output = newProgram(c, ast)
-    frosty.deserialize(input, output.flags)
-elif false:
-  proc serialize*[S, T](output: var S; input: ProgramObj[T]) =
     serialize(output, input.ast)
+    serialize(output, input.genome)
     serialize(output, input.flags)
 
   proc deserialize*[S, T](input: var S; output: var ProgramObj[T]) =
     var ast: Ast[T]
     deserialize(input, ast)
     output = newProgram(ast)
+    deserialize(input, output.genome)
     deserialize(input, output.flags)

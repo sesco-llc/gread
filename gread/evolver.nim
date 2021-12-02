@@ -14,7 +14,6 @@ import gread/data
 import gread/aliasmethod
 import gread/fertilizer
 import gread/tableau
-import gread/primitives
 import gread/grammar
 
 type
@@ -40,10 +39,22 @@ type
     balance: AliasMethod[int]
     core: CoreSpec
     tableau: Tableau
-    primitives: Primitives[T]
     population: Population[T]
     operators: AliasMethod[Operator[T, V]]
     gentime: MovingStat[float32]
+    shorties: MovingStat[float32]
+
+proc platform*[T, V](evo: Evolver[T, V]): T =
+  ## recover the platform of an evolver
+  evo.platform
+
+proc shortGenome*(evo: Evolver): MovingStat[float32] =
+  ## retrieve the statistics on mapping failures due to short genomes
+  evo.shorties
+
+proc shortGenome*(evo: var Evolver; tooShort: bool) =
+  ## record a short (true) or sufficient (false) genome result due to mapping
+  evo.shorties.push float(ord tooShort)
 
 proc generationTime*(evo: Evolver): MovingStat[float32] =
   ## fetch the generation time statistics
@@ -63,12 +74,6 @@ proc core*(evo: var Evolver): CoreSpec = evo.core
 proc `operators=`*[T, V](evo: var Evolver[T, V];
                          weighted: openArray[(Operator[T, V], float64)]) =
   initAliasMethod(evo.operators, weighted)
-
-proc `primitives=`*[T, V](evo: var Evolver[T, V]; primitives: Primitives[T]) =
-  evo.primitives = primitives
-
-proc primitives*[T, V](evo: Evolver[T, V]): Primitives[T] =
-  evo.primitives
 
 proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
   evo.population = population
@@ -209,14 +214,15 @@ proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
       let p =
         if not evo.grammar.isNil:
           randProgram(evo.grammar, evo.tableau.seedProgramSize)
-        elif not evo.primitives.isNil:
-          randProgram(evo.primitives, evo.tableau.seedProgramSize)
         else:
-          raise ValueError.newException "need grammar or primitives"
+          raise ValueError.newException "need grammar"
       p.core = evo.core
       # FIXME: optimization point
-      discard evo.score(p)
+      let s = evo.score(p)
+      if s.isSome:
+        p.score = get s
       if not evo.tableau.requireValid or evo.score(evo.randomSymbols, p).isSome:
         result.add p
     except ShortGenome:
-      discard
+      echo "short genome on core ", evo.core, "; pop size ", result.len
+  echo "pop generation complete on core ", evo.core

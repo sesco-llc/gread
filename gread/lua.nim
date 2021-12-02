@@ -20,7 +20,6 @@ import gread/ast
 import gread/population
 import gread/programs
 import gread/maths except variance
-import gread/primitives
 import gread/data
 import gread/evolver
 import gread/grammar
@@ -39,7 +38,6 @@ const
 type
   Lua* = ref object
     core*: Option[int]
-    primitives: Primitives[Lua]
     vm*: PState
     runs*: uint
     cache: LPTab[Hash, Score]
@@ -110,9 +108,9 @@ proc clearStats*(lua: Lua) =
       discard
     echo "collected in ", (getTime() - began).inMilliseconds, " µs"
 
-proc newLua*(c: Primitives[Lua]; core = none int): Lua =
+proc newLua*(core = none int): Lua =
   ## reset a Lua instance and prepare it for running programs
-  result = Lua(vm: newState(), primitives: c, core: core)
+  result = Lua(vm: newState(), core: core)
   init(result.cache, initialSize = initialCacheSize)
   clearStats result
 
@@ -216,7 +214,7 @@ proc render[T: Lua](a: Ast[T]; n: AstNode[T]; i = 0): string =
     raise Defect.newException:
       "unimpl node kind: $# ($#)" % [ strRepr(n.kind), $n.kind ]
 
-proc render*(c: Primitives[Lua]; a: Ast[Lua]): string =
+proc render*(a: Ast[Lua]): string =
   ## render lua ast in a form that can be compiled
   var i = 0
   var s = newSeqOfCap[int](a.len)
@@ -268,7 +266,7 @@ proc evaluate*(lua: Lua; p: LProg; locals: Locals; fit: FenFit): Score =
     try:
       # pass the program and the training inputs
       let began = getTime()
-      let stack = evaluate(lua.vm, render(lua.primitives, p), locals)
+      let stack = evaluate(lua.vm, render(p), locals)
       lua.runtime.push (getTime() - began).inMilliseconds.float
       lua.errors.push 0.0
       # score a resultant value if one was produced
@@ -276,8 +274,8 @@ proc evaluate*(lua: Lua; p: LProg; locals: Locals; fit: FenFit): Score =
         result = fit(locals, stack.value)
     except LuaError as e:
       when semanticErrorsAreFatal:
-        debugEcho render(lua.primitives, p)
-        debugEcho p
+        debugEcho render p
+        debugEcho $p
         debugEcho e.msg
         quit 1
       else:
@@ -295,7 +293,7 @@ proc evaluate*(lua: Lua; p: LProg; locals: Locals; fit: FenFit): Score =
         0.0
 
 proc dumpScore*(lua: Lua; p: LProg) =
-  let code = render(lua.primitives, p)
+  let code = render p
   var s =
     if p.score.isValid:
       $p.score
@@ -434,18 +432,19 @@ proc isFunctionSymbol*[T: Lua](a: Ast[T]; index: int): bool {.deprecated: "nonse
     if not a[index].isParent:
       result = a[index].isSymbol and a[index-1].kind == luaFunctionCall
 
-proc toAst[T: Lua](prod: Production[T]): Ast[T] =
-  ## map a grammatical production to matching ast
-  result.nodes = newSeqOfCap[AstNode[T]](prod.len)
-  for component in prod.items:
-    result.nodes.add:
-      case component.kind
-      of ckRule:
-        emptyNode[T]()
-      of ckToken:
-        AstNode[T](kind: component.token)
-      of ckTerminal:
-        terminalNode[T](component.term)
+when false:
+  proc toAst[T: Lua](prod: Production[T]): Ast[T] =
+    ## map a grammatical production to matching ast
+    result.nodes = newSeqOfCap[AstNode[T]](prod.len)
+    for component in prod.items:
+      result.nodes.add:
+        case component.kind
+        of ckRule:
+          emptyNode[T](result)
+        of ckToken:
+          AstNode[T](kind: component.token)
+        of ckTerminal:
+          terminalNode[T](result, component.term)
 
 proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
   case node.kind
@@ -481,17 +480,13 @@ proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
   else:
     raise Defect.newException "unimplemented node: " & $node.kind
 
-proc newProgram*[T: Lua](s: string): Program[T] =
+proc newLuaProgram*(s: string): Program[Lua] =
+  ## working around cps `()` operator shenanigans
   let tree = parseTsLuaString s
   if tree.kind != luaProgram:
     raise ValueError.newException "expected a program; got " & $tree.kind
   else:
-    #echo treeRepr(tree, s)
-    result = newProgram toAst[T](tree, s)
-
-proc newProgram*[T: Lua](c: Primitives[T]; s: string): Program[T] =
-  ## working around cps call operator
-  newProgram[Lua](s)
+    result = newProgram toAst[Lua](tree, s)
 
 proc parseToken*[T: Lua](s: string): LuaNodeKind =
   case s
@@ -522,10 +517,9 @@ when compileOption"threads":
   proc noop(c: C): C {.cpsMagic.} = c
 
   proc worker*(args: Work[Lua, LuaValue]) {.cps: C.} =
-    let lua = newLua(args.primitives, core = args.core)
+    let lua = newLua args.core
     var evo: Evolver[Lua, LuaValue]
     initEvolver(evo, lua, args.tableau)
-    evo.primitives = args.primitives
     evo.operators = args.operators
     evo.dataset = args.dataset
     evo.core = lua.core

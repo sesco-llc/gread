@@ -20,7 +20,6 @@ import gread/ast
 import gread/population
 import gread/programs
 import gread/maths except variance
-import gread/primitives
 import gread/data
 import gread/evolver
 
@@ -306,7 +305,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
     except LuaError as e:
       when semanticErrorsAreFatal:
         debugEcho render(p.ast)
-        debugEcho p
+        debugEcho $p
         debugEcho e.msg
         quit 1
       else:
@@ -382,9 +381,11 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
                  "of ideal:", (sum(results) / sum(ideals)).percent
     fnl.dumpScore p
 
-proc dumpStats*(fnl: Fennel; pop: Population; evoTime: Time;
-                genTime: FennelStat) =
+proc dumpStats*(evo: Evolver; evoTime: Time) =
   ## a threadsafe echo of some statistics regarding the vm and population
+  var fnl = evo.platform
+  var pop = evo.population
+  template genTime: FennelStat = evo.generationTime
   let m = pop.metrics
   let threaded = when compileOption"threads": $getThreadId() else: "-"
   if not pop.fittest.isNil:
@@ -411,6 +412,7 @@ proc dumpStats*(fnl: Fennel; pop: Population; evoTime: Time;
              lua vm cache size: {fnl.cache.len}
              foreign influence: {m.usurper}
               immigration rate: {(m.immigrants.float / m.size.float).percent}
+          mapping failure rate: {evo.shortGenome.mean.percent}
                best generation: {m.bestGen}
              total generations: {m.generation}
              invention recency: {m.staleness.percent}
@@ -482,16 +484,13 @@ proc toAst[T: Fennel](node: TsFennelNode; s: string): Ast[T] =
   else:
     raise Defect.newException "unimplemented node: " & $node.kind
 
-proc newProgram*[T: Fennel](s: string): Program[T] =
+proc newFennelProgram*(s: string): Program[Fennel] =
+  ## working around cps `()` operator shenanigans
   let tree = parseTsFennelString s
   if tree.kind != fennelProgram:
     raise ValueError.newException "expected a program; got " & $tree.kind
   else:
-    result = newProgram toAst[T](tree, s)
-
-proc newProgram*[T: Fennel](c: Primitives[T]; s: string): Program[T] =
-  ## working around cps call operator
-  newProgram[Fennel](s)
+    result = newProgram toAst[Fennel](tree, s)
 
 when compileOption"threads":
   import gread/cluster
@@ -540,7 +539,7 @@ when compileOption"threads":
           p.core = fnl.core
 
         if p.generation mod args.stats == 0:
-          dumpStats(fnl, evo.population, evoTime, evo.generationTime)
+          dumpStats(evo, evoTime)
           clearStats evo
 
         when false:
