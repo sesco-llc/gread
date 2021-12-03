@@ -14,7 +14,7 @@ import gread/maths
 
 const
   defaultParsimony = -0.01
-  populationCache = false
+  populationCache = true
 
 type
   PopMetrics* = object
