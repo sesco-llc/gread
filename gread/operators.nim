@@ -24,10 +24,28 @@ proc geCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
   except ShortGenome:
     evo.shortGenome true
 
+proc randomCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  ## perform GE crossover with a random genome to form a new child
+  template size: int = evo.tableau.tournamentSize
+  let a = tournament(evo, size).program
+  if a.genome.len == 0:
+    raise ValueError.newException:
+      "population contains programs without genomes"
+  try:
+    let x = randomCrossover(evo.grammar, a.genome)
+    if x.isSome:
+      result = some: newProgram(x.get.ast, x.get.genome)
+    evo.shortGenome false
+  except ShortGenome:
+    evo.shortGenome true
+
 proc geMutation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
   ## perform GE mutation of a program to create novel offspring
   template size: int = evo.tableau.tournamentSize
   let a = tournament(evo, size).program
-  let x = geMutation(evo.grammar, a.genome)
-  if x.isSome:
-    result = some: newProgram(x.get.ast, x.get.genome)
+  try:
+    let x = geMutation(evo.grammar, a.genome)
+    if x.isSome:
+      result = some: newProgram(x.get.ast, x.get.genome)
+  except ShortGenome:
+    evo.shortGenome true
