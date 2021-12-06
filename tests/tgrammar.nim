@@ -45,9 +45,11 @@ suite "grammar":
         seen.incl "i" & $term.intVal
       of Float:
         seen.incl "f" & $term.floatVal
+      of Symbol:
+        seen.incl "y" & $term.name
       else:
-        fail "unexpected terminal kind"
-    check "sD" in seen
+        fail "unexpected terminal kind: " & $term.kind
+    check "yD" in seen
     check "i3" in seen
 
   block:
