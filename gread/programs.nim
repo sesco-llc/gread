@@ -101,7 +101,7 @@ proc clone*[T](p: Program[T]): Program[T] =
   ## it's not a clone if it's different
   result =
     Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
-               flags: p.flags, core: p.core, genome: p.genome,
+               code: p.code, flags: p.flags, core: p.core, genome: p.genome,
                generation: p.generation)
   when programCache:
     init(result.cache, initialSize = 2)
