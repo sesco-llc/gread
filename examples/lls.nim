@@ -14,7 +14,7 @@ import pkg/loony
 import pkg/adix/lptabz
 
 const
-  goodEnough = 0.1      # termination condition
+  goodEnough = -2.0      # termination condition
   statFrequency = 10000  # report after this many generations
   llsGrammar = """
     <start>        ::= <numexpr>
@@ -90,11 +90,11 @@ when isMainModule:
   # the main loop monitors inventions
   proc main(work: Work; inputs, outputs: LoonyQueue[FProg]) =
     let fnl = newFennel()
-    var best: Program[Fennel]
+    var best: FProg
     while true:
       let p = pop inputs
       if p.isNil:
-        sleep 10
+        sleep 250
       else:
         if FinestKnown in p.flags:
           if p.score.isValid:
@@ -102,18 +102,21 @@ when isMainModule:
               best = p
               dumpPerformance(fnl, best, training, fenfit, samples = 1)
               if best.score > goodEnough:
+                echo "winner, winner, chicken dinner: ", best.score
+                echo "last generation: ", p.generation
+                quit 0
                 break
         push(outputs, p)
 
   # now setup the workers with their unique populations, etc.
   var tab = defaultTableau
   tab.useParsimony = false  # our scoring isn't -1.0..1.0
-  tab.seedPopulation = 500
+  tab.seedPopulation = 1_000
   tab.seedProgramSize = 200
-  tab.maxPopulation = 500
+  tab.maxPopulation = 1_000
   tab.tournamentSize = 10
-  tab.sharingRate = 2.0
-  tab.maxGenerations = 100_000_000
+  tab.sharingRate = 3.0
+  tab.maxGenerations = 200_000
   tab.requireValid = true
 
   # each worker gets a Work object as input to its thread
@@ -126,7 +129,6 @@ when isMainModule:
   for core in 0..<countProcessors():
     clump.boot(whelp worker(args), args.core)
     clump.redress args
-    break
 
   # run the main loop to gatekeep inventions
   let (inputs, outputs) = clump.programQueues()
