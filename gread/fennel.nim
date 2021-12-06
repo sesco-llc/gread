@@ -296,7 +296,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
     try:
       # pass the program and the training inputs
       let began = getTime()
-      let stack = evaluate(fnl.vm, render(p.ast), locals)
+      let stack = evaluate(fnl.vm, $p, locals)
       fnl.runtime.push (getTime() - began).inMilliseconds.float
       fnl.errors.push 0.0
       # score a resultant value if one was produced
@@ -304,7 +304,6 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
         result = fit(locals, stack.value)
     except LuaError as e:
       when semanticErrorsAreFatal:
-        debugEcho render(p.ast)
         debugEcho $p
         debugEcho e.msg
         quit 1
@@ -323,7 +322,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
         0.0
 
 proc dumpScore*(fnl: Fennel; p: FProg) =
-  let code = render(p.ast)
+  let code = $p
   var s =
     if p.score.isValid:
       $p.score
