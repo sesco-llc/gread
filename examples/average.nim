@@ -23,9 +23,11 @@ const
   dataInaccurate = false     ## use faulty data
   statFrequency = 2000       ## how often to output statistics
 
-  # define the grammar for our programs
+  # define the grammar for our programs; note the balancing
   averageGrammar = """
     <start>        ::= <numexpr>
+    <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
+    <numexpr>      ::= <value>
     <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
     <numexpr>      ::= <value>
     <numbop>       ::= "+" | "-" | "*" | "/"
@@ -39,14 +41,18 @@ initGrammar(gram, averageGrammar)
 # no point in slowing down this simple example
 var tab = defaultTableau
 tab.seedProgramSize = 200
+tab.seedPopulation = 500
 tab.maxPopulation = 500
+tab.tournamentSize = 10
+tab.maxGenerations = 30_000
+tab.requireValid = true
 
 # define the different ways in which we evolve, and their weights
-let
-  operators = {
-    geCrossover[Fennel, LuaValue]: 100.0,
-    geMutation[Fennel, LuaValue]:   95.0,
-  }
+let operators = {
+  geCrossover[Fennel, LuaValue]:   100.0,
+  geMutation[Fennel, LuaValue]:     50.0,
+  randomCrossover[Fennel, LuaValue]: 5.0,
+}
 
 var
   fnl = newFennel()
@@ -116,7 +122,7 @@ proc fitmany(fnl: Fennel; data: openArray[(Locals, Score)];
     result = some Score -ss(results)
 
 template dumpStats() {.dirty.} =
-  dumpStats(fnl, pop, et, genTime)
+  dumpStats(evo, et)
 
 template dumpPerformance(p: FProg) {.dirty.} =
   echo "---"
@@ -147,6 +153,7 @@ suite "simulation":
 
   et = getTime()
   var best = Score NaN
+  var lastGeneration: Generation
   block:
     ## ran until we can average two numbers
     while pop.generations < tab.maxGenerations:
@@ -163,6 +170,7 @@ suite "simulation":
 
       if pop.generations mod statFrequency == 0:
         dumpStats()
+    lastGeneration = pop.generations
 
   block:
     ## showed the top-10 programs
@@ -176,3 +184,4 @@ suite "simulation":
   block:
     ## performance of best program
     dumpPerformance pop.fittest
+    checkpoint "last generation: ", lastGeneration

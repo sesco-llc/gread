@@ -19,6 +19,8 @@ const
   llsGrammar = """
     <start>        ::= <numexpr>
     <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
+    <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
+    <numexpr>      ::= <value>
     <numexpr>      ::= <value>
     <numbop>       ::= "+" | "*" | "-" | "/"
     <value>        ::= "1.0" | "0.5" | "0.1" | "2.0"
@@ -32,6 +34,7 @@ initGrammar(gram, llsGrammar)
 let operators = {
   geCrossover[Fennel, LuaValue]:  50.0,
   geMutation[Fennel, LuaValue]:   25.0,
+  randomCrossover[Fennel, LuaValue]: 5.0,
 }
 
 const
@@ -43,6 +46,11 @@ var dataset: seq[Locals]
 for (x, y) in data.items:
   dataset.add:
     initLocals [("x", x.toLuaValue), ("y", y.toLuaValue)]
+
+# preparing a map between inputs and ideal output for reporting reasons
+var training: seq[(Locals, Score)]
+for locals in dataset.items:
+  training.add (locals, Score locals["y"].toFloat)
 
 proc fenfit(inputs: Locals; output: LuaValue): Score =
   ## fenfit gates program output such that producing a NaN will terminate
@@ -92,7 +100,7 @@ when isMainModule:
           if p.score.isValid:
             if best.isNil or best.score < p.score:
               best = p
-              dumpPerformance(fnl, best, dataset, fenfit)
+              dumpPerformance(fnl, best, training, fenfit, samples = 1)
               if best.score > goodEnough:
                 break
         push(outputs, p)
@@ -100,11 +108,13 @@ when isMainModule:
   # now setup the workers with their unique populations, etc.
   var tab = defaultTableau
   tab.useParsimony = false  # our scoring isn't -1.0..1.0
-  tab.seedPopulation = 3_000
-  tab.seedProgramSize = 100
-  tab.maxPopulation = 3_000
+  tab.seedPopulation = 500
+  tab.seedProgramSize = 200
+  tab.maxPopulation = 500
   tab.tournamentSize = 10
   tab.sharingRate = 2.0
+  tab.maxGenerations = 100_000_000
+  tab.requireValid = true
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()
