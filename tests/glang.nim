@@ -25,17 +25,17 @@ type
     Bul = "bullean"
     Dad = "parent"
     Pro = "program"
-  GToken* = enum
-    gReturn = "return"
-    gIf = "if"
-    gElse = "else"
-    gThen = "then"
-    gEnd = "end"
-    gLessThan = "<"
-    gMoreThan = ">"
-    gEqual = "=="
-    gLeftPar = "("
-    gRightPar = ")"
+
+    gtokReturn = "return"
+    gtokIf = "if"
+    gtokElse = "else"
+    gtokThen = "then"
+    gtokEnd = "end"
+    gtokLessThan = "<"
+    gtokMoreThan = ">"
+    gtokEqual = "=="
+    gtokLeftPar = "("
+    gtokRightPar = ")"
 
 # a convenience
 converter toInt16(gk: GKind): int16 {.used.} = int16 gk
@@ -115,7 +115,36 @@ proc render*[T: G](a: Ast[T]; n: AstNode[T]; index = 0): string =
   elif n.kind.GKind == Bul:
     $(cast[bool](a.numbers[LitId n.operand]))
   else:
-    "«" & $n.kind & "»"
+    $n.kind.GKind
 
-proc parseToken*[T: G](s: string): GToken =
-  parseEnum[GToken](s)
+proc render*(a: Ast[G]): string =
+  ## render fennel ast in a form that can be compiled
+  var i = 0
+  var s = newSeqOfCap[int](a.len)
+  template maybeAddSpace {.dirty.} =
+    if result.len > 0 and result[^1] notin {'('}:
+      result.add " "
+  template closeParens {.dirty.} =
+    while s.len > 0 and i >= s[^1]:
+      result.add ")"
+      discard pop s
+  while i <= a.high:
+    closeParens()
+    maybeAddSpace()
+    case a[i].kind
+    of Pro:
+      inc i                            # program is merely a semantic
+    of Dad:
+      result.add "("
+      s.add i+sizeOfSubtree(a, i)      # pop when you get past index+size
+      inc i
+    elif a[i].isParent:
+      result.add a.render(a[i], i)     # probably just a multi.symbol
+      inc(i, sizeOfSubtree(a, i))      # skip the parent's subtree
+    else:
+      result.add a.render(a[i], i)     # rendering an individual node
+      inc i
+  closeParens()
+
+proc parseToken*[T: G](s: string): GKind =
+  parseEnum[GKind](s)
