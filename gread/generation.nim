@@ -24,13 +24,6 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
 
     if result.isSome:
       let p = get result
-      # make room for the new program
-      template size: int = evo.tableau.tournamentSize
-      while evo.population.len > evo.tableau.maxPopulation-1:
-        profile "loser's tournament":
-          let loser = tournament(evo, size, order = Ascending)
-          del(evo.population, loser.index)
-
       p.generation = gen
       p.core = evo.core
       # FIXME: optimization point
@@ -46,7 +39,14 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
       else:
         p.zombie = true
 
-      if not evo.tableau.requireValid or s.isSome:
+      if not evo.tableau.requireValid or (not p.zombie and p.score.isValid):
+        # make room for the new program
+        template size: int = evo.tableau.tournamentSize
+        while evo.population.len > evo.tableau.maxPopulation-1:
+          profile "loser's tournament":
+            let loser = tournament(evo, size, order = Ascending)
+            del(evo.population, loser.index)
+
         profile "add to pop":
           evo.population.add p
 

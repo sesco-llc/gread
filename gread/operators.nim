@@ -7,6 +7,7 @@ import gread/fertilizer
 import gread/crossover
 import gread/evolver
 import gread/grammar
+import gread/genotype
 
 proc geCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
   ## perform GE crossover between two parents to form a new child
@@ -32,7 +33,8 @@ proc randomCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
     raise ValueError.newException:
       "population contains programs without genomes"
   try:
-    let x = randomCrossover(evo.grammar, a.genome)
+    let b = randomGenome(evo.tableau.seedProgramSize)
+    let x = geCrossover(evo.grammar, a.genome, b)
     if x.isSome:
       result = some: newProgram(x.get.ast, x.get.genome)
     evo.shortGenome false

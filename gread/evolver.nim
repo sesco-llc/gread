@@ -140,27 +140,31 @@ proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
 proc collectCachedScores[T, V](evo: Evolver[T, V];
                                p: Program[T]): seq[(SymbolSet[T, V], Score)] =
   ## select input and score pairs from prior evaluations of the program
-  when programCache:
-    result = newSeqOfCap[(SymbolSet[T, V], Score)](evo.dataset.len)
-    for ss in evo.dataset.items:
-      let s = p.getScoreFromCache(ss.hash)
-      if s.isSome:
-        result.add (ss, get s)
+  if not p.zombie:
+    when programCache:
+      result = newSeqOfCap[(SymbolSet[T, V], Score)](evo.dataset.len)
+      for ss in evo.dataset.items:
+        let s = p.getScoreFromCache(ss.hash)
+        if s.isSome:
+          result.add (ss, get s)
 
 proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
   ## compute a new score for the program using prior evaluations
-  profile "score from cache":
-    let cached = collectCachedScores(evo, p)
-    if cached.len > 0:
-      result = evo.fitmany(evo.platform, cached, p)
+  if not p.zombie:
+    profile "score from cache":
+      let cached = collectCachedScores(evo, p)
+      if cached.len > 0:
+        result = evo.fitmany(evo.platform, cached, p)
 
 proc score*[T, V](evo: Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
                   p: Program[T]): Option[Score] =
   ## score a program against a series of symbol sets
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
-  if evo.fitmany.isNil:
+  elif evo.fitmany.isNil:
     raise ValueError.newException "evolver needs fitmany assigned"
+  elif p.zombie:
+    result = none Score
   else:
     block exit:
       var scores = newSeqOfCap[(SymbolSet[T, V], Score)](dataset.len)
@@ -221,7 +225,9 @@ proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
       let s = evo.score(p)
       if s.isSome:
         p.score = get s
-      if not evo.tableau.requireValid or evo.score(evo.randomSymbols, p).isSome:
+      else:
+        p.score = NaN
+      if not evo.tableau.requireValid or (not p.zombie and p.score.isValid):
         result.add p
     except ShortGenome:
       echo "short genome on core ", evo.core, "; pop size ", result.len

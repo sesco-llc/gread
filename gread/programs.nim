@@ -43,7 +43,10 @@ proc zombie*(p: Program): bool {.inline.} =
 
 proc `zombie=`*(p: Program; b: bool) =
   ## mark a program as invalid; idempotent
-  incl(p.ast[0].flags, DeadCode)
+  if b:
+    incl(p.ast[0].flags, DeadCode)
+  elif p.zombie:
+    raise Defect.newException "the undead must never live again"
 
 func len*(p: Program): int =
   ## some objective measurement of the program; ast length
@@ -116,14 +119,16 @@ proc isValid*(p: Program): bool =
 proc addScoreToCache*(p: Program; h: Hash; s: Option[Score]) =
   ## record the score for a given input hash
   when programCache:
-    p.cache[h] = s
+    if not p.zombie:
+      p.cache[h] = s
 
 proc getScoreFromCache*(p: Program; h: Hash): Option[Score] =
   ## attempt to retrieve the cached score for a given hash of the input
   # FIXME: use withValue when cb fixes adix
   when programCache:
-    if h in p.cache:
-      result = p.cache[h]
+    if not p.zombie:
+      if h in p.cache:
+        result = p.cache[h]
 
 proc cacheSize*(p: Program): int =
   ## the size of a program's score cache

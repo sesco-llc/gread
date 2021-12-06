@@ -14,6 +14,14 @@ import gread/maths
 
 const
   defaultParsimony = -0.01
+  #[
+
+  this is quite a bit slower when enabled, but that's probably because
+  the population is not swamped with programs that are comprised of just
+  a single terminal, etc. the greater average program size is what makes
+  larger populations more valuable.
+
+  ]#
   populationCache = true
 
 type
@@ -77,9 +85,13 @@ template forget(pop: Population; p: Program; pos: int) =
     pop.ken.ages.pop float(int p.generation)
   else:
     dec pop.ken.immigrants
-  if not pop.fittest.isNil:
-    if p.hash == pop.fittest.hash:
-      pop.fittest = nil
+  # don't remove the reference to the fittest individual
+  when false:
+    if not pop.fittest.isNil:
+      # FIXME: ehhh this is wrong in the event there are dupes in the pop
+      #        (we could check populationCache, but should we even do this?)
+      if p.hash == pop.fittest.hash:
+        pop.fittest = nil
 
 template withInitialized*(pop: Population; logic: untyped): untyped =
   ## execute the body only when the population is initialized
@@ -130,7 +142,7 @@ proc penalizeSize*(pop: Population; score: Score; length: int): Score =
 proc maybeResetFittest[T](pop: Population[T]; p: Program[T]) =
   ## reset the fittest pointer if the argument is actually superior
   withInitialized pop:
-    if p.score.isValid:
+    if not p.zombie and p.score.isValid:
       block:
         if not pop.fittest.isNil:
           if pop.fittest.score >= p.score:
@@ -168,13 +180,14 @@ proc add*[T](pop: Population[T]; p: Program[T]) =
       raise Defect.newException "nil program"
     elif pop.isNil:
       raise Defect.newException "nil pop"
-    when populationCache:
-      if not pop.cache.containsOrIncl p.hash:
+    else:
+      when populationCache:
+        if not pop.cache.containsOrIncl p.hash:
+          addImpl(pop, p)
+          maybeResetFittest(pop, p)
+      else:
         addImpl(pop, p)
         maybeResetFittest(pop, p)
-    else:
-      addImpl(pop, p)
-      maybeResetFittest(pop, p)
 
 type
   TopPop[T] = tuple[score: Score, program: Program[T]]
@@ -309,7 +322,7 @@ proc resetScoreMetrics(pop: Population) =
     clear pop.ken.validity
     clear pop.ken.scores
     for p in pop.items:
-      if p.score.isValid:
+      if not p.zombie and p.score.isValid:
         pop.ken.validity.push 1.0
         pop.ken.scores.push p.score
       else:
