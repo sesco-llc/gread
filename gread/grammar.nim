@@ -122,7 +122,7 @@ proc πGE*[T](gram: Grammar[T]; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
     geno.read(i, codon)                         # read the content codon
     let index = order.int mod nts.len           # select from non-terminals
     let chose = nts[index]                      # the LHS component to resolve
-    del(nts, index)                             # don't worry about order
+    delete(nts, index)                          # we must worry about order
     let options =
       if result.ast[chose].isSymbol:
         let name = result.ast.name(chose)       # resolve the nt name
@@ -139,7 +139,7 @@ proc πGE*[T](gram: Grammar[T]; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
         item = item + (rhs.len-1)               # increment the indices
     for n, component in rule.pairs:             # add non-terminals to nts
       if component.kind == ckRule:
-        nts.add chose + n # XXX: inserting them backwards...
+        nts.insert(chose + n, index)            # insert for ordering reasons
 
   if nts.len > 0:
     raise ShortGenome.newException "insufficient genome"
