@@ -14,7 +14,7 @@ import pkg/loony
 import pkg/adix/lptabz
 
 const
-  goodEnough = -2.0      # termination condition
+  goodEnough = -0.01     # termination condition
   statFrequency = 10000  # report after this many generations
   llsGrammar = """
     <start>        ::= <numexpr>
@@ -111,12 +111,12 @@ when isMainModule:
   # now setup the workers with their unique populations, etc.
   var tab = defaultTableau
   tab.useParsimony = false  # our scoring isn't -1.0..1.0
-  tab.seedPopulation = 1_000
   tab.seedProgramSize = 200
-  tab.maxPopulation = 1_000
+  tab.seedPopulation = 500
+  tab.maxPopulation = 500
   tab.tournamentSize = 10
   tab.sharingRate = 3.0
-  tab.maxGenerations = 200_000
+  tab.maxGenerations = 2_000_000
   tab.requireValid = true
 
   # each worker gets a Work object as input to its thread
