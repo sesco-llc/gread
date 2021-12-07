@@ -43,3 +43,8 @@ proc ss*[T](a, b: openArray[T]): T {.inline.} =
       result += (a[i] - b[i]) * (a[i] - b[i])
   else:
     raise ValueError.newException "inputs have unequal girth"
+
+proc hoeffding*[T](n: int; e: T): T =
+  ## hoeffding's inequality; for `n` samples, the probability
+  ## that `e`, a deviation from expected value, holds
+  T(2.0) * exp(T(-2.0) * e * e * T(n))
