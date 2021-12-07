@@ -10,8 +10,9 @@ import gread/aliasmethod
 import gread/ast
 import gread/genotype
 
+export ShortGenome
+
 type
-  ShortGenome* = object of ValueError
   ComponentKind* = enum ckToken, ckRule, ckTerminal
   Component*[T] = object
     case kind*: ComponentKind
@@ -82,24 +83,6 @@ proc `[]`[T](tab: LPTab[string, Production[T]]; index: int): seq[Production[T]] 
       return result
     dec i
 
-when false:
-  proc naiveGE*[T](gram: Grammar[T]; geno: Genome): Ast[T] =
-    ## map a genotype using the given grammar
-    mixin programNode
-    mixin toAst
-    result.nodes.add programNode[T]()             # this is that head node
-
-    var i: PC                                     # start at the genotype's head
-    var codon: uint16
-    while canRead[uint16](geno, i):
-      geno.read(codon, i)
-      let rule = gram.production(codon)           # select the correct rule
-      var rhs = rule.toAst[T]()                   # convert rule to nodes
-      for index, component in rule.pairs:       # resolve non-terminals
-        if component.kind == ckRule:
-          result.high - (rhs.high-index)
-      result = result.append rhs                  # add the nodes to the result
-
 proc πGE*[T](gram: Grammar[T]; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
   ## map a genotype using the given grammar
   mixin programNode
@@ -117,7 +100,7 @@ proc πGE*[T](gram: Grammar[T]; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
 
   var i: PC                                     # start at the genotype's head
   var order, codon: uint16
-  while nts.len > 0 and canRead[uint16](geno, i, 2):
+  while nts.len > 0:
     geno.read(i, order)                         # read the order codon
     geno.read(i, codon)                         # read the content codon
     let index = order.int mod nts.len           # select from non-terminals
@@ -141,10 +124,19 @@ proc πGE*[T](gram: Grammar[T]; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
       if component.kind == ckRule:
         nts.insert(chose + n, index)            # insert for ordering reasons
 
+    if not canRead[uint16](geno, i, 2):         # if we're out of genome,
+      if greadWrapping:                         # and wrapping is enabled,
+        result.pc = i                           # record the consumed genome,
+        i = default PC                          # & wrap the program counter,
+      else:                                     # otherwise,
+        break                                   # stop mapping
+
   if nts.len > 0:
     raise ShortGenome.newException "insufficient genome"
 
-  result.pc = i  # record the program counter to indicate the mapped size
+  # if we didn't set the coded portion of the genome, set it now
+  if result.pc == default PC:
+    result.pc = i
 
 proc toTerminal[T](s: string): Terminal[T] =
   ## turn a string into a Terminal

@@ -1,12 +1,17 @@
 import std/random
 
+const
+  greadWrapping* {.booldefine.} = false
+
 type
+  ShortGenome* = object of ValueError
   Genome* = distinct string    ## a series of genes comprising an individual
   PC* = distinct int32         ## a program counter
 
   Genes = uint8 or uint16 or uint32 or uint64  ## optional types of genes
 
 proc `$`*(pc: PC): string {.borrow.}
+proc `==`*(a, b: PC): bool {.borrow.}
 proc inc(pc: var PC; n: int32) {.borrow.}
 
 proc high*(geno: Genome): int {.borrow.}
