@@ -6,44 +6,48 @@ import gread/tournament
 import gread/fertilizer
 import gread/crossover
 import gread/evolver
-import gread/primitives
+import gread/grammar
+import gread/genotype
 
-proc pointPromotion*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+proc geCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  ## perform GE crossover between two parents to form a new child
   template size: int = evo.tableau.tournamentSize
-  template c: Primitives[T] = evo.primitives
-  let a = tournament(evo, size).program
-  result = some: c.newProgram pointPromotion(evo.primitives, a.ast)
-
-proc pointMutation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
-  template size: int = evo.tableau.tournamentSize
-  template c: Primitives[T] = evo.primitives
-  let a = tournament(evo, size).program
-  result = some: c.newProgram pointMutation(evo.primitives, a.ast)
-
-proc removeOneLeaf*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
-  template size: int = evo.tableau.tournamentSize
-  template c: Primitives[T] = evo.primitives
-  let a = tournament(evo, size).program
-  result = some: c.newProgram removeOneLeaf(evo.primitives, a.ast,
-                                          size = evo.tableau.seedProgramSize)
-
-proc appendOneLeaf*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
-  template size: int = evo.tableau.tournamentSize
-  template c: Primitives[T] = evo.primitives
-  let a = tournament(evo, size).program
-  result = some: c.newProgram appendOneLeaf(evo.primitives, a.ast,
-                                          size = evo.tableau.seedProgramSize)
-
-proc randomCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
-  template size: int = evo.tableau.tournamentSize
-  template c: Primitives[T] = evo.primitives
-  let a = tournament(evo, size).program
-  let b = randProgram(evo.primitives, size = evo.tableau.seedProgramSize)
-  result = some: c.newProgram subtreeCrossover(a.ast, b.ast)
-
-proc subtreeCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
-  template size: int = evo.tableau.tournamentSize
-  template c: Primitives[T] = evo.primitives
   let a = tournament(evo, size).program
   let b = tournament(evo, size).program
-  result = some: c.newProgram subtreeCrossover(a.ast, b.ast)
+  if a.genome.len == 0 or b.genome.len == 0:
+    raise ValueError.newException:
+      "population contains programs without genomes"
+  try:
+    let x = geCrossover(evo.grammar, a.genome, b.genome)
+    if x.isSome:
+      result = some: newProgram(x.get.ast, x.get.genome)
+    evo.shortGenome false
+  except ShortGenome:
+    evo.shortGenome true
+
+proc randomCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  ## perform GE crossover with a random genome to form a new child
+  template size: int = evo.tableau.tournamentSize
+  let a = tournament(evo, size).program
+  if a.genome.len == 0:
+    raise ValueError.newException:
+      "population contains programs without genomes"
+  try:
+    let b = randomGenome(evo.tableau.seedProgramSize)
+    let x = geCrossover(evo.grammar, a.genome, b)
+    if x.isSome:
+      result = some: newProgram(x.get.ast, x.get.genome)
+    evo.shortGenome false
+  except ShortGenome:
+    evo.shortGenome true
+
+proc geMutation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
+  ## perform GE mutation of a program to create novel offspring
+  template size: int = evo.tableau.tournamentSize
+  let a = tournament(evo, size).program
+  try:
+    let x = geMutation(evo.grammar, a.genome)
+    if x.isSome:
+      result = some: newProgram(x.get.ast, x.get.genome)
+  except ShortGenome:
+    evo.shortGenome true

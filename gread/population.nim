@@ -14,7 +14,15 @@ import gread/maths
 
 const
   defaultParsimony = -0.01
-  populationCache = false
+  #[
+
+  this is quite a bit slower when enabled, but that's probably because
+  the population is not swamped with programs that are comprised of just
+  a single terminal, etc. the greater average program size is what makes
+  larger populations more valuable.
+
+  ]#
+  populationCache = true
 
 type
   PopMetrics* = object
@@ -36,26 +44,42 @@ type
 
   Population*[T: ref] = ref object
     programs: seq[Program[T]]
-    lengths: seq[float]
-    scores: seq[float]
     fittest: Program[T]
     ken: PopMetrics
     when populationCache:
       cache: HashSet[Hash]
 
+proc parsimony*(pop: Population): float
+
+proc toggleParsimony*(pop: Population; value = on) =
+  ## turn parsimony `on` or `off`; when switching parsimony on,
+  ## this will recompute and set the parsimony for the population
+  pop.ken.parsimony =
+    if value:
+      parsimony pop
+    else:
+      NaN
+
+func usesParsimony*(pop: Population): bool =
+  ## true if the population uses parsimony in its score() routines
+  not pop.ken.parsimony.isNaN
+
+proc resetParsimony*(pop: Population) =
+  ## recompute and set the parsimony for the population,
+  ## if parsimony is enabled for the population
+  if pop.usesParsimony:
+    profile "reset parsimony":
+      pop.ken.parsimony = parsimony pop
+
 template learn(pop: Population; p: Program; pos: int) =
   when populationCache:
     pop.cache.incl p.hash
-  if not p.zombie and p.score.isValid:
-    pop.scores[pos] = float penalizeSize(pop, p.score, p.len)
-    pop.lengths[pos] = float(p.len)
-    pop.ken.scores.push float(p.score)
+  if p.isValid:
+    pop.ken.lengths.push p.len.float
+    pop.ken.scores.push p.score
     pop.ken.validity.push 1.0
   else:
-    pop.scores[pos] = NaN
-    pop.lengths[pos] = NaN
     pop.ken.validity.push 0.0
-  pop.ken.lengths.push float(p.len)
   if p.core == pop.ken.core:
     pop.ken.ages.push float(int p.generation)
   else:
@@ -64,30 +88,34 @@ template learn(pop: Population; p: Program; pos: int) =
 template forget(pop: Population; p: Program; pos: int) =
   when populationCache:
     pop.cache.excl p.hash
-  if not p.zombie and p.score.isValid:
-    pop.scores[pos] = NaN
-    pop.lengths[pos] = NaN
+  if p.isValid:
     if p.score.isValid:
-      pop.ken.scores.pop float(p.score)
+      pop.ken.lengths.pop p.len.float
+      pop.ken.scores.pop p.score
       pop.ken.validity.pop 1.0
     else:
       pop.ken.validity.pop 0.0
-  pop.ken.lengths.pop float(p.len)
   if p.core == pop.ken.core:
     pop.ken.ages.pop float(int p.generation)
   else:
     dec pop.ken.immigrants
-  if not pop.fittest.isNil:
-    if p.hash == pop.fittest.hash:
-      pop.fittest = nil
+  # don't remove the reference to the fittest individual
+  when false:
+    if not pop.fittest.isNil:
+      # FIXME: ehhh this is wrong in the event there are dupes in the pop
+      #        (we could check populationCache, but should we even do this?)
+      if p.hash == pop.fittest.hash:
+        pop.fittest = nil
 
 template withInitialized*(pop: Population; logic: untyped): untyped =
+  ## execute the body only when the population is initialized
   if pop.isNil:
     raise Defect.newException "initialize your population first"
   else:
     logic
 
 template withPopulated*(pop: Population; logic: untyped): untyped =
+  ## execute the body only when the population has members
   withInitialized pop:
     if pop.len == 0:
       raise ValueError.newException "population is empty"
@@ -95,9 +123,10 @@ template withPopulated*(pop: Population; logic: untyped): untyped =
       logic
 
 proc newPopulation*[T](size = 0; core = none int): Population[T] =
+  ## create a new population with the given capacity and core
   result = Population[T](programs: newSeqOfCap[Program[T]](size))
   result.ken.core = core
-  result.ken.parsimony = defaultParsimony
+  result.ken.parsimony = NaN
 
 func len*[T](p: Population[T]): int =
   ## the number of programs in the population
@@ -111,35 +140,50 @@ func best*(pop: Population): Score =
   return NaN.Score
 
 func fittest*[T](pop: Population[T]): Program[T] =
+  ## the fittest member of the population
   withInitialized pop:
     pop.fittest
 
-proc penalizeSize*(pop: Population; score: Score; length: int): Score =
+proc penalizeSize(pop: Population; score: Score; length: int): Score =
   ## apply some pressure on program size
   withInitialized pop:
-    var s = score.float
-    if not pop.ken.parsimony.isNaN:
+    if pop.usesParsimony:
+      var s = score.float
       if pop.ken.parsimony < 0.0:
         s += min(0.0, pop.ken.parsimony * length.float)
-    result = Score s
+      result = Score s
+    else:
+      result = score
+
+proc score*(pop: Population; score: Score; length: int): Score =
+  ## adjust the score according to the population's parsimony and a length
+  if score.isValid:
+    penalizeSize(pop, score, length)
+  else:
+    score
+
+proc score*(pop: Population; p: Program): Score =
+  ## retrieve the parsimonious Score for Program `p`
+  if p.isValid:
+    penalizeSize(pop, p.score, p.len)
+  else:
+    Score NaN
 
 proc maybeResetFittest[T](pop: Population[T]; p: Program[T]) =
   ## reset the fittest pointer if the argument is actually superior
   withInitialized pop:
-    if p.score.isValid:
-      if pop.fittest.isNil or pop.fittest.score < p.score:
+    if p.isValid:
+      block:
+        if not pop.fittest.isNil:
+          if pop.fittest.score >= p.score:
+            break
+          if pop.fittest.hash == p.hash:
+            break
         pop.fittest = p
         p.flags.incl FinestKnown
 
-template growNaNs(pop: Population; field: typed): untyped =
-  while pop.programs.len > field.len:
-    setLen(field, field.len + 1)
-    field[field.high] = NaN
-
 template addImpl[T](pop: Population[T]; p: Program[T]) =
   pop.programs.add p
-  growNaNs(pop, pop.scores)
-  growNaNs(pop, pop.lengths)
   learn(pop, p, pop.programs.high)
 
 proc introduce*[T](pop: Population[T]; p: Program[T]) =
@@ -159,13 +203,14 @@ proc add*[T](pop: Population[T]; p: Program[T]) =
       raise Defect.newException "nil program"
     elif pop.isNil:
       raise Defect.newException "nil pop"
-    when populationCache:
-      if not pop.cache.containsOrIncl p.hash:
+    else:
+      when populationCache:
+        if not pop.cache.containsOrIncl p.hash:
+          addImpl(pop, p)
+          maybeResetFittest(pop, p)
+      else:
         addImpl(pop, p)
         maybeResetFittest(pop, p)
-    else:
-      addImpl(pop, p)
-      maybeResetFittest(pop, p)
 
 type
   TopPop[T] = tuple[score: Score, program: Program[T]]
@@ -210,6 +255,12 @@ iterator mitems*[T](pop: Population[T]): var Program[T] =
     for p in pop.programs.mitems:
       yield p
 
+iterator pairs*[T](pop: Population[T]): (int, Program[T]) =
+  var i: int
+  for p in pop.items:
+    yield (i, p)
+    inc i
+
 type
   IndexedProgram[T] = tuple
     index: int
@@ -232,23 +283,18 @@ proc randomRemoval*[T](pop: Population[T]): Program[T] =
   withPopulated pop:
     del(pop, rand pop.programs.high)
 
-proc selectNonNaN[T](a: openArray[T]): seq[float] =
-  result = newSeqOfCap[float](a.len)
-  for s in a.items:
-    if not float(s).isNaN:
-      result.add float(s)
-
 proc parsimony*(pop: Population): float =
   ## compute parsimony for members of the population with valid scores
   withInitialized pop:
-    var scores = selectNonNaN(pop.scores)
-    var lengths = selectNonNaN(pop.lengths)
-    result =
-      if scores.len > 0:
-        -covariance(lengths, scores) / variance(lengths)
-      else:
-        defaultParsimony
-    pop.ken.parsimony = result
+    if pop.ken.scores.n == 0:
+      return defaultParsimony
+    var scores = newSeqOfCap[float](pop.ken.scores.n)
+    var lengths = newSeqOfCap[float](pop.ken.scores.n)
+    for i, p in pop.pairs:
+      if p.isValid:
+        scores.add -abs(p.score.float / pop.ken.scores.min.float)
+        lengths.add p.len.float
+    result = -covariance(lengths, scores) / variance(lengths)
 
 proc nextGeneration*(pop: Population): Generation =
   ## inform the population that we're entering a new generation
@@ -268,40 +314,33 @@ when populationCache:
       p.hash in pop.cache
 
 proc scoreChanged*(pop: Population; p: Program; s: Option[Score]; index: int) =
+  ## inform the population of a change to the score of `p` at `index`; this
+  ## is used to update metrics, parsimony, and the `fittest` population member
   withInitialized pop:
     if s.isSome:
-      pop.scores[index] = penalizeSize(pop, get s, p.len).float
-      # the lengths could be NaN for this program if it was
-      # entered without a valid score... or something.
-      pop.lengths[index] = p.len.float
       p.score = get s
       p.zombie = false
       maybeResetFittest(pop, p)
     else:
-      pop.scores[index] = NaN
-      pop.lengths[index] = NaN
       p.score = NaN
       p.zombie = true
-
-when false:
-  proc penalized*(pop: Population; index: int): Score =
-    withInitialized pop:
-      Score pop.scores[index]
 
 proc core*(pop: Population): CoreSpec =
   withInitialized pop:
     pop.ken.core
 
 proc resetScoreMetrics(pop: Population) =
+  ## reset validity, score, and parsimony metrics in the population; O(n)
   withInitialized pop:
     clear pop.ken.validity
     clear pop.ken.scores
     for p in pop.items:
-      if p.score.isValid:
+      if p.isValid:
         pop.ken.validity.push 1.0
         pop.ken.scores.push p.score
       else:
         pop.ken.validity.push 0.0
+    resetParsimony pop
 
 proc metrics*(pop: Population): PopMetrics =
   ## returns a copy of the population's metrics

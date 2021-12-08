@@ -14,7 +14,7 @@ import gread/data
 import gread/aliasmethod
 import gread/fertilizer
 import gread/tableau
-import gread/primitives
+import gread/grammar
 
 type
   FitOne*[T; V] = proc(q: T; s: SymbolSet[T, V]; p: Program[T]): Option[Score] ##
@@ -25,11 +25,12 @@ type
   ## a fitness function that runs against a series of symbolsets
 
   Operator*[T, V] = proc(pop: var Evolver[T, V]): Option[Program[T]] {.nimcall.}
-  Weight = float or float64
+  #Weight = float or float64
   OperatorWeight*[T, V] = tuple[operator: Operator[T, V]; weight: float64]
 
   Evolver*[T, V] = object
     platform: T
+    grammar: Grammar[T]
     fitone: FitOne[T, V]
     fitmany: FitMany[T, V]
     dataset: seq[SymbolSet[T, V]]
@@ -38,10 +39,22 @@ type
     balance: AliasMethod[int]
     core: CoreSpec
     tableau: Tableau
-    primitives: Primitives[T]
     population: Population[T]
     operators: AliasMethod[Operator[T, V]]
     gentime: MovingStat[float32]
+    shorties: MovingStat[float32]
+
+proc platform*[T, V](evo: Evolver[T, V]): T =
+  ## recover the platform of an evolver
+  evo.platform
+
+proc shortGenome*(evo: Evolver): MovingStat[float32] =
+  ## retrieve the statistics on mapping failures due to short genomes
+  evo.shorties
+
+proc shortGenome*(evo: var Evolver; tooShort: bool) =
+  ## record a short (true) or sufficient (false) genome result due to mapping
+  evo.shorties.push float(ord tooShort)
 
 proc generationTime*(evo: Evolver): MovingStat[float32] =
   ## fetch the generation time statistics
@@ -62,17 +75,17 @@ proc `operators=`*[T, V](evo: var Evolver[T, V];
                          weighted: openArray[(Operator[T, V], float64)]) =
   initAliasMethod(evo.operators, weighted)
 
-proc `primitives=`*[T, V](evo: var Evolver[T, V]; primitives: Primitives[T]) =
-  evo.primitives = primitives
-
-proc primitives*[T, V](evo: Evolver[T, V]): Primitives[T] =
-  evo.primitives
-
 proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
   evo.population = population
 
 proc population*[T, V](evo: Evolver[T, V]): Population[T] =
   evo.population
+
+proc `grammar=`*[T, V](evo: var Evolver[T, V]; grammar: Grammar[T]) =
+  evo.grammar = grammar
+
+proc grammar*[T, V](evo: Evolver[T, V]): Grammar[T] =
+  evo.grammar
 
 proc `dataset=`*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]]) =
   ## assign a series of possible inputs
@@ -124,27 +137,34 @@ proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
       p.runtime.push (getTime() - began).inMilliseconds.float
       p.addScoreToCache(s.hash, result)
 
-proc collectCachedScores[T, V](evo: Evolver[T, V]; p: Program[T]): seq[(SymbolSet[T, V], Score)] =
-  when programCache:
-    result = newSeqOfCap[(SymbolSet[T, V], Score)](evo.dataset.len)
-    for ss in evo.dataset.items:
-      let s = p.getScoreFromCache(ss.hash)
-      if s.isSome:
-        result.add (ss, get s)
+proc collectCachedScores[T, V](evo: Evolver[T, V];
+                               p: Program[T]): seq[(SymbolSet[T, V], Score)] =
+  ## select input and score pairs from prior evaluations of the program
+  if not p.zombie:
+    when programCache:
+      result = newSeqOfCap[(SymbolSet[T, V], Score)](evo.dataset.len)
+      for ss in evo.dataset.items:
+        let s = p.getScoreFromCache(ss.hash)
+        if s.isSome:
+          result.add (ss, get s)
 
 proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
-  profile "score from cache":
-    let cached = collectCachedScores(evo, p)
-    if cached.len > 0:
-      result = evo.fitmany(evo.platform, cached, p)
+  ## compute a new score for the program using prior evaluations
+  if not p.zombie:
+    profile "score from cache":
+      let cached = collectCachedScores(evo, p)
+      if cached.len > 0:
+        result = evo.fitmany(evo.platform, cached, p)
 
 proc score*[T, V](evo: Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
                   p: Program[T]): Option[Score] =
   ## score a program against a series of symbol sets
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
-  if evo.fitmany.isNil:
+  elif evo.fitmany.isNil:
     raise ValueError.newException "evolver needs fitmany assigned"
+  elif p.zombie:
+    result = none Score
   else:
     block exit:
       var scores = newSeqOfCap[(SymbolSet[T, V], Score)](dataset.len)
@@ -166,6 +186,7 @@ proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
   evo.fitone = fitter
 
 proc fitone*[T, V](evo: Evolver[T, V]): FitOne[T, V] =
+  ## the currently configured fitness function for a single symbol set
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   else:
@@ -176,12 +197,14 @@ proc `fitmany=`*[T, V](evo: var Evolver[T, V]; fitter: FitMany[T, V]) =
   evo.fitmany = fitter
 
 proc fitmany*[T, V](evo: Evolver[T, V]): FitMany[T, V] =
+  ## the currently configured fitness function for multiple outputs
   if evo.fitmany.isNil:
     raise ValueError.newException "evolver needs fitmany assigned"
   else:
     evo.fitmany
 
 proc randomSymbols*[T, V](evo: Evolver[T, V]): SymbolSet[T, V] =
+  ## select a random symbol set from the dataset
   if evo.dataset.len == 0:
     raise ValueError.newException "evolver needs dataset assigned"
   else:
@@ -190,8 +213,23 @@ proc randomSymbols*[T, V](evo: Evolver[T, V]): SymbolSet[T, V] =
 proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
   ## create a new (random) population using the given evolver's parameters
   result = newPopulation[T](evo.tableau.seedPopulation, core = evo.core)
+  result.toggleParsimony(evo.tableau.useParsimony)
   while result.len < evo.tableau.seedPopulation:
-    let p = randProgram(evo.primitives, evo.tableau.seedProgramSize)
-    p.core = evo.core
-    if not evo.tableau.requireValid or evo.score(evo.randomSymbols, p).isSome:
-      result.add p
+    try:
+      let p =
+        if not evo.grammar.isNil:
+          randProgram(evo.grammar, evo.tableau.seedProgramSize)
+        else:
+          raise ValueError.newException "need grammar"
+      p.core = evo.core
+      # FIXME: optimization point
+      let s = evo.score(p)
+      if s.isSome:
+        p.score = get s
+      else:
+        p.score = NaN
+      if not evo.tableau.requireValid or (not p.zombie and p.score.isValid):
+        result.add p
+    except ShortGenome:
+      echo "short genome on core ", evo.core, "; pop size ", result.len
+  echo "pop generation complete on core ", evo.core

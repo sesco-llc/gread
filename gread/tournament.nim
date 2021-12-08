@@ -23,6 +23,7 @@ type
 
 const
   debugging = false
+  exhaustive = false
 template debug(args: varargs[untyped]): untyped =
   when debugging:
     echo args
@@ -37,12 +38,14 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
                        order = Descending): Competitor[T] =
   ## find the fittest or least fit of a subset of the population
 
-  # FIXME: this code does not take parsimony into account
-
   proc remover(competitors: var seq[Competitor[T]]; i: int) =
     ## used to update the population with a score change prior to removal
     let c = competitors[i]
-    let s = evo.scoreFromCache(c.program)
+    # FIXME: optimization point
+    #let s = evo.scoreFromCache(c.program)
+    # XXX: the problem here is that the score may well be -0.0 if the (few?)
+    #      datapoints yield an impressive score
+    let s = evo.score(c.program)
     when debugging:
       let score =
         if s.isSome:
@@ -128,29 +131,31 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
       i = 0
       while i <= victims.high and victims.len > 1:
         let p = victims[i].program
-        if p.isNil:
-          raise
         # re-score the program against all datapoints tested to date
         let s = evo.score(data, p)
         if s.isSome:
           # update the competitor and move to the next victim
           debug "victim ", i, " was ", victims[i].score, " now ", get s
-          victims[i].score = get s
+          # adjust the score according to population parsimony
+          victims[i].score = evo.population.score(get s, victims[i].len)
           victims[i].valid = victims[i].score.isValid
           debug "victim ", i, " ", victims[i].program
           inc i
         else:
           remover(victims, i)
 
-      # if programs remain,
-      if victims.len > 1:
-        # sort the remainder, and
+      when exhaustive:
         sort(victims, order)
-        debug "removing victims worse than ", victims[0].score
+      else:
+        # if multiple programs remain,
+        if victims.len > 1:
+          # sort the remainder, and
+          sort(victims, order)
 
-        # remove any losers
-        while victims[^1].score != victims[0].score:
-          remover(victims, victims.high)
+          # remove any losers (or clones!)
+          debug "removing victims worse than ", victims[0].score
+          while victims.len > 1 and (victims[^1].score != victims[0].score or victims[^1].program.hash == victims[0].program.hash):
+            remover(victims, victims.high)
 
       debug "loop done at ", i, " with data len ", data.len, " order ", order
 
@@ -163,4 +168,5 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
 
   debug order, " program cache ", result.program.cacheSize, " average is ", Score caches
   debug "final result: ", result
+  debug "actual score of winner: ", result.program.score
   think result

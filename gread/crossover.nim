@@ -2,27 +2,36 @@ import std/options
 import std/strutils
 import std/random
 
-import gread/spec
 import gread/ast
+import gread/grammar
+import gread/genotype
 
-proc subtreeCrossover*[T](a, b: Ast[T]): Ast[T] =
-  audit a: echo a
-  audit b: echo b
+# FIXME: optimize this after confirming the semantics
+
+proc crossoverImpl[T](gram: Grammar[T];
+                      a, b: Genome): Option[tuple[ast: Ast[T]; genome: Genome]] =
+  # ensure the first crossover point occurs in mutual coding space
+  let x = rand(0..min(a.high, b.high))
+  # the second point can exceed the length of the shorter genome
+  let y = rand((x+1)..b.len)
+  var g = a[0..<x]
+  g.add b[x..<y]
+  if y < a.high:
+    g.add a[y..a.high]
+  let (pc, ast) = gram.πGE(g)                       # map the new genome
+  result = some (ast: ast, genome: g[0..<pc.int])
+
+proc randomCrossover*[T](gram: Grammar[T];
+                         a: Genome): Option[tuple[ast: Ast[T]; genome: Genome]] =
+  ## perform GE crossover between one parent and a random genome
   if a.len == 0:
-    raise Defect.newException "xover input is empty"
-  else:
-    while true:
-      var (x, y) = (rand(a.high), rand(b.high))
+    raise Defect.newException "received empty input genome"
+  let b = randomGenome(a.len)
+  result = crossoverImpl(gram, a, b)
 
-      # disabling this for now; i'd rather suffer the error
-      #if not a.isFunctionSymbol(x) and not b.isFunctionSymbol(y):
-      when true:
-        # FIXME: optimize this delete/insert to a replace operation
-        let d = a.delete(x)       # remove the old subtree
-        let c = b.subtree(y)      # the subtree at index y
-
-        audit d: echo "deleted in xover: ", d
-        audit c: echo "chunk in xover: ", c
-        result = d.insert(x, c)   # install the new subtree
-        break
-  audit result: echo "xover result: ", result
+proc geCrossover*[T](gram: Grammar[T];
+                     a, b: Genome): Option[tuple[ast: Ast[T]; genome: Genome]] =
+  ## perform GE crossover between two parents to form a new child
+  if a.len == 0 or b.len == 0:
+    raise Defect.newException "received empty input genome"
+  result = crossoverImpl(gram, a, b)

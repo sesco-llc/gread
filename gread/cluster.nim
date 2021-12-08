@@ -13,12 +13,12 @@ import pkg/loony
 import pkg/cps
 
 import gread/spec
-import gread/primitives
 import gread/programs
 import gread/population
 import gread/tableau
 import gread/data
 import gread/evolver
+import gread/grammar
 
 type
   ProgramQueue*[T] = LoonyQueue[Program[T]]
@@ -36,7 +36,7 @@ type
     core*: Option[CoreId]                  ## threadId-like concept
     stats*: int                            ## how often to emit stats
     tableau*: Tableau
-    primitives*: Primitives[T]
+    grammar*: Grammar[T]
     operators*: seq[OperatorWeight[T, V]]  ## operators & their weights
     dataset*: seq[SymbolSet[T, V]]
     targets*: Option[seq[Score]]
@@ -86,7 +86,7 @@ proc sendToCore(c: C; core: Natural) =
   shelf[core mod shelf.len].push c
 
 proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
-                     primitives: Primitives[T] = nil;
+                     grammar: Grammar[T] = nil;
                      operators: openArray[OperatorWeight[T, V]] = @[];
                      dataset: seq[SymbolSet[T, V]] = @[];
                      fitone: FitOne[T, V] = nil; fitmany: FitMany[T, V] = nil;
@@ -95,7 +95,7 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
   ## initialize a work object for passing setup instructions to worker threads;
   ## this is now just a convenience to reduce line count
   work.tableau = tab
-  work.primitives = primitives
+  work.grammar = grammar
   work.dataset = dataset
   work.operators = @operators
   work.stats = stats

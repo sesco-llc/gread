@@ -6,7 +6,8 @@ from std/json import escapeJson
 
 import gread/spec
 
-import "$nim/compiler/ic/bitabs"
+import gread/bitabs
+export bitabs
 
 type
   Arity = int
@@ -15,26 +16,24 @@ type
     arity*: Arity
     ident*: string        # XXX: switch to symbol
 
-  SymbolKind* = enum Unknown
-
-  ConstantKind* = enum Boolean, Integer, Float, String
-
-  TerminalKind* = enum Constant, Symbol
+  TerminalKind* = enum Symbol, Boolean, Integer, Float, String, None, Token
   Terminal*[T] = object
     case kind*: TerminalKind
-    of Constant:
-      case ck*: ConstantKind
-      of Float:
-        floatVal*: float64
-      of Boolean:
-        boolVal*: bool
-      of Integer:
-        intVal*: int64
-      of String:
-        strVal*: string
+    of Token:
+      token*: int16
+      text*: string
+    of None:
+      discard
+    of Float:
+      floatVal*: float64
+    of Boolean:
+      boolVal*: bool
+    of Integer:
+      intVal*: int64
+    of String:
+      strVal*: string
     of Symbol:
-      ident*: string
-      sk*: SymbolKind
+      name*: string
 
   NodeFlag* = enum
     Compiled
@@ -44,90 +43,80 @@ type
     DeadCode
   NodeFlags* = set[NodeFlag]
 
-  AstOrigin = object
-    core: Option[int]
-    population: Monotime
-    generation: Generation
-    monotime: Monotime
-    parents: (Hash, Hash)
-
-  AstKind* = enum
-    akNone
-    akCall
-    akIdent
-    akType
-    akFloatLit
-    akIntLit
-    akBoolLit
-    akStrLit
-    akNilLit
-
   AstNode*[T] = object
-    kind*: AstKind
-    operand*: int32  # length for vertices, LitId for edges
+    kind*: int16
+    operand*: int32  # length for parents, LitId for leaves
     # flags are similarly advisory only; they have no semantic bearing
     flags*: NodeFlags
     #origin: AstOrigin
 
   Ast*[T] = object
-    # this lets us avoid playing games with a distinct seq
-    nodes*: seq[AstNode[T]]
+    nodes*: seq[AstNode[T]]          # avoid games with a distinct seq
+    strings*: BiTable[string]        # string literals contained within
+    numbers*: BiTable[BiggestInt]    # numeric literals contained within
 
-const
-  akLiterals* = {akBoolLit, akIntLit, akFloatLit, akNilLit, akStrLit}
-  akParents* = {akCall, akType}
-  akChildren* = {akIdent} + akLiterals
+when false:
+  # not used yet...
+  type
+    AstOrigin = object
+      core: Option[int]
+      population: Monotime
+      generation: Generation
+      monotime: Monotime
+      parents: (Hash, Hash)
 
-template isParent*(n: AstNode): bool =
-  n.kind in akParents
-
-proc `$`*(n: AstNode): string =
-  result = $n.kind & ":" & $n.operand
+proc `$`*[T](n: AstNode[T]): string =
+  mixin `$`
+  result = $n.kind & "." & $n.operand
   if n.flags != {}:
     result.add "/" & $n.flags
 
-proc `$`*(a: Ast): string =
-  result.add "("
+proc `$`*[T](a: Ast[T]): string =
+  mixin `$`
+  mixin isSymbol
+  mixin isStringLit
+  mixin isNumberLit
+  mixin isParent
+  result.add "["
   for i, n in a.nodes.pairs:
     if i > 0:
       result.add ", "
     result.add $i
-    result.add "."
+    result.add ": "
     result.add $n
-  result.add ")"
+    if n.isSymbol:
+      result.add " (" & a.strings[LitId n.operand] & ")"
+    elif n.isStringLit:
+      var s: string
+      escapeJson(a.strings[LitId n.operand], s)
+      result.add " (" & s & ")"
+    elif n.isNumberLit:
+      result.add " (" & $a.numbers[LitId n.operand] & ")"
+    elif not n.isParent and n.operand > 0:  # NOTE: assume token
+      result.add " (" & a.strings[LitId n.operand] & ")"
+  result.add "]"
 
-template audit*(a: Ast; logic: untyped) =
+template audit*[T](a: Ast[T]; logic: untyped) =
+  mixin isParent
   when not defined(release):
     for i in 0..<a.nodes.len:
       let n = a.nodes[i]
-      if n.kind == akNone:
-        logic
-        raise Defect.newException:
-          "corrupted ast: node at " & $i & " is empty"
-      elif n.kind in akParents and i+n.len > a.high:
+      if n.isParent and i+n.len > a.high:
         logic
         raise Defect.newException:
           "node at " & $i & " too long " & $n & " n.len " & $n.len & " a.len " & $a.len
 
-when false:
-  proc `len=`[T](n: var AstNode[T]; len: Natural) =
-    case n.kind
-    of akParents:
-      n.operand = len.int32
-    else:
-      raise Defect.newException "bad kind"
-
 proc len*[T](n: AstNode[T]): int =
-  case n.kind
-  of akParents:
+  mixin isParent
+  if n.isParent:
     n.operand
   else:
     0
 
-proc len*[T](a: Ast[T]): int =
+proc len*(a: Ast): int =
   a.nodes.len
 
-proc `len=`*[T](a: var Ast[T]; n: Natural) =
+proc `len=`*(a: var Ast; n: Natural) =
   setLen(a.nodes, n)
 
 proc hash*(a: Function): Hash =
@@ -141,29 +130,26 @@ proc hash*(a: Function): Hash =
 proc hash*(a: Terminal): Hash =
   var h: Hash = 0
   case a.kind
-  of Constant:
-    h = h !& hash(a.ck)
-    case a.ck
-    of Float:
-      h = h !& hash(a.floatVal)
-    of Boolean:
-      h = h !& hash(a.boolVal)
-    of Integer:
-      h = h !& hash(a.intVal)
-    of String:
-      h = h !& hash(a.strVal)
+  of None:
+    discard
+  of Float:
+    h = h !& hash(a.floatVal)
+  of Boolean:
+    h = h !& hash(a.boolVal)
+  of Integer:
+    h = h !& hash(a.intVal)
+  of String:
+    h = h !& hash(a.strVal)
   of Symbol:
-    h = h !& hash(a.ident)
-    h = h !& hash(a.sk)
+    h = h !& hash(a.name)
+  of Token:
+    h = h !& hash(a.token)
+    h = h !& hash(a.text)
   h = h !& hash(a.kind)
   result = !$h
 
-when false:
-  proc initAst*[T](term: Terminal[T]): Ast[T] =
-    result.initAst term
-
-  proc initAst*[T](fun: Function[T]): Ast[T] =
-    result.initAst fun
+proc `==`*(a, b: Terminal): bool =
+  a.kind == b.kind and a.hash == b.hash
 
 func high*(a: Ast): int {.inline.} = a.nodes.high
 func low*(a: Ast): int {.inline.} = a.nodes.low
@@ -175,15 +161,13 @@ proc `[]`*[T](a: Ast[T]; n: Natural): AstNode[T] {.inline.} =
   a.nodes[n]
 
 proc `[]`*[T](a: Ast[T]; s: Slice[int]): Ast[T] =
-  Ast[T](nodes: a.nodes[s])
+  Ast[T](nodes: a.nodes[s], strings: a.strings, numbers: a.numbers)
 
 proc `@`*[T](a: Ast[T]): seq[AstNode[T]] = a.nodes
 
-iterator items[T](a: Ast[T]): AstNode[T] =
-  for node in a.nodes.items:
-    yield node
-
 proc peer*[T](a: Ast[T]; index = 0): int =
+  ## the subsequent peer node's index or -1 if no such peer exists
+  mixin isParent
   if index == a.high:
     result = -1
   elif index > a.high:
@@ -193,13 +177,17 @@ proc peer*[T](a: Ast[T]; index = 0): int =
     if a[index].isParent:
       inc result, a[index].operand
 
-template numberOfChildren(n: AstNode): int =
-  if isParent n:
+func numberOfChildren*[T](n: AstNode[T]): int =
+  ## counts the number of direct children of the node
+  mixin isParent
+  if n.isParent:
     n.operand.int
   else:
     0
 
-proc sizeOfSubtree*(a: Ast; index = 0): int =
+proc sizeOfSubtree*[T](a: Ast[T]; index = 0): int =
+  ## the size, in nodes, of the tree at the given index
+  mixin isParent
   audit a: echo "sizeof subtree: ", a
   if not a[index].isParent:
     result = 1
@@ -214,7 +202,8 @@ proc sizeOfSubtree*(a: Ast; index = 0): int =
       inc i                  # move to next node
       dec j                  # fewer nodes now remain
 
-proc countAsChildren*(a: openArray[AstNode]): int =
+proc countAsChildren*[T](a: openArray[AstNode[T]]): int =
+  mixin isParent
   #audit a: echo "count as children: ", a
   var index = 0
   while index < a.len:
@@ -232,31 +221,78 @@ proc countAsChildren*(a: openArray[AstNode]): int =
     inc index
 
 proc subtree*(a: Ast; index: int): Ast =
+  ## the subtree at the given index, as new ast
   a[index ..< index+sizeOfSubtree(a, index)]
 
 proc parentOf*[T](a: Ast[T]; index: int): Option[int] =
+  ## the parent index of a given index, should one exist
+  mixin isParent
   var i = index - 1
   while i >= a.low:
     if a.nodes[i].isParent:
       return some i
     dec i
 
-proc countChildren*(a: Ast; index: int): int =
-  ## counts the number of direct children of the node at `index`
+proc countChildren*(a: Ast; index: int): int {.deprecated: "use numberOfChildren".} =
   numberOfChildren(a[index])
 
 proc countParents*(a: Ast): int =
   ## counts the total number of nodes in the ast which have children
+  mixin isParent
   for i in 0..<a.nodes.len:
-    if a.nodes[i].kind in akParents and a.nodes[i].operand > 0:
+    if a.nodes[i].isParent and a.nodes[i].operand > 0:
       inc result
 
+iterator children*[T](a: Ast[T]; index: int): Ast[T] =
+  ## yields each subtree of child nodes at the given parent index
+  if index <= a.high:
+    var kids = numberOfChildren a[index]
+    var i = index + 1
+    while kids > 0:
+      yield subtree(a, i)
+      i = peer(a, i)
+      dec kids
+
 template copyAst[T](a, b: typed; size: int) =
+  ## sugar around copying ast of `size` nodes
   template nodeSize: int = sizeof AstNode[T]
   if size > 0:
     copyMem(addr a, unsafeAddr b, nodeSize*size)
 
+when false:
+  proc mergeLiterals[T](a: var Ast[T]; b: Ast[T]) =
+    ## we currently just use resetLiterals subsequent to insertion
+    mixin isSymbol
+    mixin isStringLit
+    mixin isNumberLit
+    mixin isParent
+    for node in b.nodes.items:
+      if node.isSymbol or node.isStringLit:
+        a.strings.getOrIncl b.strings[LitId node.operand]
+      elif node.isNumberLit:
+        a.numbers.getOrIncl b.numbers[LitId node.operand]
+      elif not node.isParent and node.operand != 0:  # NOTE: assume it's a token
+        a.strings.getOrIncl b.strings[LitId node.operand]
+
+proc resetLiterals[T](a: var Ast[T]; index: int; b: Ast[T]) =
+  ## fixup the operands for nodes that use string/number storage
+  mixin isSymbol
+  mixin isStringLit
+  mixin isNumberLit
+  mixin isParent
+  for i in index..<(index+b.len):
+    if i > a.high:     # we deleted something, i guess
+      break
+    template node: AstNode[T] = a.nodes[i]
+    if node.isSymbol or node.isStringLit:
+      node.operand = a.strings.getOrIncl b.strings[LitId node.operand]
+    elif node.isNumberLit:
+      node.operand = a.numbers.getOrIncl b.numbers[LitId node.operand]
+    elif not node.isParent and node.operand != 0:  # NOTE: assume it's a token
+      node.operand = a.strings.getOrIncl b.strings[LitId node.operand]
+
 proc delete*[T](a: Ast[T]; index: int): Ast[T] =
+  ## remove the node, and any of its children, at the given index
   audit a: echo "delete entry: ", a
   let size = a.sizeOfSubtree(index)
   if a.len - size < 0:
@@ -274,14 +310,23 @@ proc delete*[T](a: Ast[T]; index: int): Ast[T] =
     let parent = a.parentOf(index)
     if parent.isSome:
       dec result.nodes[get parent].operand
+
+  # capture all the extant literals without regard to the deleted subtree;
+  # this is simply cheaper than parsing out which values are not duplicated
+  if result.len > 0:
+    result.strings = a.strings
+    result.numbers = a.numbers
+
   audit result:
     echo ""
     echo "delete against index ", index, " with size ", size
     echo "input: ", a
     echo "result: ", result
 
-proc insert*[T](a: Ast[T]; index: int; values: openArray[AstNode[T]];
+proc insert*[T](a: Ast[T]; index: int; values: Ast[T];
                 parent = -1): Ast[T] =
+  ## insert the `values` ast before `index` in `a`
+  audit values: echo "insert ast: ", values
   audit a: echo a
   if index > a.len:
     raise IndexDefect.newException:
@@ -289,14 +334,25 @@ proc insert*[T](a: Ast[T]; index: int; values: openArray[AstNode[T]];
   elif values.len == 0:
     result = a
   elif a.len == 0:
-    result.nodes = @values
+    result = values
   else:
     # allocate new space for the insertion
     result.len = a.len + values.len
+
+    # it's an insertion, so we'll assume the original literals
+    result.strings = a.strings
+    result.numbers = a.numbers
+
+    # merge in the literals from the insertion
+    when defined(mergeLiterals):
+      mergeLiterals(result, values.nodes)
+
     # the result is the prior nodes, up to the index,
     copyAst[T](result.nodes[0], a.nodes[0], index)
+
     # then add the values we want to insert, starting at the index,
-    copyAst[T](result.nodes[index], values[0], values.len)
+    copyAst[T](result.nodes[index], values.nodes[0], values.len)
+
     # then add any remainder from the original nodes
     if index < a.len:
       copyAst[T](result.nodes[index+values.len], a.nodes[index],
@@ -310,7 +366,10 @@ proc insert*[T](a: Ast[T]; index: int; values: openArray[AstNode[T]];
           parent = get p
         else:
           break
-      inc result.nodes[parent].operand, countAsChildren(values)
+      inc result.nodes[parent].operand, countAsChildren(values.nodes)
+
+    # finally, reset the literal identities for the insertion
+    resetLiterals(result, index, values)
 
     audit result:
       echo "insertion index: ", index, " with parent: ", parent
@@ -318,13 +377,27 @@ proc insert*[T](a: Ast[T]; index: int; values: openArray[AstNode[T]];
       echo "data to insert: ", values
       echo "insert/copy result: ", result
 
-proc insert*[T](a: Ast[T]; index: int; values: Ast[T];
-                parent = -1): Ast[T] =
-  audit values: echo "insert ast: ", values
-  insert(a, index, values.nodes, parent = parent)
-
 proc append*[T](a: Ast[T]; values: Ast[T]; parent = -1): Ast[T] =
+  ## add `values` to `a`; if the `parent` index is not -1,
+  ## the `values` will be children of `a[parent]`
   insert(a, a.len, values, parent = parent)
+
+proc append*[T](a: Ast[T]; term: Terminal[T]; parent = -1): Ast[T] =
+  ## convenience to directly append a terminal to the ast
+  mixin terminalNode
+  var b: Ast[T]
+  b.nodes.add terminalNode(b, term)
+  result = a.append(b, parent = parent)
+
+proc append*[T](a: Ast[T]; fun: Function[T]; parent = -1): Ast[T] =
+  ## convenience to directly append a function to the ast
+  mixin composeCall
+  var b = composeCall fun
+  result = a.append(b, parent = parent)
+
+proc replace*[T](a: Ast[T]; index: int; values: Ast[T]): Ast[T] =
+  ## replace the subtree in `a` at `index` with `values`
+  insert(delete(a, index), index, values)
 
 proc hash*(a: Ast): Hash =
   # FIXME: optimize this to just hash the chunk of memory directly
@@ -336,18 +409,31 @@ proc hash*(a: Ast): Hash =
 
 proc `$`*(t: Terminal): string =
   case t.kind
-  of Constant:
-    case t.ck
-    of Float:
-      $t.floatVal
-    of Boolean:
-      $t.boolVal
-    of Integer:
-      $t.intVal
-    of String:
-      escapeJson(t.strVal, result)
-      result
+  of Float:
+    $t.floatVal
+  of Boolean:
+    $t.boolVal
+  of Integer:
+    $t.intVal
+  of String:
+    escapeJson(t.strVal, result)
+    result
   of Symbol:
-    t.ident
+    t.name
 
-func kind*(n: AstNode): AstKind = n.kind
+proc tokenNode*[T](a: var Ast[T]; token: int16; text = ""): AstNode[T] =
+  ## produce a token node; stores the token's textual form if it's provided
+  let op =
+    if text == "":
+      LitId 0
+    else:
+      a.strings.getOrIncl(text)
+  AstNode[T](kind: token, operand: int32 op)
+
+proc name*[T](a: Ast[T]; index: int): string =
+  ## convenience to fetch the name of a symbol at the given index
+  mixin isSymbol
+  if a[index].isSymbol:
+    result = a.strings[LitId a[index].operand]
+  else:
+    raise Defect.newException "node is not a symbol"

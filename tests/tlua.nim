@@ -7,32 +7,19 @@ import pkg/balls
 import pkg/frosty/streams as brrr
 
 import gread
-import gread/fennel
+import gread/lua
 
 randomize()
 
 const
-  fennelGrammar = """
+  luaGrammar = """
     <start>        ::= <expr>
-    <expr>         ::= ( "if" <boolexpr> <expr> <expr> )
-    <expr>         ::= <numexpr>
-    <boolexpr>     ::= ( "not" <boolexpr> )
-    <boolexpr>     ::= ( "or" <boolexpr> <boolexpr> )
-    <boolexpr>     ::= ( "and" <boolexpr> <boolexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <boolexpr>     ::= ( <boolop> <numexpr> <numexpr> )
-    <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
+    <expr>         ::= if <boolexpr> then <terminate> else <terminate> end
+    <boolexpr>     ::= ( not <boolexpr> )
+    <boolexpr>     ::= ( <boolexpr> or <boolexpr> )
+    <boolexpr>     ::= ( <numexpr> <boolop> <numexpr> )
+    <boolexpr>     ::= ( <boolexpr> and <boolexpr> )
+    <numexpr>      ::= ( <numexpr> <numbop> <numexpr> )
     <numexpr>      ::= <value>
     <numexpr>      ::= <value>
     <numexpr>      ::= <value>
@@ -59,13 +46,20 @@ const
     <numexpr>      ::= <value>
     <numexpr>      ::= <value>
     <numexpr>      ::= <value>
-    <boolop>       ::= ">" | "<" | "~=" | "not=" | "=" | "<=" | ">="
+    <boolop>       ::= ">" | "<" | "~=" | "==" | "<=" | ">="
     <numbop>       ::= "+" | "-" | "*" | "/"
     <value>        ::= "1" | "0" | "0.5" | "2"
     <value>        ::= "a" | "b"
+    <terminate>    ::= return <numexpr>
   """
 
-proc fenfit(inputs: Locals; output: LuaValue): Score =
+var c = newPrimitives[Lua]()
+c.functions = @[
+  fun("+", arity=2), fun("-", arity=2),
+  fun("*", arity=2), fun("/", arity=2),
+]
+
+proc luafit(inputs: Locals; output: LuaValue): Score =
   Score:
     if output.kind == TNumber:
       output.toFloat
@@ -73,16 +67,16 @@ proc fenfit(inputs: Locals; output: LuaValue): Score =
       NaN
 
 when false:
-  proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
-    let s = evaluate(fnl, p, locals, fenfit)
+  proc fitone(lua: Lua; locals: Locals; p: LProg): Option[Score] =
+    let s = evaluate(lua, p, locals, luafit)
     if not s.isNaN:
       var fib = locals["a"].toFloat + locals["b"].toFloat
       result =
         some:
           Score -abs(fib - s.float)
 
-  proc fitmany(fnl: Fennel; data: openArray[(Locals, Score)];
-               p: FProg): Option[Score] =
+  proc fitmany(lua: Lua; data: openArray[(Locals, Score)];
+               p: LProg): Option[Score] =
     var esses = newSeqOfCap[float](data.len)
     var ideal = newSeqOfCap[float](data.len)
     var total: float
@@ -97,63 +91,63 @@ when false:
         some:
           Score -ss(esses)
 
-suite "basic fennel stuff":
-  var fnl: Fennel
-  var p: FProg
+suite "basic lua stuff":
+  var p: LProg
+  var lua: Lua
   block:
     ## setup a lua vm
-    fnl = newFennel()
+    lua = newLua()
 
   block:
-    ## parse a fennel program with multi-symbols
-    const program = "(/ math.pi math.pi)"
-    p = newFennelProgram program
+    ## parse a lua program with field expressions
+    const program = "math.pi / math.pi"
+    p = newLuaProgram program
     checkpoint $p
-    check $p == "(/ math.pi math.pi)"
+    check $p == "(math.pi / math.pi)"
 
   block:
-    ## parse a fennel program
-    const program = "(+ 1   2.0  )"
-    p = newFennelProgram program
+    ## parse a lua program
+    const program = "return 1 + 2.0"
+    p = newLuaProgram program
     checkpoint $p
-    check $p == "(+ 1.0 2.0)"
+    check $p == "return 1.0 + 2.0"
 
   block:
-    ## run a fennel program
+    ## run a lua program
     var locals: Locals
-    let score = fnl.evaluate(p, locals, fenfit)
+    let score = lua.evaluate(p, locals, luafit)
     checkpoint score
     check score.float == 3.0
 
   block:
-    ## serde some fennel ast
+    ## serde some lua ast
     let popsicle = freeze p
-    var puddle: FProg
+    var puddle: LProg
     thaw(popsicle, puddle)
     checkpoint render(p.ast)
     check render(p.ast) == render(puddle.ast)
 
   block:
-    ## run a fennel program with inputs
-    const program = "(+ a b)"
-    p = newFennelProgram program
+    ## run a lua program with inputs
+    const program = "return a + b"
+    p = newLuaProgram program
     checkpoint $p
-    check $p == "(+ a b)"
+    check $p == "return a + b"
     # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
     var locals = initLocals:
       {
         "a": 3.toLuaValue,
         "b": 5.toLuaValue,
       }
-    let score = fnl.evaluate(p, locals, fenfit)
+    let score = lua.evaluate(p, locals, luafit)
     check score.float == 8.0
 
   block:
-    ## parse fennel grammar
-    var gram: Grammar[Fennel]
-    gram.initGrammar fennelGrammar
+    ## parse lua grammar
+    var gram: Grammar[Lua]
+    gram.initGrammar(luaGrammar)
     for name, production in gram.pairs:
-      if name == "start":
+      if name == "terminate":
         checkpoint production
     let geno = randomGenome(2000)
     let (pc, ast) = gram.πGE(geno)
@@ -169,6 +163,6 @@ suite "basic fennel stuff":
         "a": 3.toLuaValue,
         "b": 5.toLuaValue,
       }
-    let score = fnl.evaluate(p, locals, fenfit)
+    let score = lua.evaluate(p, locals, luafit)
     checkpoint $score
     check not score.float.isNaN
