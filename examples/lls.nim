@@ -14,7 +14,7 @@ import pkg/loony
 import pkg/adix/lptabz
 
 const
-  goodEnough = -0.01     # termination condition
+  goodEnough = -0.0     # termination condition
   statFrequency = 10000  # report after this many generations
   llsGrammar = """
     <start>        ::= <numexpr>
@@ -110,7 +110,7 @@ when isMainModule:
 
   # now setup the workers with their unique populations, etc.
   var tab = defaultTableau
-  tab.useParsimony = false  # our scoring isn't -1.0..1.0
+  tab.useParsimony = true
   tab.seedProgramSize = 200
   tab.seedPopulation = 500
   tab.maxPopulation = 500

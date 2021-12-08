@@ -213,6 +213,7 @@ proc randomSymbols*[T, V](evo: Evolver[T, V]): SymbolSet[T, V] =
 proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
   ## create a new (random) population using the given evolver's parameters
   result = newPopulation[T](evo.tableau.seedPopulation, core = evo.core)
+  result.toggleParsimony(evo.tableau.useParsimony)
   while result.len < evo.tableau.seedPopulation:
     try:
       let p =

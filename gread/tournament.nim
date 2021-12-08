@@ -38,8 +38,6 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
                        order = Descending): Competitor[T] =
   ## find the fittest or least fit of a subset of the population
 
-  # FIXME: this code does not take parsimony into account
-
   proc remover(competitors: var seq[Competitor[T]]; i: int) =
     ## used to update the population with a score change prior to removal
     let c = competitors[i]
@@ -138,7 +136,8 @@ proc tournament*[T, V](evo: Evolver[T, V]; size: int;
         if s.isSome:
           # update the competitor and move to the next victim
           debug "victim ", i, " was ", victims[i].score, " now ", get s
-          victims[i].score = get s
+          # adjust the score according to population parsimony
+          victims[i].score = evo.population.score(get s, victims[i].len)
           victims[i].valid = victims[i].score.isValid
           debug "victim ", i, " ", victims[i].program
           inc i

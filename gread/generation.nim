@@ -39,7 +39,7 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
       else:
         p.zombie = true
 
-      if not evo.tableau.requireValid or (not p.zombie and p.score.isValid):
+      if not evo.tableau.requireValid or p.isValid:
         # make room for the new program
         template size: int = evo.tableau.tournamentSize
         while evo.population.len > evo.tableau.maxPopulation-1:
@@ -49,6 +49,9 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
 
         profile "add to pop":
           evo.population.add p
+
+        # update the parsimony to account for additions and removals
+        resetParsimony evo.population
 
   finally:
     evo.generationTime (getTime() - clock).inMilliseconds.float
