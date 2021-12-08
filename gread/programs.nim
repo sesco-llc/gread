@@ -111,10 +111,8 @@ proc isValid*(p: Program): bool =
   ## a defect if we have not scored the program yet
   if p.zombie:
     false
-  elif p.score.isNaN:
-    false
   else:
-    true
+    p.score.isValid
 
 proc addScoreToCache*(p: Program; h: Hash; s: Option[Score]) =
   ## record the score for a given input hash
