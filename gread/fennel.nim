@@ -406,7 +406,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
          parsimony coefficient: {Score m.parsimony}
             insufficiency rate: {fnl.nans.mean.percent}
            semantic error rate: {fnl.errors.mean.percent}
-          total lua cache hits: {int fnl.hits.sum}
+         recent lua cache hits: {int fnl.hits.sum}
             lua cache hit rate: {fnl.hits.mean.percent}
              lua vm cache size: {fnl.cache.len}
              foreign influence: {m.usurper}

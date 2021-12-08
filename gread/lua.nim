@@ -371,7 +371,7 @@ proc dumpStats*(lua: Lua; pop: Population; evoTime: Time;
          parsimony coefficient: {Score m.parsimony}
             insufficiency rate: {lua.nans.mean.percent}
            semantic error rate: {lua.errors.mean.percent}
-          total lua cache hits: {int lua.hits.sum}
+         recent lua cache hits: {int lua.hits.sum}
             lua cache hit rate: {lua.hits.mean.percent}
              lua vm cache size: {lua.cache.len}
              foreign influence: {m.usurper}
