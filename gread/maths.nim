@@ -25,7 +25,7 @@ proc variance*[T](a: openArray[T]): T =
   else:
     result = result / T(a.len)
 
-proc stddev*(a: openArray[float]): float {.inline.} =
+proc stddev*[T](a: openArray[T]): T {.inline.} =
   sqrt variance(a)
 
 proc correlation*(a, b: openArray[float]): float {.inline.} =
@@ -48,3 +48,10 @@ proc hoeffding*[T](n: int; e: T): T =
   ## hoeffding's inequality; for `n` samples, the probability
   ## that `e`, a deviation from expected value, holds
   T(2.0) * exp(T(-2.0) * e * e * T(n))
+
+proc normal*[T](x: T; mean: T; deviation: T): T =
+  result = 1.0 / (deviation * sqrt(2.0 * PI))
+  result *= exp(-0.5 * pow((x - mean) / deviation, 2))
+
+template normal*[T](a: openArray[T]; x: T): T =
+  normal(x, avg a, stddev a)

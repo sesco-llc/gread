@@ -29,3 +29,12 @@ suite "math":
     check almostEqual(hoeffding(50, 0.2'f32), 0.0366312600672245, 0)
     check almostEqual(hoeffding(50, 0.2'f64), 0.03663127777746833, 0)
     check almostEqual(hoeffding(50, 0.2), 0.03663127, 500_000_000)
+
+  block:
+    ## normal distribution
+    let a = [1.0, 2.0, 3.0, 4.0, 5.0]
+    let c = [2.0, 1.0, 2.2, 1.6, 0.6]
+    checkpoint a.normal(3.5)
+    check almostEqual(a.normal(3.5), 0.2650035323440286)
+    checkpoint c.normal(0.8)
+    check almostEqual(c.normal(0.8), 0.3500389871146745)
