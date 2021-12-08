@@ -28,8 +28,7 @@ export stat
 export lptabz
 export lunacy
 
-when defined(greadTreeSitter):
-  {.passL: "-lstdc++".}  # workaround buglet with htsparse(?)
+{.passL: "-lstdc++".}  # workaround buglet with htsparse(?)
 
 const
   semanticErrorsAreFatal = false
