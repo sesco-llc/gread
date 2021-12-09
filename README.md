@@ -89,6 +89,7 @@ learns quickly but may not find a perfect solution before you lose interest.
 
 Note the following required compilation switches:
 
+- `--define:danger` (because otherwise it's debugging)
 - `--define:useMalloc` (due to bugs in the Nim allocator)
 - `--threads:on` (to evolve disparate populations across CPU cores)
 - `--gc:arc` or `--gc:orc` (because we use CPS and Loony)
