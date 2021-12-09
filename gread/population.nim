@@ -283,6 +283,10 @@ proc randomRemoval*[T](pop: Population[T]): Program[T] =
   withPopulated pop:
     del(pop, rand pop.programs.high)
 
+proc rescale*(pop: Population; score: Score): Score =
+  ## rescale a given score according to the distribution of the population
+  Score -abs(score.float / min(score.float, pop.ken.scores.min.float))
+
 proc parsimony*(pop: Population): float =
   ## compute parsimony for members of the population with valid scores
   withInitialized pop:
@@ -292,7 +296,7 @@ proc parsimony*(pop: Population): float =
     var lengths = newSeqOfCap[float](pop.ken.scores.n)
     for i, p in pop.pairs:
       if p.isValid:
-        scores.add -abs(p.score.float / pop.ken.scores.min.float)
+        scores.add pop.rescale(p.score)
         lengths.add p.len.float
     result = -covariance(lengths, scores) / variance(lengths)
 
