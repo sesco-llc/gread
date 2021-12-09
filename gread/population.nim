@@ -321,9 +321,12 @@ proc scoreChanged*(pop: Population; p: Program; s: Option[Score]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
   ## is used to update metrics, parsimony, and the `fittest` population member
   withInitialized pop:
+    if p.score.isValid:
+      pop.ken.scores.pop p.score
     if s.isSome:
       p.score = get s
-      p.zombie = false
+      pop.ken.scores.push p.score
+      p.zombie = false  # NOTE: trigger a defect if necessary
       maybeResetFittest(pop, p)
     else:
       p.score = NaN
