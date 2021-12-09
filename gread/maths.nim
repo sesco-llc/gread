@@ -47,7 +47,7 @@ proc ss*[T](a, b: openArray[T]): T {.inline.} =
 proc hoeffding*[T](n: int; e: T): T =
   ## hoeffding's inequality; for `n` samples, the probability
   ## that `e`, a deviation from expected value, holds
-  T(2.0) * exp(T(-2.0) * e * e * T(n))
+  T(2) * exp(T(-2) * T(n) * e * e)
 
 proc normal*[T](x: T; mean: T; deviation: T): T =
   result = 1.0 / (deviation * sqrt(2.0 * PI))
