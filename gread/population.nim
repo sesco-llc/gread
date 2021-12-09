@@ -29,7 +29,7 @@ type
     core*: CoreSpec
     generation*: Generation
     lengths*: MovingStat[float32]
-    scores*: MovingStat[float32]
+    scores*: MovingStat[float64]
     ages*: MovingStat[float32]
     immigrants*: int
     parsimony*: float
@@ -175,9 +175,9 @@ proc maybeResetFittest[T](pop: Population[T]; p: Program[T]) =
     if p.isValid:
       block:
         if not pop.fittest.isNil:
-          if pop.fittest.score >= p.score:
-            break
           if pop.fittest.hash == p.hash:
+            break
+          if pop.score(pop.fittest) >= pop.score(p):
             break
         pop.fittest = p
         p.flags.incl FinestKnown
