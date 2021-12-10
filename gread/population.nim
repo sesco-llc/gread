@@ -169,7 +169,7 @@ proc score*(pop: Population; p: Program): Score =
   else:
     Score NaN
 
-proc maybeResetFittest[T](pop: Population[T]; p: Program[T]) =
+proc maybeResetFittest*[T](pop: Population[T]; p: Program[T]) =
   ## reset the fittest pointer if the argument is actually superior
   withInitialized pop:
     if p.isValid:
@@ -207,10 +207,12 @@ proc add*[T](pop: Population[T]; p: Program[T]) =
       when populationCache:
         if not pop.cache.containsOrIncl p.hash:
           addImpl(pop, p)
-          maybeResetFittest(pop, p)
+          when not defined(greadFast):
+            maybeResetFittest(pop, p)
       else:
         addImpl(pop, p)
-        maybeResetFittest(pop, p)
+        when not defined(greadFast):
+          maybeResetFittest(pop, p)
 
 type
   TopPop[T] = tuple[score: Score, program: Program[T]]
@@ -327,7 +329,8 @@ proc scoreChanged*(pop: Population; p: Program; s: Option[Score]; index: int) =
       p.score = get s
       pop.ken.scores.push p.score
       p.zombie = false  # NOTE: trigger a defect if necessary
-      maybeResetFittest(pop, p)
+      when not defined(greadFast):
+        maybeResetFittest(pop, p)
     else:
       p.score = NaN
       p.zombie = true
