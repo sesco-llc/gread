@@ -13,7 +13,7 @@ import gread/programs
 import gread/maths
 
 const
-  defaultParsimony = -0.01
+  defaultParsimony = 0.01
   #[
 
   this is quite a bit slower when enabled, but that's probably because
@@ -145,16 +145,36 @@ func fittest*[T](pop: Population[T]): Program[T] =
   withInitialized pop:
     pop.fittest
 
+proc rescale*(pop: Population; score: Score; outlier: Score): Score =
+  ## rescale a given score according to the distribution of the population;
+  ## the outlier score may not be recorded in the population...
+  result =
+    Score:
+      -abs(score.float /
+           min(score.float,
+               min(outlier.float,
+                   pop.ken.scores.min.float)))
+
+proc rescale*(pop: Population; score: Score): Score =
+  ## rescale a given score according to the distribution of the population
+  result = rescale(pop, score, score)
+
 proc penalizeSize(pop: Population; score: Score; length: int): Score =
   ## apply some pressure on program size
   withInitialized pop:
+    var s = rescale(pop, score).float
     if pop.usesParsimony:
-      var s = score.float
-      if pop.ken.parsimony < 0.0:
-        s += min(0.0, pop.ken.parsimony * length.float)
-      result = Score s
-    else:
-      result = score
+      if pop.ken.parsimony > 0.0:
+        s -= pop.ken.parsimony * length.float
+    result = Score s
+
+proc score*(pop: Population; score: Score; length: int;
+            outlier: Score): Score =
+  ## adjust the score according to the population's parsimony and a length
+  if score.isValid:
+    penalizeSize(pop, score, length)
+  else:
+    score
 
 proc score*(pop: Population; score: Score; length: int): Score =
   ## adjust the score according to the population's parsimony and a length
@@ -286,10 +306,6 @@ proc randomRemoval*[T](pop: Population[T]): Program[T] =
   withPopulated pop:
     del(pop, rand pop.programs.high)
 
-proc rescale*(pop: Population; score: Score): Score =
-  ## rescale a given score according to the distribution of the population
-  Score -abs(score.float / min(score.float, pop.ken.scores.min.float))
-
 proc parsimony*(pop: Population): float =
   ## compute parsimony for members of the population with valid scores
   withInitialized pop:
@@ -301,7 +317,7 @@ proc parsimony*(pop: Population): float =
       if p.isValid:
         scores.add pop.rescale(p.score)
         lengths.add p.len.float
-    result = -covariance(lengths, scores) / variance(lengths)
+    result = covariance(lengths, scores) / variance(lengths)
 
 proc nextGeneration*(pop: Population): Generation =
   ## inform the population that we're entering a new generation
