@@ -1,3 +1,5 @@
+import std/times
+import std/packedsets
 import std/options
 import std/os
 import std/osproc
@@ -14,13 +16,11 @@ import pkg/loony
 import pkg/adix/lptabz
 
 const
-  goodEnough = -0.0     # termination condition
+  goodEnough = -1.00     # termination condition
   statFrequency = 10000  # report after this many generations
   llsGrammar = """
     <start>        ::= <numexpr>
     <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
-    <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
-    <numexpr>      ::= <value>
     <numexpr>      ::= <value>
     <numbop>       ::= "+" | "*" | "-" | "/"
     <value>        ::= "1.0" | "0.5" | "0.1" | "2.0"
@@ -32,8 +32,8 @@ initGrammar(gram, llsGrammar)
 
 # you can adjust these weights to change mutation rates
 let operators = {
-  geCrossover[Fennel, LuaValue]:  50.0,
-  geMutation[Fennel, LuaValue]:   25.0,
+  geCrossover[Fennel, LuaValue]:    50.0,
+  geMutation[Fennel, LuaValue]:     25.0,
   randomCrossover[Fennel, LuaValue]: 5.0,
 }
 
@@ -91,19 +91,22 @@ when isMainModule:
   proc main(work: Work; inputs, outputs: LoonyQueue[FProg]) =
     let fnl = newFennel()
     var best: FProg
+    let et = getTime()
+    var seen: PackedSet[Hash]
     while true:
       let p = pop inputs
       if p.isNil:
         sleep 250
       else:
         if FinestKnown in p.flags:
-          if p.score.isValid:
+          if not seen.containsOrIncl(p.hash):
+            #echo "winner ", p.score, " ", p.hash, " core ", p.core
             if best.isNil or best.score < p.score:
               best = p
               dumpPerformance(fnl, best, training, fenfit, samples = 1)
               if best.score > goodEnough:
                 echo "winner, winner, chicken dinner: ", best.score
-                echo "last generation: ", p.generation
+                echo "last generation: ", p.generation, " secs: ", (getTime() - et).inSeconds
                 quit 0
                 break
         push(outputs, p)
@@ -116,7 +119,7 @@ when isMainModule:
   tab.maxPopulation = 500
   tab.tournamentSize = 10
   tab.sharingRate = 3.0
-  tab.maxGenerations = 2_000_000
+  tab.maxGenerations = 400_000
   tab.requireValid = true
 
   # each worker gets a Work object as input to its thread

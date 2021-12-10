@@ -1,4 +1,4 @@
-import std/strformat
+import std/packedsets
 import std/json
 import std/hashes
 import std/times
@@ -19,7 +19,7 @@ import pkg/adix/lptabz
 randomize()
 
 const
-  goodEnough = -0.01         ## quit when you reach this score
+  goodEnough = -0.00         ## quit when you reach this score
   dataInaccurate = false     ## use faulty data
   statFrequency = 2000       ## how often to output statistics
 
@@ -40,6 +40,7 @@ initGrammar(gram, averageGrammar)
 
 # no point in slowing down this simple example
 var tab = defaultTableau
+tab.useParsimony = true
 tab.seedProgramSize = 200
 tab.seedPopulation = 500
 tab.maxPopulation = 500
@@ -125,14 +126,10 @@ template dumpStats() {.dirty.} =
   dumpStats(evo, et)
 
 template dumpPerformance(p: FProg) {.dirty.} =
-  echo "---"
   dumpPerformance(fnl, p, training, fenfit, samples = 1)
-  echo "---"
 
 suite "simulation":
   var et = getTime()
-  var genTime: FennelStat
-
   block:
     ## created a random population of programs
     checkpoint "creating", tab.seedPopulation, "random programs..."
@@ -156,17 +153,19 @@ suite "simulation":
   var lastGeneration: Generation
   block:
     ## ran until we can average two numbers
+    var seen: PackedSet[Hash]
     while pop.generations < tab.maxGenerations:
-      if best.isValid and best >= goodEnough:
+      if best >= goodEnough:
         break
-      let clock = getTime()
       let invented = evo.generation()
-      if invented.isSome:
-        let p = get invented
-        genTime.push (getTime() - clock).inMilliseconds.float
-        if p.score > best or best.isNaN:
-          best = p.score
-          dumpPerformance p
+      let p = pop.fittest
+      if not p.isNil:
+        if p.cacheSize == training.len:
+          if not seen.containsOrIncl(p.hash):
+            let s = p.score
+            if s > best or best.isNaN:
+              best = s
+              dumpPerformance p
 
       if pop.generations mod statFrequency == 0:
         dumpStats()
