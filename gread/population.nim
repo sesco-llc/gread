@@ -34,6 +34,7 @@ type
     immigrants*: int
     parsimony*: float
     validity*: MovingStat[float32]
+    caches*: MovingStat[float32]
     # the rest are populated JIT
     bestSize*: int
     bestGen*: Generation
@@ -344,12 +345,14 @@ proc resetScoreMetrics(pop: Population) =
   withInitialized pop:
     clear pop.ken.validity
     clear pop.ken.scores
+    clear pop.ken.caches
     for p in pop.items:
       if p.isValid:
         pop.ken.validity.push 1.0
         pop.ken.scores.push p.score
       else:
         pop.ken.validity.push 0.0
+      pop.ken.caches.push p.cacheSize.float
     resetParsimony pop
 
 proc metrics*(pop: Population): PopMetrics =
