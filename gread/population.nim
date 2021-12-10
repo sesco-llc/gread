@@ -4,7 +4,7 @@ import std/heapqueue
 import std/options
 import std/random
 import std/hashes
-import std/sets
+import std/packedsets
 
 import pkg/adix/stat except variance
 
@@ -47,7 +47,7 @@ type
     fittest: Program[T]
     ken: PopMetrics
     when populationCache:
-      cache: HashSet[Hash]
+      cache: PackedSet[Hash]
 
 proc parsimony*(pop: Population): float
 
