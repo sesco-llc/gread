@@ -15,6 +15,7 @@ import gread/aliasmethod
 import gread/fertilizer
 import gread/tableau
 import gread/grammar
+import gread/maths
 
 type
   FitOne*[T; V] = proc(q: T; s: SymbolSet[T, V]; p: Program[T]): Option[Score] ##
@@ -223,7 +224,11 @@ proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
           raise ValueError.newException "need grammar"
       p.core = evo.core
       # FIXME: optimization point
-      let s = evo.score(p)
+      let s =
+        when defined(greadFast):
+          evo.score(evo.randomSymbols, p)
+        else:
+          evo.score(p)
       if s.isSome:
         p.score = get s
       else:
@@ -231,5 +236,75 @@ proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
       if not evo.tableau.requireValid or (not p.zombie and p.score.isValid):
         result.add p
     except ShortGenome:
-      echo "short genome on core ", evo.core, "; pop size ", result.len
+      discard
+      #echo "short genome on core ", evo.core, "; pop size ", result.len
   echo "pop generation complete on core ", evo.core
+
+proc randomDataIndexes*(evo: Evolver): seq[int] =
+  ## a randomly-ordered sequence of dataset indexes
+  result = newSeqOfCap[int](evo.dataset.len)
+  for i in evo.dataset.low .. evo.dataset.high:
+    result.add i
+  shuffle result
+
+proc confidentComparison*(evo: Evolver; samples: seq[int];
+                          a, b: Program; p = 0.05): int =
+  ## compare two programs with high confidence and minimal sampling
+  if samples.len == 0:
+    raise Defect.newException "gimme samples"
+
+  # short-circuit on some obvious early insufficiencies
+  if a.hash == b.hash: return 0
+  if a.isValid != b.isValid:
+    if a.isValid: return 1 else: return -1
+  elif not a.isValid: return 0
+
+  template resample(x: Program; s: untyped; z: int): untyped {.dirty.} =
+    ## if a program could move; let's test it further and maybe bail
+    if evo.score(s, x).isNone:
+      debug "scored none; return " & $z
+      return z
+
+  debug ""
+  debug "it begins"
+  var a1, b1: Option[Score]
+  for i in samples.items:
+    template sample: untyped = evo.dataset[samples[i]]
+
+    # discover the current score of each program
+    a1 = evo.scoreFromCache(a)
+    b1 = evo.scoreFromCache(b)
+
+    # short-circuit if either program is insufficient
+    if a1.isNone:
+      debug "a1 is none"
+      return -1
+    elif b1.isNone:
+      debug "b1 is none"
+      return 1
+
+    # find the difference in scores, with parsimony, rescaled to 0-1
+    debug "pre-scaled: ", get a1, " and ", get b1
+    let sa = evo.population.score(get a1, a.len, get b1)
+    let sb = evo.population.score(get b1, b.len, get a1)
+    let d = abs(sa.float - sb.float)
+    debug "    scores: ", sa, " and ", sb
+    debug "delta is ", d
+
+    # how probable is each program's score to move the given distance?
+    let ha = hoeffding(a.cacheSize, d)
+    let hb = hoeffding(b.cacheSize, d)
+    debug "the hoff says: ", Score ha, " and ", Score hb
+
+    if ha > p and a.cacheSize < samples.len:
+      resample(a, sample, -1)
+    elif hb > p and b.cacheSize < samples.len:
+      resample(b, sample, 1)
+    else:
+      debug "hoeffding saved ", (samples.len*2) - (a.cacheSize + b.cacheSize)
+      break
+
+  # order is unlikely to change; scale and compare these scores
+  debug "returning cmp"
+  result = cmp(evo.population.score(get a1, a.len, get b1),
+               evo.population.score(get b1, b.len, get a1))

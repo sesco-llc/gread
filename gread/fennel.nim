@@ -1,3 +1,4 @@
+import std/packedsets
 import std/json
 import std/times
 import std/strformat
@@ -511,39 +512,32 @@ when compileOption"threads":
 
     var leader: Hash
     var evoTime = getTime()
+    var shared: PackedSet[Hash]
     while evo.population.generations.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
-      for invalid in invalidPrograms(args):
-        fnl.cache[invalid.hash] = Score NaN
+      when false:
+        for invalid in invalidPrograms(args):
+          fnl.cache[invalid.hash] = Score NaN
+          discard
 
       search(args, evo.population)   # fresh meat from other threads
 
       let fit = evo.fittest
       if fit.isSome:
         let fit = get fit
-        if fit.hash != leader:
-          leader = fit.hash
-          share(args, fit)  # send it to other threads
+        if evo.dataset.len == 0 or evo.dataset.len == fit.cacheSize:
+          doAssert evo.dataset.len > 0
+          if not shared.containsOrIncl(fit.hash):
+            #echo "share ", fit.score, " ", fit.hash, " ", fit.cacheSize
+            share(args, fit)  # send it to other threads
 
-      if evo.tableau.useParsimony:
-        profile "parsimony":
-          discard evo.population.parsimony
+      discard evo.generation()
 
-      let invention = evo.generation()
+      if evo.population.generations.int mod args.stats == 0:
+        dumpStats(evo, evoTime)
+        clearStats evo
 
-      if invention.isSome:
-        let p = get invention
-        if p.core.isNone and fnl.core.isSome:
-          p.core = fnl.core
-
-        if p.generation mod args.stats == 0:
-          dumpStats(evo, evoTime)
-          clearStats evo
-
-        when false:
-          if p.score.isNaN:
-            negativeCache(args, p)
     quit 0
 
 proc parseToken*[T: Fennel](s: string): FennelNodeKind =

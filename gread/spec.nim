@@ -48,6 +48,12 @@ proc `$`*(cs: CoreSpec): string =
   else:
     "-"
 
+const
+  debugging* = not defined(release)
+template debug*(args: varargs[untyped]): untyped =
+  when debugging:
+    echo args
+
 when defined(greadProfile):
   import std/times
   import std/macros
