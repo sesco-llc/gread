@@ -322,16 +322,14 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
         0.0
 
 proc dumpScore*(fnl: Fennel; p: FProg) =
-  let code = $p
-  var s =
-    if p.score.isValid:
-      $p.score
-    else:
-      "... "
-  s.add fmt"[{p.len}] at #{p.generation} "
-  if p.source != 0:
-    s.add fmt"from {p.source} "
-  s.add fmt"for {code}"
+  when false:
+    var s = fmt"{p.score}[{p.len}] at #{p.generation} "
+    if p.source != 0:
+      s.add fmt"from {p.source} "
+    s.add "for "
+  else:
+    var s = fmt"{p.score}[{p.len}]: "
+  s.add $p
   checkpoint s
 
 proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
@@ -398,10 +396,11 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
          total population size: {m.size}
             average age in pop: {int(m.generation.int.float - m.ages.mean)}
           validity rate in pop: {m.validity.mean.percent}
-         program size variance: {dumb}
            average valid score: {Score m.scores.mean}
           greatest of all time: {m.bestScore}
+           program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
           average program size: {m.lengths.mean.int}
+         program size variance: {dumb}
           size of best program: {m.bestSize}
          parsimony coefficient: {Score m.parsimony}
             insufficiency rate: {fnl.nans.mean.percent}
@@ -508,6 +507,7 @@ when compileOption"threads":
     evo.fitone = args.fitone
     evo.fitmany = args.fitmany
     evo.population = evo.randomPop()
+    resetParsimony evo.population
 
     var leader: Hash
     var evoTime = getTime()
