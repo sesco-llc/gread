@@ -148,7 +148,6 @@ func fittest*[T](pop: Population[T]): Program[T] =
   withInitialized pop:
     pop.fittest
 
-import std/math
 proc rescale*(pop: Population; score: Score; outlier: Score): Score =
   ## rescale a given score according to the distribution of the population;
   ## the outlier score may not be recorded in the population...
