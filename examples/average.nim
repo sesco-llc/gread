@@ -40,7 +40,7 @@ initGrammar(gram, averageGrammar)
 
 # no point in slowing down this simple example
 var tab = defaultTableau
-tab.useParsimony = true
+tab.useParsimony = false
 tab.seedProgramSize = 200
 tab.seedPopulation = 500
 tab.maxPopulation = 500
@@ -106,7 +106,7 @@ proc fenfit(inputs: Locals; output: LuaValue): Score =
 proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
   ## convenience capture
   let s = evaluate(fnl, p, locals, fenfit)
-  if not s.isNaN and s notin [-Inf, Inf]:
+  if s.isValid:
     result =
       some:
         Score -abs(locals["ideal"].toFloat - s.float)
@@ -115,12 +115,14 @@ proc fitmany(fnl: Fennel; data: openArray[(Locals, Score)];
              p: FProg): Option[Score] =
   var results = newSeqOfCap[float](data.len)
   for locals, s in data.items:
-    if s.isNaN or s in [-Inf, Inf]:
-      return none Score
-    else:
+    if s.isValid:
       results.add s
+    else:
+      return none Score
   if results.len > 0:
-    result = some Score -ss(results)
+    let s = Score -ss(results)
+    if s.isValid:
+      result = some s
 
 template dumpStats() {.dirty.} =
   dumpStats(evo, et)

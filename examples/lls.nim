@@ -63,7 +63,7 @@ proc fenfit(inputs: Locals; output: LuaValue): Score =
 proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
   ## given a datapoint, run the program and return the residual
   let s = evaluate(fnl, p, locals, fenfit)
-  if not s.isNaN:
+  if s.isValid:
     result =
       some:
         Score -abs(locals["y"].toFloat - s.float)
@@ -73,14 +73,14 @@ proc fitmany(fnl: Fennel; data: openArray[(Locals, Score)];
   ## given several residuals, return the sum of squares
   var results = newSeqOfCap[float](data.len)
   for locals, s in data.items:
-    if s.isNaN:
-      return none Score
-    else:
+    if s.isValid:
       results.add s
+    else:
+      return none Score
   if results.len > 0:
-    result =
-      some:
-        Score -ss(results)
+    let s = Score -ss(results)
+    if s.isValid:
+      result = some s
 
 when isMainModule:
   import gread/cluster
@@ -98,28 +98,28 @@ when isMainModule:
       if p.isNil:
         sleep 250
       else:
-        if FinestKnown in p.flags:
-          if not seen.containsOrIncl(p.hash):
-            #echo "winner ", p.score, " ", p.hash, " core ", p.core
-            if best.isNil or best.score < p.score:
-              best = p
-              dumpPerformance(fnl, best, training, fenfit, samples = 1)
-              if best.score > goodEnough:
-                echo "winner, winner, chicken dinner: ", best.score
-                echo "last generation: ", p.generation, " secs: ", (getTime() - et).inSeconds
-                quit 0
-                break
+        #if FinestKnown in p.flags:
+        if not seen.containsOrIncl(p.hash):
+          #echo "winner ", p.score, " ", p.hash, " core ", p.core
+          if best.isNil or not best.score.isValid or best.score < p.score:
+            best = p
+            dumpPerformance(fnl, best, training, fenfit, samples = 1)
+            if best.score > goodEnough:
+              echo "winner, winner, chicken dinner: ", best.score
+              echo "last generation: ", p.generation, " secs: ", (getTime() - et).inSeconds
+              quit 0
+              break
         push(outputs, p)
 
   # now setup the workers with their unique populations, etc.
   var tab = defaultTableau
-  tab.useParsimony = true
+  tab.useParsimony = false
   tab.seedProgramSize = 200
   tab.seedPopulation = 500
   tab.maxPopulation = 500
   tab.tournamentSize = 10
   tab.sharingRate = 3.0
-  tab.maxGenerations = 400_000
+  tab.maxGenerations = 200_000
   tab.requireValid = true
 
   # each worker gets a Work object as input to its thread
