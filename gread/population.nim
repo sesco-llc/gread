@@ -77,7 +77,10 @@ template learn(pop: Population; p: Program; pos: int) =
     pop.cache.incl p.hash
   if p.isValid:
     pop.ken.lengths.push p.len.float
-    pop.ken.scores.push p.score
+    if p.score.isValid:
+      pop.ken.scores.push p.score
+    else:
+      raise
     pop.ken.validity.push 1.0
   else:
     pop.ken.validity.push 0.0
@@ -145,6 +148,7 @@ func fittest*[T](pop: Population[T]): Program[T] =
   withInitialized pop:
     pop.fittest
 
+import std/math
 proc rescale*(pop: Population; score: Score; outlier: Score): Score =
   ## rescale a given score according to the distribution of the population;
   ## the outlier score may not be recorded in the population...
@@ -354,7 +358,9 @@ proc scoreChanged*(pop: Population; p: Program; s: Option[Score]; index: int) =
   withInitialized pop:
     if p.score.isValid:
       pop.ken.scores.pop p.score
-    if s.isSome:
+    if s.isSome and not s.get.isValid:
+      raise
+    if s.isSome and s.get.isValid:
       p.score = get s
       pop.ken.scores.push p.score
       p.zombie = false  # NOTE: trigger a defect if necessary
@@ -377,7 +383,10 @@ proc resetScoreMetrics(pop: Population) =
     for p in pop.items:
       if p.isValid:
         pop.ken.validity.push 1.0
-        pop.ken.scores.push p.score
+        if p.score.isValid:
+          pop.ken.scores.push p.score
+        else:
+          raise
       else:
         pop.ken.validity.push 0.0
       pop.ken.caches.push p.cacheSize.float
