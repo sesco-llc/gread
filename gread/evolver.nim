@@ -156,6 +156,9 @@ proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
       let cached = collectCachedScores(evo, p)
       if cached.len > 0:
         result = evo.fitmany(evo.platform, cached, p)
+        if result.isSome:
+          if not result.get.isValid:
+            raise Defect.newException "valid scores are not nan/inf/-inf"
 
 proc score*[T, V](evo: Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
                   p: Program[T]): Option[Score] =
@@ -259,8 +262,10 @@ proc confidentComparison*(evo: Evolver; samples: seq[int];
     if a.isValid: return 1 else: return -1
   elif not a.isValid: return 0
 
+  var runs = 0
   template resample(x: Program; s: untyped; z: int): untyped {.dirty.} =
     ## if a program could move; let's test it further and maybe bail
+    inc runs
     if evo.score(s, x).isNone:
       debug "scored none; return " & $z
       return z
@@ -268,9 +273,8 @@ proc confidentComparison*(evo: Evolver; samples: seq[int];
   debug ""
   debug "it begins"
   var a1, b1: Option[Score]
-  for i in samples.items:
-    template sample: untyped = evo.dataset[samples[i]]
 
+  template refresh(): untyped {.dirty.} =
     # discover the current score of each program
     a1 = evo.scoreFromCache(a)
     b1 = evo.scoreFromCache(b)
@@ -283,11 +287,17 @@ proc confidentComparison*(evo: Evolver; samples: seq[int];
       debug "b1 is none"
       return 1
 
+  refresh()
+
+  for i in samples.items:
+    template sample: untyped = evo.dataset[samples[i]]
+
     # find the difference in scores, with parsimony, rescaled to 0-1
     debug "pre-scaled: ", get a1, " and ", get b1
     let sa = evo.population.score(get a1, a.len, get b1)
     let sb = evo.population.score(get b1, b.len, get a1)
-    let d = abs(sa.float - sb.float)
+    # XXX: when parsimony is on, it can change the sign of scores 🙄
+    let d = sa.float - sb.float
     debug "    scores: ", sa, " and ", sb
     debug "delta is ", d
 
@@ -301,10 +311,16 @@ proc confidentComparison*(evo: Evolver; samples: seq[int];
     elif hb > p and b.cacheSize < samples.len:
       resample(b, sample, 1)
     else:
-      debug "hoeffding saved ", (samples.len*2) - (a.cacheSize + b.cacheSize)
+      if runs == 0:
+        echo "hoeffding wasted"
+      else:
+        echo "hoeffding saved ",
+          percent(1.0 - (float(runs) / (samples.len.float*2.0)))
       break
 
+    refresh()
+
   # order is unlikely to change; scale and compare these scores
-  debug "returning cmp"
   result = cmp(evo.population.score(get a1, a.len, get b1),
                evo.population.score(get b1, b.len, get a1))
+  debug "returning cmp; ", a1.get, " vs ", b1.get, " = ", result
