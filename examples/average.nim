@@ -40,7 +40,7 @@ initGrammar(gram, averageGrammar)
 
 # no point in slowing down this simple example
 var tab = defaultTableau
-tab.useParsimony = false
+tab.useParsimony = true
 tab.seedProgramSize = 200
 tab.seedPopulation = 500
 tab.maxPopulation = 500
@@ -111,10 +111,10 @@ proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
       some:
         Score -abs(locals["ideal"].toFloat - s.float)
 
-proc fitmany(fnl: Fennel; data: openArray[(Locals, Score)];
+proc fitmany(fnl: Fennel; iter: iterator(): (Locals, Score);
              p: FProg): Option[Score] =
-  var results = newSeqOfCap[float](data.len)
-  for locals, s in data.items:
+  var results: seq[float]
+  for locals, s in iter():
     if s.isValid:
       results.add s
     else:
@@ -162,7 +162,7 @@ suite "simulation":
       let invented = evo.generation()
       let p = pop.fittest
       if not p.isNil:
-        if p.cacheSize == training.len:
+        if evo.cacheSize(p) == training.len:
           if not seen.containsOrIncl(p.hash):
             let s = p.score
             if s > best or best.isNaN:

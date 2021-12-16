@@ -119,13 +119,13 @@ proc isValid*(p: Program): bool =
   else:
     p.score.isValid
 
-proc addScoreToCache*(p: Program; h: Hash; s: Option[Score]) =
+proc addScoreToCache*(p: Program; h: Hash; s: Option[Score]) {.deprecated.} =
   ## record the score for a given input hash
   when programCache:
     if not p.zombie:
       p.cache[h] = s
 
-proc getScoreFromCache*(p: Program; h: Hash): Option[Score] =
+proc getScoreFromCache*(p: Program; h: Hash): Option[Score] {.deprecated.} =
   ## attempt to retrieve the cached score for a given hash of the input
   # FIXME: use withValue when cb fixes adix
   when programCache:
@@ -133,7 +133,7 @@ proc getScoreFromCache*(p: Program; h: Hash): Option[Score] =
       if h in p.cache:
         result = p.cache[h]
 
-proc cacheSize*(p: Program): int =
+proc cacheSize*(p: Program): int {.deprecated.} =
   ## the size of a program's score cache
   when programCache:
     result = p.cache.len
