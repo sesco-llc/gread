@@ -356,6 +356,7 @@ proc dumpStats*(lua: Lua; pop: Population; evoTime: Time;
   var dumb = m.lengths.variance.int  # work around nim bug
   checkpoint fmt"""
                core and thread: {m.core}/{threaded}
+                  dataset size: {evo.dataset.len}
           virtual machine runs: {lua.runs} (never reset)
             average vm runtime: {lua.runtime.mean:>6.2f} ms
          total population size: {m.size}
@@ -364,6 +365,8 @@ proc dumpStats*(lua: Lua; pop: Population; evoTime: Time;
            average valid score: {Score m.scores.mean}
           greatest of all time: {m.bestScore}
            program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
+           evolver cache count: {evo.cacheSize}
+           evolver cache usage: {evo.cacheUsage.percent}
           average program size: {m.lengths.mean.int}
          program size variance: {dumb}
           size of best program: {m.bestSize}

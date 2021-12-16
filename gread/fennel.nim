@@ -392,6 +392,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
   var dumb = m.lengths.variance.int  # work around nim bug
   checkpoint fmt"""
                core and thread: {m.core}/{threaded}
+                  dataset size: {evo.dataset.len}
           virtual machine runs: {fnl.runs} (never reset)
             average vm runtime: {fnl.runtime.mean:>6.2f} ms
          total population size: {m.size}
