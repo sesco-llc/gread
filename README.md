@@ -100,9 +100,9 @@ Note the following required compilation switches:
 <details>
   <summary>
 
-    This is as much an art as it is science, but we'll walk through the
-    metrics output and try to shed some light on how to interpret some of the
-    numbers...
+This is as much an art as it is science, but we'll walk through the
+metrics output and try to shed some light on how to interpret some of the
+numbers...
 
   </summary>
 
