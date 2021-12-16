@@ -167,20 +167,12 @@ proc penalizeSize(pop: Population; score: Score; length: int): Score =
   withInitialized pop:
     var s = rescale(pop, score).float
     if pop.usesParsimony:
-      #[
-
-       parsimony should be negative in the event that the program score is
-       below-average and the length is above average. similarly, it should
-       be negative when a program is relatively short and the score is
-       above-average.
-
-       as it sits, this code currently boosts the scores of shorter,
-       better programs.  empirically, this performs best for lls.
-
-      ]#
-      if score.float > pop.ken.scores.mean.float:
-        if pop.ken.parsimony < 0.0:
-          s -= pop.ken.parsimony * length.float
+      if pop.ken.parsimony < 0.0:  # length appears to be hurting scores
+        # reduce the score of longer programs
+        s += pop.ken.parsimony * length.float
+      else:                        # length appears to be helping scores
+        # raise the score of longer programs
+        s += pop.ken.parsimony * length.float
     result = Score s
 
 proc score*(pop: Population; score: Score; length: int;

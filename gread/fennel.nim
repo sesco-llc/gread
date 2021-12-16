@@ -400,6 +400,8 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
            average valid score: {Score m.scores.mean}
           greatest of all time: {m.bestScore}
            program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
+           evolver cache count: {evo.cacheSize}
+           evolver cache usage: {evo.cacheUsage.percent}
           average program size: {m.lengths.mean.int}
          program size variance: {dumb}
           size of best program: {m.bestSize}
@@ -497,6 +499,18 @@ when compileOption"threads":
 
   proc noop(c: C): C {.cpsMagic.} = c
 
+  proc legit(evo: Evolver; p: Program): bool =
+    when defined(greadFast):
+      if p.isValid:
+        #let score = abs evo.population.score(p).float
+        let sd = evo.population.rescale(p.scores.standardDeviation).float
+        result = hoeffding(p.scores.n, sd.float) < defaultP
+        if result:
+          echo "legit: ", p.scores.n, " orig ", p.score, " sd ", sd, " defaultP ", defaultP, " hoeffding ", hoeffding(p.scores.n, sd.float)
+      result = result or evo.cacheSize(p) == evo.dataset.len
+    else:
+      result = evo.cacheSize(p) == evo.dataset.len
+
   proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
     let fnl = newFennel(core = args.core)
     var evo: Evolver[Fennel, LuaValue]
@@ -526,10 +540,9 @@ when compileOption"threads":
       let fit = evo.fittest
       if fit.isSome:
         let fit = get fit
-        if evo.dataset.len == 0 or evo.dataset.len == fit.cacheSize:
-          doAssert evo.dataset.len > 0
-          if not shared.containsOrIncl(fit.hash):
-            #echo "share ", fit.score, " ", fit.hash, " ", fit.cacheSize
+        if evo.dataset.len == 0 or evo.legit(fit):
+          if true: #not shared.containsOrIncl(fit.hash):
+            #echo "share ", fit.score, " ", fit.hash, " ", evo.cacheSize(fit)
             share(args, fit)  # send it to other threads
 
       discard evo.generation()

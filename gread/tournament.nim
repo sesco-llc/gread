@@ -26,9 +26,9 @@ import std/os
 template think(final: untyped): untyped =
   when debugging:
     echo final.program
-    sleep 10_000
+    #sleep 4_000
 
-proc remover[T, V](evo: Evolver[T, V];
+proc remover[T, V](evo: var Evolver[T, V];
                    competitors: var seq[Competitor[T]]; i: int) =
   ## used to update the population with a score change prior to removal
   let c = competitors[i]
@@ -54,10 +54,10 @@ proc discharge(evo: Evolver; c: Competitor) =
   ## a modern remover
   scoreChanged(evo.population, c.program,
                evo.scoreFromCache(c.program), c.index)
-  if c.program.cacheSize == evo.dataset.len:
+  if evo.cacheSize(c.program) == evo.dataset.len:
     maybeResetFittest(evo.population, c.program)
 
-proc tournament3*[T, V](evo: Evolver[T, V]; size: int;
+proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
                        order = Descending): Competitor[T] =
   ## v3 baby
   if evo.population.len < 1:
@@ -68,15 +68,12 @@ proc tournament3*[T, V](evo: Evolver[T, V]; size: int;
       "cannot run a tournament with less than one competitor"
 
   # figure out the size of the tourney
-  var size = max(1, min(evo.population.len, size))
-
-  # randomized dataset indexes
-  var samples = evo.randomDataIndexes()
+  let size = max(1, min(evo.population.len, size))
 
   # the winner of each bout fights again
   var victim: Competitor[T]
   var seen: PackedSet[Hash]           # de-dupe fighters
-  while size > 0:
+  while seen.len < size:
     var (i, p) = randomMember evo.population
     if not seen.containsOrIncl p.hash:
       victim = (valid: p.isValid, score: Score NaN,
@@ -84,15 +81,15 @@ proc tournament3*[T, V](evo: Evolver[T, V]; size: int;
       if result.program.isNil:
         result = victim        # it's our first time through the loop
       else:
-        let cmp =
-          confidentComparison(evo, samples, victim.program, result.program)
+        profile "confident comparo":
+          let cmp =
+            confidentComparison(evo, victim.program, result.program)
         if cmp == -1 and order == Ascending:
           result = victim
         elif cmp == 1 and order == Descending:
           result = victim
         else:
           discharge(evo, victim)
-      dec size
 
   # reset the score of the winner only if necessary
   discharge(evo, result)
@@ -105,7 +102,7 @@ proc tournament3*[T, V](evo: Evolver[T, V]; size: int;
   debug "order ", order
   think result
 
-proc tournament2*[T, V](evo: Evolver[T, V]; size: int;
+proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
                         order = Descending): Competitor[T] =
   ## find the fittest or least fit of a subset of the population
   if evo.population.len < 1:

@@ -11,7 +11,7 @@ import gread/genotype
 import gread/spec
 
 const
-  programCache* = true
+  programCache* = false
 
 type
   ProgramFlag* = enum
@@ -29,9 +29,14 @@ type
     score*: Score             ## the score of this program when last evaluated
     flags*: set[ProgramFlag]  ## flag enums associated with the program
     ast*: Ast[T]              ## the ast of the program itself
+    scores*: MovingStat[float64] ## statistics around valid scores
     when programCache:
       cache: LPTab[Hash, Option[Score]] ## cache of score given symbol set hash
   Program*[T] = ref ProgramObj[T]
+
+proc push*(p: Program; s: Score) =
+  ## record a valid score for statistics purposes
+  p.scores.push s
 
 proc genome*(p: Program): Genome {.inline.} =
   ## the program's source genome
@@ -102,7 +107,7 @@ proc clone*[T](p: Program[T]): Program[T] =
   result =
     Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
                code: p.code, flags: p.flags, core: p.core, genome: p.genome,
-               generation: p.generation)
+               scores: p.scores, generation: p.generation)
   when programCache:
     init(result.cache, initialSize = 2)
 

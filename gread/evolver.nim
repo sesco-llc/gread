@@ -1,3 +1,4 @@
+import std/packedsets
 import std/times
 import std/sequtils
 import std/random
@@ -17,11 +18,17 @@ import gread/tableau
 import gread/grammar
 import gread/maths
 
+const
+  greadHoeffding* {.intdefine.} = 20
+  defaultP* = 1.0 / greadHoeffding
+  evolverCache = not programCache
+
 type
+  UnfitError* = object of ValueError
   FitOne*[T; V] = proc(q: T; s: SymbolSet[T, V]; p: Program[T]): Option[Score] ##
   ## a fitness function that runs against a single symbolset
 
-  FitMany*[T; V] = proc(q: T; ss: openArray[(SymbolSet[T, V], Score)];
+  FitMany*[T; V] = proc(q: T; iter: iterator(): (SymbolSet[T, V], Score);
                         p: Program[T]): Option[Score] ##
   ## a fitness function that runs against a series of symbolsets
 
@@ -44,10 +51,39 @@ type
     operators: AliasMethod[Operator[T, V]]
     gentime: MovingStat[float32]
     shorties: MovingStat[float32]
+    novel: LPTab[Hash, PackedSet[int]]
+    cache: LPTab[Hash, seq[Option[Score]]]
+    cacheCounter: int
+    indexes: PackedSet[int]
 
 proc platform*[T, V](evo: Evolver[T, V]): T =
   ## recover the platform of an evolver
   evo.platform
+
+proc cacheUsage*(evo: Evolver): float =
+  ## a metric on cache consumption for reporting
+  if evo.dataset.len > 0 and evo.cache.len > 0:
+    result = evo.cacheCounter.float / float(evo.cache.len * evo.dataset.len)
+
+proc cacheSize*[T, V](evo: Evolver[T, V]): int =
+  ## the total number of cached scores in the evolver
+  evo.cachecounter
+
+proc cacheSize*[T, V](evo: Evolver[T, V]; p: Program[T]): int =
+  ## the number of cached scores measured for the program
+  try:
+    evo.novel[p.hash].len
+  except KeyError:
+    0
+
+proc del*(evo: var Evolver; p: Program) =
+  ## remove a program from the evolver; currently used to drop cache entries
+  try:
+    dec(evo.cacheCounter, evo.cacheSize(p))
+    del(evo.cache, p.hash)
+    del(evo.novel, p.hash)
+  except KeyError:
+    discard
 
 proc shortGenome*(evo: Evolver): MovingStat[float32] =
   ## retrieve the statistics on mapping failures due to short genomes
@@ -88,9 +124,19 @@ proc `grammar=`*[T, V](evo: var Evolver[T, V]; grammar: Grammar[T]) =
 proc grammar*[T, V](evo: Evolver[T, V]): Grammar[T] =
   evo.grammar
 
+proc resetCache*(evo: var Evolver) =
+  ## clear the cache of previously-evaluated symbol sets, per each program
+  init(evo.cache, initialSize = evo.tableau.maxPopulation)
+  init(evo.novel, initialSize = evo.tableau.maxPopulation)
+  clear evo.indexes
+  for n in evo.dataset.low .. evo.dataset.high:
+    evo.indexes.incl n
+
 proc `dataset=`*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]]) =
   ## assign a series of possible inputs
   evo.dataset = dataset
+  # a complete reset of the dataset clears the program cache
+  evo.resetCache()
 
 proc `dataset=`*[T, V](evo: var Evolver[T, V]; dataset: seq[(SymbolSet[T, V], Score)]) =
   ## assign a series of possible inputs, and their expected outputs
@@ -106,6 +152,7 @@ proc `targets=`*[T, V](evo: var Evolver[T, V]; targets: seq[Score]) =
 proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau) =
   ## perform initial setup of the Evolver, binding platform and tableau
   evo = Evolver[T, V](platform: platform, tableau: tableau)
+  evo.resetCache()
 
 proc tableau*(evo: Evolver): Tableau = evo.tableau
 
@@ -120,8 +167,104 @@ proc randomOperator*[T, V](evo: Evolver[T, V]): Operator[T, V] =
   else:
     choose evo.operators
 
-proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
+proc hasSampled(evo: Evolver; p: Program; index: int): bool =
+  ## true if the program has been sampled with the symbol set at `index`
+  try:
+    result = index in evo.novel[p.hash]
+  except KeyError:
+    result = false
+
+iterator sampleSets(evo: var Evolver; a, b: Program): PackedSet[int] =
+  ## produce unordered sets of symbol set indices we should test
+  var x, y: PackedSet[int]
+  x = evo.novel.mgetOrPut(a.hash, x)
+  y = evo.novel.mgetOrPut(b.hash, y)
+  # first, make the comparisons more similar;
+  # this has the side-effect of running only the missing samples, first
+  yield symmetricDifference(x, y)
+
+  # refresh our values because we trust no one
+  x = evo.novel[a.hash]
+  y = evo.novel[b.hash]
+
+  # next, make them both more precise with novel samples
+  yield evo.indexes - (x + y)
+
+proc getScoreFromCache[T, V](evo: var Evolver[T, V]; p: Program;
+                             index: int): Option[Score] =
+  ## load optional score using dataset[index] (symbol set)
+  assert evo.hasSampled(p, index)
+  var s = evo.cache.mgetOrPut(p.hash, @[])
+  setLen(s, max(s.len, index + 1))
+  evo.cache[p.hash] = s  # because otherwise, our setLen may have CoW'd it
+  result = s[index]
+
+proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
+                           score: Option[Score]) =
+  ## store optional score using dataset[index] (symbol set)
+  demandValid score
+  var ps = evo.novel.mgetOrPut(p.hash, initPackedSet[int]())
+  if not evo.novel[p.hash].containsOrIncl(index):
+    inc evo.cacheCounter
+    var s = evo.cache.mgetOrPut(p.hash, @[])
+    setLen(s, max(s.len, index + 1))
+    if score.isSome:
+      p.push score.get
+      s[index] = score
+    evo.cache[p.hash] = s  # because otherwise, our setLen may have CoW'd it
+
+proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
+  ## compute a new score for the program using prior evaluations
+  if p.zombie: return none Score
+
+  if p.isNil:
+    raise
+
+  if p.hash == 0.Hash:
+    raise
+
+  let cache = evo.cache.getOrDefault(p.hash)  # capture
+  let novel = evo.novel.getOrDefault(p.hash)  # capture
+  let data = unsafeAddr evo.dataset           # speed
+
+  # setting up an iterator over populated cache entries
+  iterator iter(): (SymbolSet[T, V], Score) =
+    for index in novel.items:
+      if cache[index].isNone:
+        raise UnfitError.newException "cache lacks value"
+      else:
+        yield (data[index], get cache[index])
+
+  # pass the iterator to fitmany() and check the result
+  try:
+    result = evo.fitmany(evo.platform, iter, p)
+    demandValid result
+  except UnfitError:
+    result = none Score
+
+proc score*[T, V](evo: var Evolver[T, V]; index: int;
                   p: Program[T]): Option[Score] =
+  ## score the program against a single symbol set; we'll run the
+  ## evolver's `fitone` function against the platform and data record
+  ## to evaluate the program result. this scoring function also runs
+  ## a stopwatch over `fitone()` and update's the program's runtime
+  ## statistics.
+  if evo.fitone.isNil:
+    raise ValueError.newException "evolver needs fitone assigned"
+  elif p.zombie:
+    return none Score
+  else:
+    if evo.hasSampled(p, index):
+      result = evo.getScoreFromCache(p, index)
+    else:
+      let began = getTime()
+      result = evo.fitone(evo.platform, evo.dataset[index], p)
+      demandValid result
+      p.runtime.push (getTime() - began).inMilliseconds.float
+      evo.addScoreToCache(p, index, result)
+
+proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
+                  p: Program[T]): Option[Score] {.deprecated: "use index".} =
   ## score the program against a single symbol set; if the program cache
   ## is enabled via its `programCache` constant, then we might simply
   ## fetch the score from there. otherwise, we'll run the evolver's
@@ -130,38 +273,19 @@ proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
   ## `fitone()` and update's the programs runtime statistics.
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
+  elif p.zombie:
+    return none Score
   else:
     result = p.getScoreFromCache(s.hash)
     if result.isNone:
       let began = getTime()
       result = evo.fitone(evo.platform, s, p)
+      demandValid result
       p.runtime.push (getTime() - began).inMilliseconds.float
       p.addScoreToCache(s.hash, result)
 
-proc collectCachedScores[T, V](evo: Evolver[T, V];
-                               p: Program[T]): seq[(SymbolSet[T, V], Score)] =
-  ## select input and score pairs from prior evaluations of the program
-  if not p.zombie:
-    when programCache:
-      result = newSeqOfCap[(SymbolSet[T, V], Score)](evo.dataset.len)
-      for ss in evo.dataset.items:
-        let s = p.getScoreFromCache(ss.hash)
-        if s.isSome:
-          result.add (ss, get s)
-
-proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
-  ## compute a new score for the program using prior evaluations
-  if not p.zombie:
-    profile "score from cache":
-      let cached = collectCachedScores(evo, p)
-      if cached.len > 0:
-        result = evo.fitmany(evo.platform, cached, p)
-        if result.isSome:
-          if not result.get.isValid:
-            raise Defect.newException "valid scores are not nan/inf/-inf"
-
-proc score*[T, V](evo: Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
-                  p: Program[T]): Option[Score] =
+proc score*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
+                  p: Program[T]): Option[Score] {.deprecated: "use greadFast".} =
   ## score a program against a series of symbol sets
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
@@ -170,20 +294,36 @@ proc score*[T, V](evo: Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
   elif p.zombie:
     result = none Score
   else:
-    block exit:
-      var scores = newSeqOfCap[(SymbolSet[T, V], Score)](dataset.len)
-      for ss in dataset.items:
-        let s = evo.score(ss, p)
+    let e = addr evo
+    # the iterator evaluates each symbol set in the dataset
+    iterator iter(): (SymbolSet[T, V], Score) =
+      for index, ss in dataset.pairs:
+        let s =
+          when defined(greadFast):
+            e[].score(index, p)
+          else:
+            e[].score(ss, p)
         if s.isNone:
-          result = none Score
-          break exit
+          raise UnfitError.newException "fitone fail"
         else:
-          scores.add (ss, get s)
-      result = evo.fitmany(evo.platform, scores, p)
+          e[].addScoreToCache(p, index, s)
+          yield (ss, get s)
 
-proc score*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
+    # pass the iterator to fitmany() and check the result
+    try:
+      result = evo.fitmany(evo.platform, iter, p)
+      demandValid result
+    except UnfitError:
+      result = none Score
+
+proc score*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[Score] =
   ## score the program against all available symbol sets
   evo.score(evo.dataset, p)
+
+proc scoreRandomly*[T, V](evo: var Evolver[T, V];
+                          p: Program[T]): Option[Score] =
+  ## evaluate a program against a random symbol set; a smoke test
+  evo.score(rand evo.dataset.high, p)
 
 proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
   ## assign a new fitness function to the evolver
@@ -214,7 +354,7 @@ proc randomSymbols*[T, V](evo: Evolver[T, V]): SymbolSet[T, V] =
   else:
     evo.dataset[rand evo.dataset.high]
 
-proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
+proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
   ## create a new (random) population using the given evolver's parameters
   result = newPopulation[T](evo.tableau.seedPopulation, core = evo.core)
   result.toggleParsimony(evo.tableau.useParsimony)
@@ -229,14 +369,14 @@ proc randomPop*[T, V](evo: Evolver[T, V]): Population[T] =
       # FIXME: optimization point
       let s =
         when defined(greadFast):
-          evo.score(evo.randomSymbols, p)
+          evo.scoreRandomly(p)
         else:
           evo.score(p)
       if s.isSome:
         p.score = get s
       else:
         p.score = NaN
-      if not evo.tableau.requireValid or (not p.zombie and p.score.isValid):
+      if not evo.tableau.requireValid or p.isValid:
         result.add p
     except ShortGenome:
       discard
@@ -250,11 +390,8 @@ proc randomDataIndexes*(evo: Evolver): seq[int] =
     result.add i
   shuffle result
 
-proc confidentComparison*(evo: Evolver; samples: seq[int];
-                          a, b: Program; p = 0.05): int =
+proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
   ## compare two programs with high confidence and minimal sampling
-  if samples.len == 0:
-    raise Defect.newException "gimme samples"
 
   # short-circuit on some obvious early insufficiencies
   if a.hash == b.hash: return 0
@@ -262,24 +399,23 @@ proc confidentComparison*(evo: Evolver; samples: seq[int];
     if a.isValid: return 1 else: return -1
   elif not a.isValid: return 0
 
+  debug ""
+  debug "it begins"
+  # start with the scores as recovered from the cache
+  var a1 = evo.scoreFromCache(a)
+  var b1 = evo.scoreFromCache(b)
+
   var runs = 0
-  template resample(x: Program; s: untyped; z: int): untyped {.dirty.} =
+  template resample(p: Program; i: int; z: int): untyped {.dirty.} =
     ## if a program could move; let's test it further and maybe bail
     inc runs
-    if evo.score(s, x).isNone:
+    let score = evo.score(i, p)
+    if score.isNone:
       debug "scored none; return " & $z
       return z
 
-  debug ""
-  debug "it begins"
-  var a1, b1: Option[Score]
-
-  template refresh(): untyped {.dirty.} =
-    # discover the current score of each program
-    a1 = evo.scoreFromCache(a)
-    b1 = evo.scoreFromCache(b)
-
-    # short-circuit if either program is insufficient
+  template guard(): untyped {.dirty.} =
+    ## short-circuit if either program is insufficient
     if a1.isNone:
       debug "a1 is none"
       return -1
@@ -287,40 +423,53 @@ proc confidentComparison*(evo: Evolver; samples: seq[int];
       debug "b1 is none"
       return 1
 
-  refresh()
+  const popscore = false
 
-  for i in samples.items:
-    template sample: untyped = evo.dataset[samples[i]]
+  block done:
+    # we'll likely loop on two sample sets; the first is differing samples,
+    # the second reflects symbol sets new to both programs
+    for samples in sampleSets(evo, a, b):
+      for i in samples.items:
+        guard()  # ensure the programs score safely
 
-    # find the difference in scores, with parsimony, rescaled to 0-1
-    debug "pre-scaled: ", get a1, " and ", get b1
-    let sa = evo.population.score(get a1, a.len, get b1)
-    let sb = evo.population.score(get b1, b.len, get a1)
-    # XXX: when parsimony is on, it can change the sign of scores 🙄
-    let d = sa.float - sb.float
-    debug "    scores: ", sa, " and ", sb
-    debug "delta is ", d
+        debug "pre-scaled: ", get a1, " and ", get b1
+        when popscore:
+          let sa = evo.population.score(get a1, a.len, get b1)
+          let sb = evo.population.score(get b1, b.len, get a1)
+        else:
+          let sa = get a1
+          let sb = get b1
+        # XXX: when parsimony is on, it can change the sign of scores 🙄
+        let d = abs(sa.float - sb.float)  # just wing it for now
+        debug "    scores: ", sa, " and ", sb
+        debug "delta is ", d
 
-    # how probable is each program's score to move the given distance?
-    let ha = hoeffding(a.cacheSize, d)
-    let hb = hoeffding(b.cacheSize, d)
-    debug "the hoff says: ", Score ha, " and ", Score hb
+        # how probable is each program's score to move the given distance?
+        let csa = evo.cacheSize(a)
+        let csb = evo.cacheSize(b)
+        let ha = hoeffding(csa, d)
+        let hb = hoeffding(csb, d)
 
-    if ha > p and a.cacheSize < samples.len:
-      resample(a, sample, -1)
-    elif hb > p and b.cacheSize < samples.len:
-      resample(b, sample, 1)
-    else:
-      if runs == 0:
-        echo "hoeffding wasted"
-      else:
-        echo "hoeffding saved ",
-          percent(1.0 - (float(runs) / (samples.len.float*2.0)))
-      break
+        if ha < p and hb < p:
+          if runs > 0:
+            debug "hoeffding ran ", runs, " saved ",
+              percent(1.0 - (float(runs) / (samples.len.float*2.0)))
+          break done
 
-    refresh()
+        # sample the index for any program that hasn't done so yet
+        if ha > p and not evo.hasSampled(a, i):
+          resample(a, i, -1)
+          a1 = evo.scoreFromCache(a)
+        if hb > p and not evo.hasSampled(b, i):
+          resample(b, i, 1)
+          b1 = evo.scoreFromCache(b)
 
-  # order is unlikely to change; scale and compare these scores
-  result = cmp(evo.population.score(get a1, a.len, get b1),
-               evo.population.score(get b1, b.len, get a1))
+  guard()  # ensure the programs score safely
+
+  # order is unlikely to change; compare these scores
+  when popscore:
+    result = cmp(evo.population.score(get a1, a.len, get b1),
+                 evo.population.score(get b1, b.len, get a1))
+  else:
+    result = cmp(a1.get, b1.get)
   debug "returning cmp; ", a1.get, " vs ", b1.get, " = ", result
