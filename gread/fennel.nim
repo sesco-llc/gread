@@ -503,11 +503,10 @@ when compileOption"threads":
   proc legit(evo: Evolver; p: Program): bool =
     when defined(greadFast):
       if p.isValid:
-        #let score = abs evo.population.score(p).float
         let sd = evo.population.rescale(p.scores.standardDeviation).float
         result = hoeffding(p.scores.n, sd.float) < defaultP
-        if result:
-          echo "legit: ", p.scores.n, " orig ", p.score, " sd ", sd, " defaultP ", defaultP, " hoeffding ", hoeffding(p.scores.n, sd.float)
+        #if result:
+        #  echo "legit: ", p.scores.n, " orig ", p.score, " sd ", sd, " defaultP ", defaultP, " hoeffding ", hoeffding(p.scores.n, sd.float)
       result = result or evo.cacheSize(p) == evo.dataset.len
     else:
       result = evo.cacheSize(p) == evo.dataset.len
@@ -525,7 +524,6 @@ when compileOption"threads":
     evo.population = evo.randomPop()
     resetParsimony evo.population
 
-    var leader: Hash
     var evoTime = getTime()
     var shared: PackedSet[Hash]
     while evo.population.generations.int <= evo.tableau.maxGenerations:
@@ -542,7 +540,7 @@ when compileOption"threads":
       if fit.isSome:
         let fit = get fit
         if evo.dataset.len == 0 or evo.legit(fit):
-          if true: #not shared.containsOrIncl(fit.hash):
+          if not shared.containsOrIncl(fit.hash):
             #echo "share ", fit.score, " ", fit.hash, " ", evo.cacheSize(fit)
             share(args, fit)  # send it to other threads
 

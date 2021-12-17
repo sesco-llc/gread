@@ -5,6 +5,7 @@ import std/options
 import std/random
 import std/hashes
 import std/packedsets
+import std/math
 
 import pkg/adix/stat except variance
 
@@ -153,7 +154,7 @@ proc rescale*(pop: Population; score: Score; outlier: Score): Score =
   ## the outlier score may not be recorded in the population...
   result =
     Score:
-      -abs(score.float /
+      sgn(score).float * abs(score.float /
            min(score.float,
                min(outlier.float,
                    pop.ken.scores.min.float)))

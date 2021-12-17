@@ -300,6 +300,7 @@ reported.
 
 ### defines
 
+- `greadDebug` might enable some debugging here and there
 - `greadProfile` profiles some interesting parts of the system
 - `greadWrapping` enables wrapping of the genome during mapping _(not fully implemented yet)_
 

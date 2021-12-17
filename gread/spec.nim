@@ -49,7 +49,7 @@ proc `$`*(cs: CoreSpec): string =
     "-"
 
 const
-  debugging* = not defined(release)
+  debugging* = defined(greadDebug) and not defined(release)
 template debug*(args: varargs[untyped]): untyped =
   when debugging:
     echo args
