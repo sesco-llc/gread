@@ -1,4 +1,4 @@
-import std/strformat
+import std/packedsets
 import std/json
 import std/hashes
 import std/times
@@ -19,7 +19,7 @@ import pkg/adix/lptabz
 randomize()
 
 const
-  goodEnough = -0.01         ## quit when you reach this score
+  goodEnough = -0.00         ## quit when you reach this score
   dataInaccurate = false     ## use faulty data
   statFrequency = 2000       ## how often to output statistics
 
@@ -40,6 +40,7 @@ initGrammar(gram, averageGrammar)
 
 # no point in slowing down this simple example
 var tab = defaultTableau
+tab.useParsimony = true
 tab.seedProgramSize = 200
 tab.seedPopulation = 500
 tab.maxPopulation = 500
@@ -105,34 +106,32 @@ proc fenfit(inputs: Locals; output: LuaValue): Score =
 proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
   ## convenience capture
   let s = evaluate(fnl, p, locals, fenfit)
-  if not s.isNaN and s notin [-Inf, Inf]:
+  if s.isValid:
     result =
       some:
         Score -abs(locals["ideal"].toFloat - s.float)
 
-proc fitmany(fnl: Fennel; data: openArray[(Locals, Score)];
+proc fitmany(fnl: Fennel; iter: iterator(): (Locals, Score);
              p: FProg): Option[Score] =
-  var results = newSeqOfCap[float](data.len)
-  for locals, s in data.items:
-    if s.isNaN or s in [-Inf, Inf]:
-      return none Score
-    else:
+  var results: seq[float]
+  for locals, s in iter():
+    if s.isValid:
       results.add s
+    else:
+      return none Score
   if results.len > 0:
-    result = some Score -ss(results)
+    let s = Score -ss(results)
+    if s.isValid:
+      result = some s
 
 template dumpStats() {.dirty.} =
   dumpStats(evo, et)
 
 template dumpPerformance(p: FProg) {.dirty.} =
-  echo "---"
   dumpPerformance(fnl, p, training, fenfit, samples = 1)
-  echo "---"
 
 suite "simulation":
   var et = getTime()
-  var genTime: FennelStat
-
   block:
     ## created a random population of programs
     checkpoint "creating", tab.seedPopulation, "random programs..."
@@ -156,17 +155,19 @@ suite "simulation":
   var lastGeneration: Generation
   block:
     ## ran until we can average two numbers
+    var seen: PackedSet[Hash]
     while pop.generations < tab.maxGenerations:
-      if best.isValid and best >= goodEnough:
+      if best >= goodEnough:
         break
-      let clock = getTime()
       let invented = evo.generation()
-      if invented.isSome:
-        let p = get invented
-        genTime.push (getTime() - clock).inMilliseconds.float
-        if p.score > best or best.isNaN:
-          best = p.score
-          dumpPerformance p
+      let p = pop.fittest
+      if not p.isNil:
+        if evo.cacheSize(p) == training.len:
+          if not seen.containsOrIncl(p.hash):
+            let s = p.score
+            if s > best or best.isNaN:
+              best = s
+              dumpPerformance p
 
       if pop.generations mod statFrequency == 0:
         dumpStats()

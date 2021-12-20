@@ -4,7 +4,8 @@ import std/heapqueue
 import std/options
 import std/random
 import std/hashes
-import std/sets
+import std/packedsets
+import std/math
 
 import pkg/adix/stat except variance
 
@@ -13,7 +14,7 @@ import gread/programs
 import gread/maths
 
 const
-  defaultParsimony = -0.01
+  defaultParsimony = 0.01
   #[
 
   this is quite a bit slower when enabled, but that's probably because
@@ -29,11 +30,12 @@ type
     core*: CoreSpec
     generation*: Generation
     lengths*: MovingStat[float32]
-    scores*: MovingStat[float32]
+    scores*: MovingStat[float64]
     ages*: MovingStat[float32]
     immigrants*: int
     parsimony*: float
     validity*: MovingStat[float32]
+    caches*: MovingStat[float32]
     # the rest are populated JIT
     bestSize*: int
     bestGen*: Generation
@@ -47,7 +49,7 @@ type
     fittest: Program[T]
     ken: PopMetrics
     when populationCache:
-      cache: HashSet[Hash]
+      cache: PackedSet[Hash]
 
 proc parsimony*(pop: Population): float
 
@@ -76,7 +78,10 @@ template learn(pop: Population; p: Program; pos: int) =
     pop.cache.incl p.hash
   if p.isValid:
     pop.ken.lengths.push p.len.float
-    pop.ken.scores.push p.score
+    if p.score.isValid:
+      pop.ken.scores.push p.score
+    else:
+      raise
     pop.ken.validity.push 1.0
   else:
     pop.ken.validity.push 0.0
@@ -144,23 +149,47 @@ func fittest*[T](pop: Population[T]): Program[T] =
   withInitialized pop:
     pop.fittest
 
+proc rescale*(pop: Population; score: Score; outlier: Score): Score =
+  ## rescale a given score according to the distribution of the population;
+  ## the outlier score may not be recorded in the population...
+  result =
+    Score:
+      sgn(score).float * abs(score.float /
+           min(score.float,
+               min(outlier.float,
+                   pop.ken.scores.min.float)))
+
+proc rescale*(pop: Population; score: Score): Score =
+  ## rescale a given score according to the distribution of the population
+  result = rescale(pop, score, score)
+
 proc penalizeSize(pop: Population; score: Score; length: int): Score =
   ## apply some pressure on program size
   withInitialized pop:
+    var s = rescale(pop, score).float
     if pop.usesParsimony:
-      var s = score.float
-      if pop.ken.parsimony < 0.0:
-        s += min(0.0, pop.ken.parsimony * length.float)
-      result = Score s
-    else:
-      result = score
+      if pop.ken.parsimony < 0.0:  # length appears to be hurting scores
+        # reduce the score of longer programs
+        s += pop.ken.parsimony * length.float
+      else:                        # length appears to be helping scores
+        # raise the score of longer programs
+        s += pop.ken.parsimony * length.float
+    result = Score s
+
+proc score*(pop: Population; score: Score; length: int;
+            outlier: Score): Score =
+  ## adjust the score according to the population's parsimony and a length
+  if score.isValid:
+    penalizeSize(pop, score, length)
+  else:
+    Score NaN
 
 proc score*(pop: Population; score: Score; length: int): Score =
   ## adjust the score according to the population's parsimony and a length
   if score.isValid:
     penalizeSize(pop, score, length)
   else:
-    score
+    Score NaN
 
 proc score*(pop: Population; p: Program): Score =
   ## retrieve the parsimonious Score for Program `p`
@@ -169,15 +198,15 @@ proc score*(pop: Population; p: Program): Score =
   else:
     Score NaN
 
-proc maybeResetFittest[T](pop: Population[T]; p: Program[T]) =
+proc maybeResetFittest*[T](pop: Population[T]; p: Program[T]) =
   ## reset the fittest pointer if the argument is actually superior
   withInitialized pop:
     if p.isValid:
       block:
         if not pop.fittest.isNil:
-          if pop.fittest.score >= p.score:
-            break
           if pop.fittest.hash == p.hash:
+            break
+          if pop.score(pop.fittest) >= pop.score(p):
             break
         pop.fittest = p
         p.flags.incl FinestKnown
@@ -207,10 +236,12 @@ proc add*[T](pop: Population[T]; p: Program[T]) =
       when populationCache:
         if not pop.cache.containsOrIncl p.hash:
           addImpl(pop, p)
-          maybeResetFittest(pop, p)
+          when not defined(greadFast):
+            maybeResetFittest(pop, p)
       else:
         addImpl(pop, p)
-        maybeResetFittest(pop, p)
+        when not defined(greadFast):
+          maybeResetFittest(pop, p)
 
 type
   TopPop[T] = tuple[score: Score, program: Program[T]]
@@ -292,9 +323,9 @@ proc parsimony*(pop: Population): float =
     var lengths = newSeqOfCap[float](pop.ken.scores.n)
     for i, p in pop.pairs:
       if p.isValid:
-        scores.add -abs(p.score.float / pop.ken.scores.min.float)
+        scores.add pop.rescale(p.score)
         lengths.add p.len.float
-    result = -covariance(lengths, scores) / variance(lengths)
+    result = covariance(lengths, scores) / variance(lengths)
 
 proc nextGeneration*(pop: Population): Generation =
   ## inform the population that we're entering a new generation
@@ -317,10 +348,16 @@ proc scoreChanged*(pop: Population; p: Program; s: Option[Score]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
   ## is used to update metrics, parsimony, and the `fittest` population member
   withInitialized pop:
-    if s.isSome:
+    if p.score.isValid:
+      pop.ken.scores.pop p.score
+    if s.isSome and not s.get.isValid:
+      raise
+    if s.isSome and s.get.isValid:
       p.score = get s
-      p.zombie = false
-      maybeResetFittest(pop, p)
+      pop.ken.scores.push p.score
+      p.zombie = false  # NOTE: trigger a defect if necessary
+      when not defined(greadFast):
+        maybeResetFittest(pop, p)
     else:
       p.score = NaN
       p.zombie = true
@@ -334,12 +371,17 @@ proc resetScoreMetrics(pop: Population) =
   withInitialized pop:
     clear pop.ken.validity
     clear pop.ken.scores
+    clear pop.ken.caches
     for p in pop.items:
       if p.isValid:
         pop.ken.validity.push 1.0
-        pop.ken.scores.push p.score
+        if p.score.isValid:
+          pop.ken.scores.push p.score
+        else:
+          raise
       else:
         pop.ken.validity.push 0.0
+      pop.ken.caches.push p.cacheSize.float
     resetParsimony pop
 
 proc metrics*(pop: Population): PopMetrics =

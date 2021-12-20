@@ -28,12 +28,12 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
       p.core = evo.core
       # FIXME: optimization point
       let s =
-        when true:
+        when defined(greadFast):
+          # sample a single datapoint in order to check validity
+          evo.scoreRandomly(p)
+        else:
           # sample all datapoints in order to develop useful score
           evo.score(p)
-        else:
-          # sample a single datapoint in order to check validity
-          evo.score(evo.randomSymbols, p)
       if s.isSome:
         p.score = get s
       else:
@@ -45,9 +45,23 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
         while evo.population.len > evo.tableau.maxPopulation-1:
           profile "loser's tournament":
             let loser = tournament(evo, size, order = Ascending)
-            del(evo.population, loser.index)
+            del(evo, loser.program)            # warn evolver to clear cache
+            del(evo.population, loser.index)   # rm program from population
 
-        profile "add to pop":
+        # we cannot afford to do so much work just for reporting
+        when false and defined(greadFast):
+          if not evo.population.fittest.isNil:
+            if not evo.population.fittest.hash == p.hash:
+              var samples = evo.randomDataIndexes()
+              discard confidentComparison(evo, samples, p,
+                                          evo.population.fittest)
+              let s = evo.scoreFromCache(p)
+              if s.isSome:
+                p.score = get s
+              else:
+                p.zombie = true
+
+        if not evo.tableau.requireValid or p.isValid:
           evo.population.add p
 
         # update the parsimony to account for additions and removals

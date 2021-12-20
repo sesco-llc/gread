@@ -48,6 +48,12 @@ proc `$`*(cs: CoreSpec): string =
   else:
     "-"
 
+const
+  debugging* = defined(greadDebug) and not defined(release)
+template debug*(args: varargs[untyped]): untyped =
+  when debugging:
+    echo args
+
 when defined(greadProfile):
   import std/times
   import std/macros
@@ -72,3 +78,11 @@ when defined(greadProfile):
                                newCall(bindSym"-", readTime, clock)))
 else:
   template profile*(s: string; logic: untyped): untyped = logic
+
+template demandValid*(s: Score): untyped =
+  if not s.isValid:
+    raise Defect.newException "valid scores are not nan/inf/-inf"
+
+template demandValid*(s: Option[Score]): untyped =
+  if s.isSome:
+    demandValid(get s)

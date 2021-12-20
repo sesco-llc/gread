@@ -89,16 +89,218 @@ learns quickly but may not find a perfect solution before you lose interest.
 
 Note the following required compilation switches:
 
+- `--define:danger` (because otherwise it's debugging)
 - `--define:useMalloc` (due to bugs in the Nim allocator)
 - `--threads:on` (to evolve disparate populations across CPU cores)
 - `--gc:arc` or `--gc:orc` (because we use CPS and Loony)
 - `--panics:on` (because we use CPS)
 - `--define:lunacyLuaJIT` (enables use of luajit)
 
+## Tuning
+<details>
+  <summary>
+
+**SPOILER**
+This is as much an art as it is science, but we'll walk through the
+metrics output and try to shed some light on how to interpret some of the
+numbers...
+
+  </summary>
+
+Metrics are produced at specified generational intervals for each `Evolver` in
+a `Cluster`, and each such instance has a `Core` identifier which is a simple
+integer. `Evolvers` encompass unique populations of programs which may also
+have unique fitness functions, datasets, virtual machines, and so on. There may
+be multiple evolvers running on each thread but clusters generally only launch
+`countProcessors()` threads.
+
+Here's sample metrics output from the `lls` example:
+
+```
+-5.0000[13]: (+ 2.0 (+ (+ x 2.0 ) 0.5 ) )
+               core and thread: 2/11172
+                  dataset size: 4
+          virtual machine runs: 16681 (never reset)
+            average vm runtime:   0.12 ms
+         total population size: 500
+            average age in pop: 5485
+          validity rate in pop: 98.00%
+           average valid score: -22.8557
+          greatest of all time: -5.0000
+           program cache usage: 0.00%
+           evolver cache count: 1770
+           evolver cache usage: 81.04%
+          average program size: 25
+         program size variance: 146
+          size of best program: 13
+         parsimony coefficient: -0.0001
+            insufficiency rate: 0.01%
+           semantic error rate: 0.00%
+         recent lua cache hits: 953
+            lua cache hit rate: 10.96%
+             lua vm cache size: 16680
+             foreign influence: -
+              immigration rate: 2.80%
+          mapping failure rate: 41.79%
+               best generation: 18633
+             total generations: 20000
+             invention recency: 6.83%
+               generation time: 1.4514 ms
+                evolution time: 66 sec
+```
+
+First, the `Score` of the fittest program discovered, followed by the program
+length in brackets. The program length may be a measure of the genome size or
+the abstract syntax tree, but it will not correspond to source code size or the
+length of symbol names or constants. The program source code itself, Fennel in
+this case, follows the score and length.
+
+```
+-5.0000[13]: (+ 2.0 (+ (+ x 2.0 ) 0.5 ) )
+```
+
+The core number and thread identifier as explained above.
+```
+               core and thread: 2/11172
+```
+
+A `SymbolSet` holds associations between symbols in the program, which do not
+vary with program executions, and static input values, which may vary with each
+`SymbolSet`.
+
+The `dataset size` reflects the number of symbol sets presented to the `Evolver` for training purposes.
+
+```
+                  dataset size: 4
+```
+
+We keep a counter of invocations of the LuaVM and reproduce it here along with
+the average runtime for all programs run on the virtual machine.
+
+```
+          virtual machine runs: 16681 (never reset)
+            average vm runtime:   0.12 ms
+```
+
+Some population metrics are revealed, including the average age -- in
+generations -- of programs that remain in the population, and the percentage of
+population members which may be evaluated to produce valid results according
+to the supplied `fitone()` function.
+
+In the case of the `lls` example, the `fitone()` evaluates a program and
+ensures that it produces a `float` that is not `nan`, `-inf` or `inf`.
+
+Invalid programs cannot compete in tournament selection, so they aren't
+terribly valuable -- a high validity rate is coincident with faster learning.
+
+```
+         total population size: 500
+            average age in pop: 5485
+          validity rate in pop: 98.00%
+           average valid score: -22.8557
+          greatest of all time: -5.0000
+```
+
+Some caching may be performed inside `Program` or `Evolver` objects and these
+metrics can be useful to analyzing the degree to which programs must be
+evaluated with multiple symbol sets in order to compete with one another. A
+low cache usage figure is ideal, because it signifies efficient comparison of
+programs without exhaustive evaluation.
+
+```
+           program cache usage: 0.00%
+           evolver cache count: 1770
+           evolver cache usage: 81.04%
+```
+
+Program size is an important metric because it can signify bloat. Parsimony
+below zero suggests that longer programs score more poorly, which the opposite
+is true for parsimony above zero.
+
+```
+          average program size: 25
+         program size variance: 146
+          size of best program: 13
+         parsimony coefficient: -0.0001
+```
+
+The insufficiency rate measures the percentage of programs which, when
+evaluated on a single symbol set as in `fitone()`, do not produce an acceptable
+`Score`.  The semantic error rate similarly measures errors raised by the LuaVM.
+
+```
+            insufficiency rate: 0.01%
+           semantic error rate: 0.00%
+```
+
+Some caching is performed at the layer of the LuaVM so that we do not
+accidentally evaluate a program multiple times with the same inputs. Basically,
+any cache hits here reflect an inefficiency in selection, sorting, and caching
+processes elsewhere in the system.
+
+```
+         recent lua cache hits: 953
+            lua cache hit rate: 10.96%
+             lua vm cache size: 16680
+```
+
+Foreign influence is simply defined as whether the `fittest` program in the
+population was sourced from a neighboring evolver in the cluster. If the
+program was invented locally, this value will be `-`; otherwise, it will hold
+the core number where the program was invented.
+
+The take-away is that a program which was fittest in another population,
+perhaps developed against a different dataset and with a different fitness
+function, is nonetheless superior to locally-bred programs.
+
+The immigration rate measures the percentage of programs in the population
+which arrived from a neighboring evolver, as opposed to being invented locally.
+
+This is a more general measure of the competitiveness of the local population
+and, of course, the `sharingRate` across the cluster as a whole. A high value
+here can indicate a lack of diversity; I like to see a 1-5% figure here for a
+single-objective problem.
+
+```
+             foreign influence: -
+              immigration rate: 2.80%
+```
+
+The mapping failure rate reflects occasions when offspring were produced
+for which the genome was insufficient to encode the semantics of the entire
+program. This figure reflects a lack of balance between non-terminal and
+terminal nodes in the grammar, or perhaps a poor choice of mutation operators.
+Ultimately, this is something that should be resolved in gread itself.
+
+```
+          mapping failure rate: 41.79%
+```
+
+The generational metrics tease out how recently the fittest individual was
+invented, with the implication that continuous improvement is ideal.
+
+```
+               best generation: 18633
+             total generations: 20000
+             invention recency: 6.83%
+```
+
+We also measure the cumulative wall-clock time of the evolver's runtime, as
+well as the average runtime of each generation since the last metrics were
+reported.
+
+```
+               generation time: 1.4514 ms
+                evolution time: 66 sec
+```
+
+</details>
+
 ## Debugging
 
 ### defines
 
+- `greadDebug` might enable some debugging here and there
 - `greadProfile` profiles some interesting parts of the system
 - `greadWrapping` enables wrapping of the genome during mapping _(not fully implemented yet)_
 

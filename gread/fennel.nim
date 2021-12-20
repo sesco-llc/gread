@@ -1,3 +1,4 @@
+import std/packedsets
 import std/json
 import std/times
 import std/strformat
@@ -322,16 +323,14 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
         0.0
 
 proc dumpScore*(fnl: Fennel; p: FProg) =
-  let code = $p
-  var s =
-    if p.score.isValid:
-      $p.score
-    else:
-      "... "
-  s.add fmt"[{p.len}] at #{p.generation} "
-  if p.source != 0:
-    s.add fmt"from {p.source} "
-  s.add fmt"for {code}"
+  when false:
+    var s = fmt"{p.score}[{p.len}] at #{p.generation} "
+    if p.source != 0:
+      s.add fmt"from {p.source} "
+    s.add "for "
+  else:
+    var s = fmt"{p.score}[{p.len}]: "
+  s.add $p
   checkpoint s
 
 proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
@@ -393,15 +392,19 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
   var dumb = m.lengths.variance.int  # work around nim bug
   checkpoint fmt"""
                core and thread: {m.core}/{threaded}
+                  dataset size: {evo.dataset.len}
           virtual machine runs: {fnl.runs} (never reset)
             average vm runtime: {fnl.runtime.mean:>6.2f} ms
          total population size: {m.size}
             average age in pop: {int(m.generation.int.float - m.ages.mean)}
           validity rate in pop: {m.validity.mean.percent}
-         program size variance: {dumb}
            average valid score: {Score m.scores.mean}
           greatest of all time: {m.bestScore}
+           program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
+           evolver cache count: {evo.cacheSize}
+           evolver cache usage: {evo.cacheUsage.percent}
           average program size: {m.lengths.mean.int}
+         program size variance: {dumb}
           size of best program: {m.bestSize}
          parsimony coefficient: {Score m.parsimony}
             insufficiency rate: {fnl.nans.mean.percent}
@@ -497,6 +500,17 @@ when compileOption"threads":
 
   proc noop(c: C): C {.cpsMagic.} = c
 
+  proc legit(evo: Evolver; p: Program): bool =
+    when defined(greadFast):
+      if p.isValid:
+        let sd = evo.population.rescale(p.scores.standardDeviation).float
+        result = hoeffding(p.scores.n, sd.float) < defaultP
+        #if result:
+        #  echo "legit: ", p.scores.n, " orig ", p.score, " sd ", sd, " defaultP ", defaultP, " hoeffding ", hoeffding(p.scores.n, sd.float)
+      result = result or evo.cacheSize(p) == evo.dataset.len
+    else:
+      result = evo.cacheSize(p) == evo.dataset.len
+
   proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
     let fnl = newFennel(core = args.core)
     var evo: Evolver[Fennel, LuaValue]
@@ -508,42 +522,34 @@ when compileOption"threads":
     evo.fitone = args.fitone
     evo.fitmany = args.fitmany
     evo.population = evo.randomPop()
+    resetParsimony evo.population
 
-    var leader: Hash
     var evoTime = getTime()
+    var shared: PackedSet[Hash]
     while evo.population.generations.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
-      for invalid in invalidPrograms(args):
-        fnl.cache[invalid.hash] = Score NaN
+      when false:
+        for invalid in invalidPrograms(args):
+          fnl.cache[invalid.hash] = Score NaN
+          discard
 
       search(args, evo.population)   # fresh meat from other threads
 
       let fit = evo.fittest
       if fit.isSome:
         let fit = get fit
-        if fit.hash != leader:
-          leader = fit.hash
-          share(args, fit)  # send it to other threads
+        if evo.dataset.len == 0 or evo.legit(fit):
+          if not shared.containsOrIncl(fit.hash):
+            #echo "share ", fit.score, " ", fit.hash, " ", evo.cacheSize(fit)
+            share(args, fit)  # send it to other threads
 
-      if evo.tableau.useParsimony:
-        profile "parsimony":
-          discard evo.population.parsimony
+      discard evo.generation()
 
-      let invention = evo.generation()
+      if evo.population.generations.int mod args.stats == 0:
+        dumpStats(evo, evoTime)
+        clearStats evo
 
-      if invention.isSome:
-        let p = get invention
-        if p.core.isNone and fnl.core.isSome:
-          p.core = fnl.core
-
-        if p.generation mod args.stats == 0:
-          dumpStats(evo, evoTime)
-          clearStats evo
-
-        when false:
-          if p.score.isNaN:
-            negativeCache(args, p)
     quit 0
 
 proc parseToken*[T: Fennel](s: string): FennelNodeKind =

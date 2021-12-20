@@ -291,16 +291,14 @@ proc evaluate*(lua: Lua; p: LProg; locals: Locals; fit: FenFit): Score =
         0.0
 
 proc dumpScore*(lua: Lua; p: LProg) =
-  let code = $p
-  var s =
-    if p.score.isValid:
-      $p.score
-    else:
-      "... "
-  s.add fmt"[{p.len}] at #{p.generation} "
-  if p.source != 0:
-    s.add fmt"from {p.source} "
-  s.add fmt"for {code}"
+  when false:
+    var s = fmt"{p.score}[{p.len}] at #{p.generation} "
+    if p.source != 0:
+      s.add fmt"from {p.source} "
+    s.add "for "
+  else:
+    var s = fmt"{p.score}[{p.len}]: "
+  s.add $p
   checkpoint s
 
 proc dumpPerformance*(lua: Lua; p: LProg; training: seq[Locals];
@@ -358,15 +356,19 @@ proc dumpStats*(lua: Lua; pop: Population; evoTime: Time;
   var dumb = m.lengths.variance.int  # work around nim bug
   checkpoint fmt"""
                core and thread: {m.core}/{threaded}
+                  dataset size: {evo.dataset.len}
           virtual machine runs: {lua.runs} (never reset)
             average vm runtime: {lua.runtime.mean:>6.2f} ms
          total population size: {m.size}
             average age in pop: {int(m.generation.int.float - m.ages.mean)}
           validity rate in pop: {m.validity.mean.percent}
-         program size variance: {dumb}
            average valid score: {Score m.scores.mean}
           greatest of all time: {m.bestScore}
+           program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
+           evolver cache count: {evo.cacheSize}
+           evolver cache usage: {evo.cacheUsage.percent}
           average program size: {m.lengths.mean.int}
+         program size variance: {dumb}
           size of best program: {m.bestSize}
          parsimony coefficient: {Score m.parsimony}
             insufficiency rate: {lua.nans.mean.percent}
@@ -524,6 +526,7 @@ when compileOption"threads":
     evo.fitone = args.fitone
     evo.fitmany = args.fitmany
     evo.population = evo.randomPop()
+    resetParsimony evo.population
 
     var leader: Hash
     var evoTime = getTime()

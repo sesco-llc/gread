@@ -12,6 +12,6 @@ type
 const
   defaultTableau* =
     Tableau(seedPopulation: 500, maxPopulation: 500,
-            maxGenerations: 10_000_000, seedProgramSize: 100,
+            maxGenerations: 10_000_000, seedProgramSize: 200,
             requireValid: true, sharingRate: 3.0,
             tournamentSize: 10, useParsimony: on)
