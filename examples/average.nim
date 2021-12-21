@@ -88,39 +88,33 @@ else:
   ]
 
 # convert the json into lua values;
-var training: seq[(Locals, Score)]
+var training: seq[(Locals, LuaValue)]
 for (js, ideal) in inputData.items:
   var paired: seq[(string, LuaValue)]
   for name, value in js.pairs:
     paired.add (name, value.toLuaValue)
   paired.add ("ideal", ideal.toLuaValue)
   var locals = initLocals paired
-  training.add (locals, Score ideal)
+  training.add (locals, ideal.toLuaValue)
 
-proc fenfit(inputs: Locals; output: LuaValue): Score =
-  if output.kind == TNumber:
-    output.toFloat
-  else:
-    NaN
-
-proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
+proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[LuaValue] =
   ## convenience capture
-  let s = evaluate(fnl, p, locals, fenfit)
+  let s = evaluate(fnl, p, locals)
   if s.isValid:
     result =
       some:
-        Score -abs(locals["ideal"].toFloat - s.float)
+        toLuaValue -abs(locals["ideal"].toFloat - s.float)
 
-proc fitmany(fnl: Fennel; iter: iterator(): (Locals, Score);
-             p: FProg): Option[Score] =
+proc fitmany(fnl: Fennel; iter: iterator(): (Locals, LuaValue);
+             p: FProg): Option[LuaValue] =
   var results: seq[float]
   for locals, s in iter():
     if s.isValid:
       results.add s
     else:
-      return none Score
+      return none LuaValue
   if results.len > 0:
-    let s = Score -ss(results)
+    let s = toLuaValue -ss(results)
     if s.isValid:
       result = some s
 
@@ -128,7 +122,7 @@ template dumpStats() {.dirty.} =
   dumpStats(evo, et)
 
 template dumpPerformance(p: FProg) {.dirty.} =
-  dumpPerformance(fnl, p, training, fenfit, samples = 1)
+  dumpPerformance(fnl, p, training, samples = 1)
 
 suite "simulation":
   var et = getTime()
@@ -151,7 +145,7 @@ suite "simulation":
     dumpStats()
 
   et = getTime()
-  var best = Score NaN
+  var best = NaN
   var lastGeneration: Generation
   block:
     ## ran until we can average two numbers
