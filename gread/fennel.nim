@@ -525,7 +525,7 @@ when compileOption"threads":
     evo.fitone = args.fitone
     evo.fitmany = args.fitmany
     evo.population = evo.randomPop()
-    resetParsimony evo.population
+    evo.population.resetParsimony()
 
     var evoTime = getTime()
     var shared: PackedSet[Hash]
