@@ -300,6 +300,8 @@ reported.
 
 ### defines
 
+- `greadFast` use partial evaluation of dataset for faster evolution
+- `greadHoeffding` set the degree of precision for above; `N` means `1/N`
 - `greadDebug` might enable some debugging here and there
 - `greadProfile` profiles some interesting parts of the system
 - `greadWrapping` enables wrapping of the genome during mapping _(not fully implemented yet)_
