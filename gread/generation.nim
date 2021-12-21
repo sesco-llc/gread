@@ -11,6 +11,7 @@ import gread/evolver
 
 proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
   ## try to create a novel program from better existing programs
+  mixin strength
 
   let clock = getTime()
 
@@ -35,7 +36,7 @@ proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
           # sample all datapoints in order to develop useful score
           evo.score(p)
       if s.isSome:
-        p.score = get s
+        p.score = strength(get s)
       else:
         p.zombie = true
 

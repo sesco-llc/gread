@@ -39,7 +39,7 @@ type
     core*: Option[int]
     vm*: PState
     runs*: uint
-    cache: LPTab[Hash, Score]
+    cache: LPTab[Hash, LuaValue]
     nans*: LuaStat
     errors*: LuaStat
     hits*: LuaStat
@@ -56,7 +56,14 @@ type
 
   Locals* = SymbolSet[Lua, LuaValue]
 
-  FenFit = proc(locals: Locals; ideal: LuaValue): Score
+proc isValid*(score: LuaValue): bool =
+  score.kind != TInvalid
+
+proc strength*(score: LuaValue): float =
+  if score.kind == TNumber:
+    score.toFloat
+  else:
+    raise Defect.newException "only numbers are strong enough"
 
 proc `$`*[T: Lua](n: AstNode[T]): string =
   ## rendering lua ast kinds
@@ -251,7 +258,7 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   vm.checkLua vm.doString s.cstring:
     result = popStack vm
 
-proc evaluate*(lua: Lua; p: LProg; locals: Locals; fit: FenFit): Score =
+proc evaluate*(lua: Lua; p: LProg; locals: Locals): LuaValue =
   var h = hash(p, locals)
   try:
     # try to fetch the score from cache
@@ -259,7 +266,7 @@ proc evaluate*(lua: Lua; p: LProg; locals: Locals; fit: FenFit): Score =
     lua.hits.push 1.0
   except KeyError:
     # prepare to run the vm
-    result = NaN
+    result = LuaValue(kind: TInvalid)
     lua.hits.push 0.0
     inc lua.runs
     try:
@@ -270,7 +277,7 @@ proc evaluate*(lua: Lua; p: LProg; locals: Locals; fit: FenFit): Score =
       lua.errors.push 0.0
       # score a resultant value if one was produced
       if not stack.isNil:
-        result = fit(locals, stack.value)
+        result = stack.value
     except LuaError as e:
       when semanticErrorsAreFatal:
         debugEcho $p
@@ -282,43 +289,37 @@ proc evaluate*(lua: Lua; p: LProg; locals: Locals; fit: FenFit): Score =
 
     # any failure to produce a scorable value
     lua.nans.push:
-      if result.isNaN:
-        p.zombie = true
-        1.0
-      else:
+      if result.isValid:
         # if it's valid, we'll cache it
         lua.cache[h] = result
         0.0
+      else:
+        p.zombie = true
+        1.0
 
 proc dumpScore*(lua: Lua; p: LProg) =
-  when false:
-    var s = fmt"{p.score}[{p.len}] at #{p.generation} "
-    if p.source != 0:
-      s.add fmt"from {p.source} "
-    s.add "for "
-  else:
-    var s = fmt"{p.score}[{p.len}]: "
+  var s = fmt"{p.score}[{p.len}]: "
   s.add $p
   checkpoint s
 
 proc dumpPerformance*(lua: Lua; p: LProg; training: seq[Locals];
-                      fenfit: FenFit; samples = 8) =
+                      samples = 8) =
   ## dumps the performance of a program across `samples` training inputs;
   ## the stddev and sum of squares are provided
   if not p.isNil:
     var results = newSeqOfCap[float](training.len)
     for index, value in training.pairs:
-      let s = evaluate(lua, p, value, fenfit)
+      let s = evaluate(lua, p, value)
       if index < samples or index == training.high:
         checkpoint $value, "->", s
       if s.isValid:
-        results.add s.float
+        results.add s.toFloat
     checkpoint "  stddev:", Score stddev(results)
     checkpoint "      ss: ", Score ss(results)
     lua.dumpScore p
 
-proc dumpPerformance*(lua: Lua; p: LProg; training: seq[(Locals, Score)];
-                      fenfit: FenFit; samples = 8) =
+proc dumpPerformance*(lua: Lua; p: LProg; training: seq[(Locals, LuaValue)];
+                      samples = 8) =
   ## as in the prior overload, but consumes training data with associated
   ## ideal result values for each set of symbolic inputs; correlation is
   ## additionally provided
@@ -326,7 +327,7 @@ proc dumpPerformance*(lua: Lua; p: LProg; training: seq[(Locals, Score)];
     var results: seq[float]
     var ideals: seq[float]
     for index, value in training.pairs:
-      let s = evaluate(lua, p, value[0], fenfit)
+      let s = evaluate(lua, p, value[0])
       if not s.isValid:
         return
       if 0 == index mod samples or index == training.high:
@@ -335,8 +336,8 @@ proc dumpPerformance*(lua: Lua; p: LProg; training: seq[(Locals, Score)];
           checkpoint fmt"{float(value[1]):>7.2f}"
         else:
           checkpoint fmt"{float(value[1]):>7.2f} -> {delta:>7.2f}     -> {sum(results):>7.2f}    {index}"
-      if s.isValid:
-        results.add s.float
+      if s.isValid and s.kind == TNumber:
+        results.add s.toFloat
         ideals.add abs(value[1].float)
     if results.len > 0:
       checkpoint "stddev:", stddev(results),
@@ -345,9 +346,11 @@ proc dumpPerformance*(lua: Lua; p: LProg; training: seq[(Locals, Score)];
                  "of ideal:", (sum(results) / sum(ideals)).percent
     lua.dumpScore p
 
-proc dumpStats*(lua: Lua; pop: Population; evoTime: Time;
-                genTime: LuaStat) =
+proc dumpStats*(evo: Evolver; evoTime: Time) =
   ## a threadsafe echo of some statistics regarding the vm and population
+  var lua = evo.platform
+  var pop = evo.population
+  template genTime: LuaStat = evo.generationTime
   let m = pop.metrics
   let threaded = when compileOption"threads": $getThreadId() else: "-"
   if not pop.fittest.isNil:
@@ -533,8 +536,9 @@ when compileOption"threads":
     while evo.population.generations.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
-      for invalid in invalidPrograms(args):
-        lua.cache[invalid.hash] = Score NaN
+      when false:
+        for invalid in invalidPrograms(args):
+          lua.cache[invalid.hash] = Score NaN
 
       search(args, evo.population)   # fresh meat from other threads
 
@@ -557,7 +561,7 @@ when compileOption"threads":
           p.core = lua.core
 
         if p.generation mod args.stats == 0:
-          dumpStats(lua, evo.population, evoTime, evo.generationTime)
+          dumpStats(evo, evoTime)
           clearStats evo
 
         when false:

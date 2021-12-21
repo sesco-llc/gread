@@ -39,7 +39,7 @@ type
     grammar*: Grammar[T]
     operators*: seq[OperatorWeight[T, V]]  ## operators & their weights
     dataset*: seq[SymbolSet[T, V]]
-    targets*: Option[seq[Score]]
+    targets*: Option[seq[V]]
     fitone*: FitOne[T, V]
     fitmany*: FitMany[T, V]
     io*: IO[T]                             ## how we send/receive genes
@@ -90,7 +90,7 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
                      operators: openArray[OperatorWeight[T, V]] = @[];
                      dataset: seq[SymbolSet[T, V]] = @[];
                      fitone: FitOne[T, V] = nil; fitmany: FitMany[T, V] = nil;
-                     targets = none seq[Score];
+                     targets = none seq[V];
                      core = none int; stats = 1000) =
   ## initialize a work object for passing setup instructions to worker threads;
   ## this is now just a convenience to reduce line count

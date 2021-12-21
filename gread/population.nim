@@ -344,16 +344,14 @@ when populationCache:
     withInitialized pop:
       p.hash in pop.cache
 
-proc scoreChanged*(pop: Population; p: Program; s: Option[Score]; index: int) =
+proc scoreChanged*[V](pop: Population; p: Program; s: Option[V]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
   ## is used to update metrics, parsimony, and the `fittest` population member
   withInitialized pop:
     if p.score.isValid:
       pop.ken.scores.pop p.score
-    if s.isSome and not s.get.isValid:
-      raise
     if s.isSome and s.get.isValid:
-      p.score = get s
+      p.score = strength(get s)
       pop.ken.scores.push p.score
       p.zombie = false  # NOTE: trigger a defect if necessary
       when not defined(greadFast):

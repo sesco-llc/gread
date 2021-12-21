@@ -25,11 +25,11 @@ const
 
 type
   UnfitError* = object of ValueError
-  FitOne*[T; V] = proc(q: T; s: SymbolSet[T, V]; p: Program[T]): Option[Score] ##
+  FitOne*[T; V] = proc(q: T; s: SymbolSet[T, V]; p: Program[T]): Option[V] ##
   ## a fitness function that runs against a single symbolset
 
-  FitMany*[T; V] = proc(q: T; iter: iterator(): (SymbolSet[T, V], Score);
-                        p: Program[T]): Option[Score] ##
+  FitMany*[T; V] = proc(q: T; iter: iterator(): (SymbolSet[T, V], V);
+                        p: Program[T]): Option[V] ##
   ## a fitness function that runs against a series of symbolsets
 
   Operator*[T, V] = proc(pop: var Evolver[T, V]): Option[Program[T]] {.nimcall.}
@@ -42,7 +42,7 @@ type
     fitone: FitOne[T, V]
     fitmany: FitMany[T, V]
     dataset: seq[SymbolSet[T, V]]
-    targets: Option[seq[Score]]
+    targets: Option[seq[V]]
     weights: LPTab[int, float]
     balance: AliasMethod[int]
     core: CoreSpec
@@ -52,7 +52,7 @@ type
     gentime: MovingStat[float32]
     shorties: MovingStat[float32]
     novel: LPTab[Hash, PackedSet[int]]
-    cache: LPTab[Hash, seq[Option[Score]]]
+    cache: LPTab[Hash, seq[Option[V]]]
     cacheCounter: int
     indexes: PackedSet[int]
 
@@ -138,7 +138,8 @@ proc `dataset=`*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]]) =
   # a complete reset of the dataset clears the program cache
   evo.resetCache()
 
-proc `dataset=`*[T, V](evo: var Evolver[T, V]; dataset: seq[(SymbolSet[T, V], Score)]) =
+proc `dataset=`*[T, V](evo: var Evolver[T, V];
+                       dataset: seq[(SymbolSet[T, V], V)]) =
   ## assign a series of possible inputs, and their expected outputs
   evo.dataset = mapIt(dataset, it[0])
   evo.targets = some mapIt(dataset, it[1])
@@ -146,7 +147,7 @@ proc `dataset=`*[T, V](evo: var Evolver[T, V]; dataset: seq[(SymbolSet[T, V], Sc
 proc dataset*[T, V](evo: Evolver[T, V]): lent seq[SymbolSet[T, V]] =
   evo.dataset
 
-proc `targets=`*[T, V](evo: var Evolver[T, V]; targets: seq[Score]) =
+proc `targets=`*[T, V](evo: var Evolver[T, V]; targets: seq[V]) =
   evo.targets = some targets
 
 proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau) =
@@ -191,7 +192,7 @@ iterator sampleSets(evo: var Evolver; a, b: Program): PackedSet[int] =
   yield evo.indexes - (x + y)
 
 proc getScoreFromCache[T, V](evo: var Evolver[T, V]; p: Program;
-                             index: int): Option[Score] =
+                             index: int): Option[V] =
   ## load optional score using dataset[index] (symbol set)
   assert evo.hasSampled(p, index)
   var s = evo.cache.mgetOrPut(p.hash, @[])
@@ -200,22 +201,23 @@ proc getScoreFromCache[T, V](evo: var Evolver[T, V]; p: Program;
   result = s[index]
 
 proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
-                           score: Option[Score]) =
+                           score: Option[V]) =
   ## store optional score using dataset[index] (symbol set)
   demandValid score
+  mixin strength
   var ps = evo.novel.mgetOrPut(p.hash, initPackedSet[int]())
   if not evo.novel[p.hash].containsOrIncl(index):
     inc evo.cacheCounter
     var s = evo.cache.mgetOrPut(p.hash, @[])
     setLen(s, max(s.len, index + 1))
     if score.isSome:
-      p.push score.get
+      p.push strength(get score)
       s[index] = score
     evo.cache[p.hash] = s  # because otherwise, our setLen may have CoW'd it
 
-proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
+proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[V] =
   ## compute a new score for the program using prior evaluations
-  if p.zombie: return none Score
+  if p.zombie: return none V
 
   if p.isNil:
     raise
@@ -228,7 +230,7 @@ proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
   let data = unsafeAddr evo.dataset           # speed
 
   # setting up an iterator over populated cache entries
-  iterator iter(): (SymbolSet[T, V], Score) =
+  iterator iter(): (SymbolSet[T, V], V) =
     for index in novel.items:
       if cache[index].isNone:
         raise UnfitError.newException "cache lacks value"
@@ -240,10 +242,10 @@ proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[Score] =
     result = evo.fitmany(evo.platform, iter, p)
     demandValid result
   except UnfitError:
-    result = none Score
+    result = none V
 
 proc score*[T, V](evo: var Evolver[T, V]; index: int;
-                  p: Program[T]): Option[Score] =
+                  p: Program[T]): Option[V] =
   ## score the program against a single symbol set; we'll run the
   ## evolver's `fitone` function against the platform and data record
   ## to evaluate the program result. this scoring function also runs
@@ -252,7 +254,7 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   elif p.zombie:
-    return none Score
+    return none V
   else:
     if evo.hasSampled(p, index):
       result = evo.getScoreFromCache(p, index)
@@ -264,7 +266,7 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
       evo.addScoreToCache(p, index, result)
 
 proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
-                  p: Program[T]): Option[Score] {.deprecated: "use index".} =
+                  p: Program[T]): Option[V] {.deprecated: "use index".} =
   ## score the program against a single symbol set; if the program cache
   ## is enabled via its `programCache` constant, then we might simply
   ## fetch the score from there. otherwise, we'll run the evolver's
@@ -274,7 +276,7 @@ proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   elif p.zombie:
-    return none Score
+    return none V
   else:
     result = p.getScoreFromCache(s.hash)
     if result.isNone:
@@ -285,18 +287,18 @@ proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
       p.addScoreToCache(s.hash, result)
 
 proc score*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
-                  p: Program[T]): Option[Score] {.deprecated: "use greadFast".} =
+                  p: Program[T]): Option[V] {.deprecated: "use greadFast".} =
   ## score a program against a series of symbol sets
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   elif evo.fitmany.isNil:
     raise ValueError.newException "evolver needs fitmany assigned"
   elif p.zombie:
-    result = none Score
+    result = none V
   else:
     let e = addr evo
     # the iterator evaluates each symbol set in the dataset
-    iterator iter(): (SymbolSet[T, V], Score) =
+    iterator iter(): (SymbolSet[T, V], V) =
       for index, ss in dataset.pairs:
         let s =
           when defined(greadFast):
@@ -314,14 +316,14 @@ proc score*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
       result = evo.fitmany(evo.platform, iter, p)
       demandValid result
     except UnfitError:
-      result = none Score
+      result = none V
 
-proc score*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[Score] =
+proc score*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   ## score the program against all available symbol sets
   evo.score(evo.dataset, p)
 
 proc scoreRandomly*[T, V](evo: var Evolver[T, V];
-                          p: Program[T]): Option[Score] =
+                          p: Program[T]): Option[V] =
   ## evaluate a program against a random symbol set; a smoke test
   evo.score(rand evo.dataset.high, p)
 
@@ -356,6 +358,7 @@ proc randomSymbols*[T, V](evo: Evolver[T, V]): SymbolSet[T, V] =
 
 proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
   ## create a new (random) population using the given evolver's parameters
+  mixin strength
   result = newPopulation[T](evo.tableau.seedPopulation, core = evo.core)
   result.toggleParsimony(evo.tableau.useParsimony)
   while result.len < evo.tableau.seedPopulation:
@@ -373,7 +376,7 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
         else:
           evo.score(p)
       if s.isSome:
-        p.score = get s
+        p.score = strength(get s)
       else:
         p.score = NaN
       if not evo.tableau.requireValid or p.isValid:
@@ -471,5 +474,6 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
     result = cmp(evo.population.score(get a1, a.len, get b1),
                  evo.population.score(get b1, b.len, get a1))
   else:
-    result = cmp(a1.get, b1.get)
+    # FIXME: better()?
+    result = cmp(strength(get a1), strength(get b1))
   debug "returning cmp; ", a1.get, " vs ", b1.get, " = ", result

@@ -37,7 +37,7 @@ type
     gtokLeftPar = "("
     gtokRightPar = ")"
 
-# a convenience
+# a convenience (which doesn't work in generic object ctors 😠)
 converter toInt16(gk: GKind): int16 {.used.} = int16 gk
 
 proc `$`*[T: G](n: AstNode[T]): string =
@@ -72,24 +72,24 @@ proc terminalNode*[T: G](a: var Ast[T]; term: Terminal[T]): AstNode[T] =
   of Token:
     tokenNode(a, term.token, text = term.text)
   of None:
-    AstNode[T](kind: Nop)
+    AstNode[T](kind: Nop.toInt16)
   of Symbol:
-    AstNode[T](kind: Sym, operand: a.strings.getOrIncl term.name)
+    AstNode[T](kind: Sym.toInt16, operand: a.strings.getOrIncl term.name)
   of String:
-    AstNode[T](kind: Str, operand: a.strings.getOrIncl term.strVal)
+    AstNode[T](kind: Str.toInt16, operand: a.strings.getOrIncl term.strVal)
   of Float:
-    AstNode[T](kind: Flo,
+    AstNode[T](kind: Flo.toInt16,
                operand: a.numbers.getOrIncl cast[BiggestInt](term.floatVal))
   of Integer:
-    AstNode[T](kind: Int,
+    AstNode[T](kind: Int.toInt16,
                operand: a.numbers.getOrIncl cast[BiggestInt](term.intVal))
   of Boolean:
-    AstNode[T](kind: Bul,
+    AstNode[T](kind: Bul.toInt16,
                operand: a.numbers.getOrIncl cast[BiggestInt](term.boolVal))
 
 proc composeCall*[T: G](fun: Function[T]): Ast[T] =
   result.nodes.add:
-    terminalNode(result, Terminal[T](kind: Token, token: Dad))
+    terminalNode(result, Terminal[T](kind: Token, token: Dad.toInt16))
   result = result.append(Terminal[T](kind: Symbol, name: fun.ident), parent = 0)
 
 proc render*[T: G](a: Ast[T]; n: AstNode[T]; index = 0): string =

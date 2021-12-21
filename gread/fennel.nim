@@ -37,7 +37,7 @@ type
     core*: Option[int]
     vm*: PState
     runs*: uint
-    cache: LPTab[Hash, Score]
+    cache: LPTab[Hash, LuaValue]
     nans*: FennelStat
     errors*: FennelStat
     hits*: FennelStat
@@ -54,7 +54,14 @@ type
 
   Locals* = SymbolSet[Fennel, LuaValue]
 
-  FenFit = proc(locals: Locals; ideal: LuaValue): Score
+proc isValid*(score: LuaValue): bool =
+  score.kind != TInvalid
+
+proc strength*(score: LuaValue): float =
+  if score.kind == TNumber:
+    score.toFloat
+  else:
+    raise Defect.newException "only numbers are strong enough"
 
 proc `$`*[T: Fennel](n: AstNode[T]): string =
   ## rendering fennel ast kinds
@@ -283,7 +290,7 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
     vm.getGlobal "result"
     result = popStack vm
 
-proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
+proc evaluate*(fnl: Fennel; p: FProg; locals: Locals): LuaValue =
   var h = hash(p, locals)
   try:
     # try to fetch the score from cache
@@ -291,7 +298,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
     fnl.hits.push 1.0
   except KeyError:
     # prepare to run the vm
-    result = NaN
+    result = LuaValue(kind: TInvalid)
     fnl.hits.push 0.0
     inc fnl.runs
     try:
@@ -302,7 +309,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
       fnl.errors.push 0.0
       # score a resultant value if one was produced
       if not stack.isNil:
-        result = fit(locals, stack.value)
+        result = stack.value
     except LuaError as e:
       when semanticErrorsAreFatal:
         debugEcho $p
@@ -314,43 +321,38 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals; fit: FenFit): Score =
 
     # any failure to produce a scorable value
     fnl.nans.push:
-      if result.isNaN:
-        p.zombie = true
-        1.0
-      else:
+      if result.isValid:
         # if it's valid, we'll cache it
         fnl.cache[h] = result
         0.0
+      else:
+        p.zombie = true
+        1.0
 
 proc dumpScore*(fnl: Fennel; p: FProg) =
-  when false:
-    var s = fmt"{p.score}[{p.len}] at #{p.generation} "
-    if p.source != 0:
-      s.add fmt"from {p.source} "
-    s.add "for "
-  else:
-    var s = fmt"{p.score}[{p.len}]: "
+  var s = fmt"{p.score}[{p.len}]: "
   s.add $p
   checkpoint s
 
 proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
-                      fenfit: FenFit; samples = 8) =
+                      samples = 8) =
   ## dumps the performance of a program across `samples` training inputs;
   ## the stddev and sum of squares are provided
   if not p.isNil:
     var results = newSeqOfCap[float](training.len)
     for index, value in training.pairs:
-      let s = evaluate(fnl, p, value, fenfit)
+      let s = evaluate(fnl, p, value)
       if index < samples or index == training.high:
         checkpoint "ideal: ", $value, "-> gp: ", s
-      if s.isValid:
-        results.add s.float
-    checkpoint "  stddev:", Score stddev(results)
-    checkpoint "      ss: ", Score ss(results)
+      if s.isValid and s.kind == TNumber:
+        results.add s.toFloat
+    if results.len > 0:
+      checkpoint "  stddev:", Score stddev(results)
+      checkpoint "      ss: ", Score ss(results)
     fnl.dumpScore p
 
-proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
-                      fenfit: FenFit; samples = 8) =
+proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, LuaValue)];
+                      samples = 8) =
   ## as in the prior overload, but consumes training data with associated
   ## ideal result values for each set of symbolic inputs; correlation is
   ## additionally provided
@@ -359,7 +361,7 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, Score)];
     var ideals: seq[float]
     var deltas: seq[float]
     for index, value in training.pairs:
-      let s = evaluate(fnl, p, value[0], fenfit)
+      let s = evaluate(fnl, p, value[0])
       if s.isValid:
         results.add s.float
         ideals.add value[1].float
@@ -512,6 +514,7 @@ when compileOption"threads":
       result = evo.cacheSize(p) == evo.dataset.len
 
   proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
+    mixin strength
     let fnl = newFennel(core = args.core)
     var evo: Evolver[Fennel, LuaValue]
     initEvolver(evo, fnl, args.tableau)

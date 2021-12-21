@@ -47,38 +47,29 @@ for (x, y) in data.items:
     initLocals [("x", x.toLuaValue), ("y", y.toLuaValue)]
 
 # preparing a map between inputs and ideal output for reporting reasons
-var training: seq[(Locals, Score)]
+var training: seq[(Locals, LuaValue)]
 for locals in dataset.items:
-  training.add (locals, Score locals["y"].toFloat)
+  training.add (locals, locals["y"].value)
 
-proc fenfit(inputs: Locals; output: LuaValue): Score =
-  ## fenfit gates program output such that producing a NaN will terminate
-  ## scoring of the program early, and mark the program as invalid
-  if output.kind == TNumber:
-    output.toFloat
-  else:
-    NaN
-
-proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
+proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[LuaValue] =
   ## given a datapoint, run the program and return the residual
-  let s = evaluate(fnl, p, locals, fenfit)
+  let s = evaluate(fnl, p, locals)
   if s.isValid:
     result =
       some:
-        Score -abs(locals["y"].toFloat - s.float)
+        toLuaValue -abs(locals["y"].toFloat - s.toFloat)
 
-proc fitmany(fnl: Fennel; iter: iterator(): (Locals, Score);
-             p: FProg): Option[Score] =
+proc fitmany(fnl: Fennel; iter: iterator(): (Locals, LuaValue);
+             p: FProg): Option[LuaValue] =
   ## given several residuals, return the sum of squares
   var results = newSeqOfCap[float](data.len)
   for locals, s in iter():
     if s.isValid:
       results.add s
     else:
-      return none Score
+      return none LuaValue
   if results.len > 0:
-    #let s = Score -min(100.0, ss(results))
-    let s = Score -ss(results)
+    let s = toLuaValue -ss(results)
     if s.isValid:
       result = some s
 
@@ -101,7 +92,7 @@ when isMainModule:
         if not seen.containsOrIncl(p.hash):
           if best.isNil or not best.score.isValid or best.score < p.score:
             best = p
-            dumpPerformance(fnl, best, training, fenfit, samples = 1)
+            dumpPerformance(fnl, best, training, samples = 1)
             if best.score > goodEnough:
               echo "winner, winner, chicken dinner: ", best.score
               echo "last generation: ", p.generation, " secs: ", (getTime() - et).inSeconds

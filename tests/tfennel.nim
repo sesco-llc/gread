@@ -65,38 +65,6 @@ const
     <value>        ::= "a" | "b"
   """
 
-proc fenfit(inputs: Locals; output: LuaValue): Score =
-  Score:
-    if output.kind == TNumber:
-      output.toFloat
-    else:
-      NaN
-
-when false:
-  proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[Score] =
-    let s = evaluate(fnl, p, locals, fenfit)
-    if not s.isNaN:
-      var fib = locals["a"].toFloat + locals["b"].toFloat
-      result =
-        some:
-          Score -abs(fib - s.float)
-
-  proc fitmany(fnl: Fennel; data: openArray[(Locals, Score)];
-               p: FProg): Option[Score] =
-    var esses = newSeqOfCap[float](data.len)
-    var ideal = newSeqOfCap[float](data.len)
-    var total: float
-    for locals, s in data.items:
-      if s.isNaN:
-        return none Score
-      else:
-        ideal.add locals["a"].toFloat + locals["b"].toFloat
-        esses.add s
-    if esses.len > 0:
-      result =
-        some:
-          Score -ss(esses)
-
 suite "basic fennel stuff":
   var fnl: Fennel
   var p: FProg
@@ -121,7 +89,7 @@ suite "basic fennel stuff":
   block:
     ## run a fennel program
     var locals: Locals
-    let score = fnl.evaluate(p, locals, fenfit)
+    let score = fnl.evaluate(p, locals)
     checkpoint score
     check score.float == 3.0
 
@@ -145,7 +113,7 @@ suite "basic fennel stuff":
         "a": 3.toLuaValue,
         "b": 5.toLuaValue,
       }
-    let score = fnl.evaluate(p, locals, fenfit)
+    let score = fnl.evaluate(p, locals)
     check score.float == 8.0
 
   block:
@@ -169,6 +137,6 @@ suite "basic fennel stuff":
         "a": 3.toLuaValue,
         "b": 5.toLuaValue,
       }
-    let score = fnl.evaluate(p, locals, fenfit)
+    let score = fnl.evaluate(p, locals)
     checkpoint $score
     check not score.float.isNaN

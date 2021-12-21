@@ -59,38 +59,6 @@ c.functions = @[
   fun("*", arity=2), fun("/", arity=2),
 ]
 
-proc luafit(inputs: Locals; output: LuaValue): Score =
-  Score:
-    if output.kind == TNumber:
-      output.toFloat
-    else:
-      NaN
-
-when false:
-  proc fitone(lua: Lua; locals: Locals; p: LProg): Option[Score] =
-    let s = evaluate(lua, p, locals, luafit)
-    if not s.isNaN:
-      var fib = locals["a"].toFloat + locals["b"].toFloat
-      result =
-        some:
-          Score -abs(fib - s.float)
-
-  proc fitmany(lua: Lua; data: openArray[(Locals, Score)];
-               p: LProg): Option[Score] =
-    var esses = newSeqOfCap[float](data.len)
-    var ideal = newSeqOfCap[float](data.len)
-    var total: float
-    for locals, s in data.items:
-      if s.isNaN:
-        return none Score
-      else:
-        ideal.add locals["a"].toFloat + locals["b"].toFloat
-        esses.add s
-    if esses.len > 0:
-      result =
-        some:
-          Score -ss(esses)
-
 suite "basic lua stuff":
   var p: LProg
   var lua: Lua
@@ -115,7 +83,7 @@ suite "basic lua stuff":
   block:
     ## run a lua program
     var locals: Locals
-    let score = lua.evaluate(p, locals, luafit)
+    let score = lua.evaluate(p, locals)
     checkpoint score
     check score.float == 3.0
 
@@ -139,7 +107,7 @@ suite "basic lua stuff":
         "a": 3.toLuaValue,
         "b": 5.toLuaValue,
       }
-    let score = lua.evaluate(p, locals, luafit)
+    let score = lua.evaluate(p, locals)
     check score.float == 8.0
 
   block:
@@ -163,6 +131,6 @@ suite "basic lua stuff":
         "a": 3.toLuaValue,
         "b": 5.toLuaValue,
       }
-    let score = lua.evaluate(p, locals, luafit)
+    let score = lua.evaluate(p, locals)
     checkpoint $score
     check not score.float.isNaN

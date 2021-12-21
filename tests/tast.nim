@@ -9,7 +9,7 @@ import gread/ast
 import gread/programs
 import gread/primitives
 
-import ./glang
+include ./glang
 
 var prims = newPrimitives[G]()
 prims.functions = @[fun"+"]
