@@ -61,7 +61,8 @@ proc corker*(queue: CQ) {.thread.} =
       if not c.isNil:
         work.addLast c
       if work.len == 0:
-        sleep 1
+        when not defined(greadBenchmark):
+          sleep 2000
       else:
         # trampoline that tolerates errors and coops
         var o: Continuation = work.popFirst()
