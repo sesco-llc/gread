@@ -49,5 +49,6 @@ proc geMutation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
     let x = geMutation(evo.grammar, a.genome)
     if x.isSome:
       result = some: newProgram(x.get.ast, x.get.genome)
+    evo.shortGenome false
   except ShortGenome:
     evo.shortGenome true
