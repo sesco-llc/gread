@@ -69,6 +69,14 @@ iterator keys*[T, V](ss: SymbolSet[T, V]): string =
   for point in ss.values.items:
     yield point.name
 
+iterator values*[T, V](ss: ptr SymbolSet[T, V]): ptr DataPoint[T, V] =
+  ## when provided a ptr, yield ptrs to the datapoints within
+  var i = 0
+  var hi = ss[].values.high
+  while i < hi:
+    yield addr ss[].values[i]
+    inc i
+
 proc values*[T, V](ss: SymbolSet[T, V]): lent seq[DataPoint[T, V]] =
   ss.values
 

@@ -50,7 +50,7 @@ proc remover[T, V](evo: var Evolver[T, V];
   evo.population.scoreChanged(c.program, s, c.index)
   del(competitors, i)
 
-proc discharge(evo: Evolver; c: Competitor) =
+proc discharge(evo: var Evolver; c: Competitor) =
   ## a modern remover
   scoreChanged(evo.population, c.program,
                evo.scoreFromCache(c.program), c.index)

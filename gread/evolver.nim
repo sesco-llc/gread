@@ -28,7 +28,7 @@ type
   FitOne*[T; V] = proc(q: T; s: SymbolSet[T, V]; p: Program[T]): Option[V] ##
   ## a fitness function that runs against a single symbolset
 
-  FitMany*[T; V] = proc(q: T; iter: iterator(): (SymbolSet[T, V], V);
+  FitMany*[T; V] = proc(q: T; iter: iterator(): (ptr SymbolSet[T, V], ptr V);
                         p: Program[T]): Option[V] ##
   ## a fitness function that runs against a series of symbolsets
 
@@ -208,14 +208,26 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
   var ps = evo.novel.mgetOrPut(p.hash, initPackedSet[int]())
   if not evo.novel[p.hash].containsOrIncl(index):
     inc evo.cacheCounter
-    var s = evo.cache.mgetOrPut(p.hash, @[])
-    setLen(s, max(s.len, index + 1))
+    try:
+      # omit it for now
+      when false:
+        var s: seq[Option[V]]
+        s = evo.cache[p.hash]
+        if index > s.high:
+          # need to check the performance on these
+          #setLen(s, max(s.len, index + 1))
+          raise Defect.newException "disallowed at the moment"
+        s[index] = score
+      evo.cache[p.hash][index] = score
+    except KeyError:
+      var s: seq[Option[V]]
+      newSeq(s, evo.dataset.len)  # work around cps `()`()
+      s[index] = score
+      evo.cache[p.hash] = s
     if score.isSome:
       p.push strength(get score)
-      s[index] = score
-    evo.cache[p.hash] = s  # because otherwise, our setLen may have CoW'd it
 
-proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[V] =
+proc scoreFromCache*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   ## compute a new score for the program using prior evaluations
   if p.zombie: return none V
 
@@ -225,17 +237,20 @@ proc scoreFromCache*[T, V](evo: Evolver[T, V]; p: Program[T]): Option[V] =
   if p.hash == 0.Hash:
     raise
 
-  let cache = evo.cache.getOrDefault(p.hash)  # capture
-  let novel = evo.novel.getOrDefault(p.hash)  # capture
-  let data = unsafeAddr evo.dataset           # speed
+  if p.hash notin evo.cache or p.hash notin evo.novel:
+    return none V
+
+  let cache = addr evo.cache[p.hash]    # capture
+  let novel = addr evo.novel[p.hash]    # capture
+  let data = addr evo.dataset           # speed
 
   # setting up an iterator over populated cache entries
-  iterator iter(): (SymbolSet[T, V], V) =
-    for index in novel.items:
-      if cache[index].isNone:
-        raise UnfitError.newException "cache lacks value"
+  iterator iter(): (ptr SymbolSet[T, V], ptr V) =
+    for index in novel[].items:
+      if cache[][index].isNone:
+        raise Defect.newException "cache missing value"
       else:
-        yield (data[index], get cache[index])
+        yield (addr data[][index], addr (get cache[][index]))
 
   # pass the iterator to fitmany() and check the result
   try:

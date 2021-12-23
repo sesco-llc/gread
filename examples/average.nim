@@ -105,12 +105,12 @@ proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[LuaValue] =
       some:
         toLuaValue -abs(locals["ideal"].toFloat - s.float)
 
-proc fitmany(fnl: Fennel; iter: iterator(): (Locals, LuaValue);
+proc fitmany(fnl: Fennel; iter: iterator(): (ptr Locals, ptr LuaValue);
              p: FProg): Option[LuaValue] =
   var results: seq[float]
   for locals, s in iter():
-    if s.isValid:
-      results.add s
+    if s[].isValid:
+      results.add s[]
     else:
       return none LuaValue
   if results.len > 0:
