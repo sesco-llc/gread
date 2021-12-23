@@ -204,28 +204,29 @@ proc hash(p: FProg; locals: Locals): Hash =
   h = h !& locals.hash
   result = !$h
 
-converter toFennelNodeKind*(n: int16): FennelNodeKind {.inline.} = FennelNodeKind n
 converter toInt16(n: FennelNodeKind): int16 {.inline.} = int16 n
 
+template fnk(n: typed): FennelNodeKind = FennelNodeKind n
+
 func isParent*(n: AstNode[Fennel]): bool {.inline.} =
-  fennelAllowedSubnodes[n.kind] != {}
+  fennelAllowedSubnodes[fnk n.kind] != {}
 
 func isSymbol*(n: AstNode[Fennel]): bool {.inline.} =
-  n.kind == fennelSymbol
+  fnk(n.kind) == fennelSymbol
 
 func isStringLit*(n: AstNode[Fennel]): bool {.inline.} =
-  n.kind == fennelString
+  fnk(n.kind) == fennelString
 
 func isNumberLit*(n: AstNode[Fennel]): bool {.inline.} =
-  n.kind in {fennelNumber, fennelBoolean}
+  fnk(n.kind) in {fennelNumber, fennelBoolean}
 
 func isEmpty*(n: AstNode[Fennel]): bool {.inline.} =
-  n.kind == fennelNil
+  fnk(n.kind) == fennelNil
 
 proc render[T](a: Ast[T]; n: AstNode[T]; i = 0): string =
   ## render a fennel node from Ast `a`
   if n.isParent:
-    case n.kind
+    case fnk(n.kind)
     of fennelMultiSymbol:
       var syms: seq[string]
       for sym in children(a, i):
@@ -240,13 +241,13 @@ proc render[T](a: Ast[T]; n: AstNode[T]; i = 0): string =
   elif n.isStringLit:
     escapeJson(a.strings[LitId n.operand], result)
     result
-  elif n.kind in fennelTokenKinds:
-    strRepr n.kind
+  elif fnk(n.kind) in fennelTokenKinds:
+    strRepr fnk(n.kind)
   elif n.isNumberLit:
     $cast[BiggestFloat](a.numbers[LitId n.operand])
   else:
     raise Defect.newException:
-      "unimpl node kind: $# ($#)" % [ strRepr(n.kind), $n.kind ]
+      "unimpl node kind: $# ($#)" % [ strRepr(fnk n.kind), $n.kind ]
 
 proc render*(a: Ast[Fennel]): string =
   ## render fennel ast in a form that can be compiled
