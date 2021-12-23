@@ -61,7 +61,8 @@ proc strength*(score: LuaValue): float =
   if score.kind == TNumber:
     score.toFloat
   else:
-    raise Defect.newException "only numbers are strong enough"
+    1.0
+    #raise Defect.newException "only numbers are strong enough"
 
 proc `$`*[T: Fennel](n: AstNode[T]): string =
   ## rendering fennel ast kinds
@@ -113,7 +114,7 @@ proc clearStats*(fnl: Fennel) =
   clear fnl.nans
   clear fnl.errors
   clear fnl.hits
-  clear fnl.runtime
+  #clear fnl.runtime
   when false:
     let began = getTime()
     fnl.vm.checkLua fnl.vm.gc(GcCollect, 0):
@@ -362,12 +363,12 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, LuaValue)];
     var deltas: seq[float]
     for index, value in training.pairs:
       let s = evaluate(fnl, p, value[0])
-      if s.isValid:
+      if s.isValid and s.kind == TNumber:
         results.add s.float
         ideals.add value[1].float
         deltas.add abs(value[1].float - s.float)
       else:
-        return
+        break
       if 0 == index mod samples or index == training.high:
         let delta = abs(value[1].float - s.float)
         if delta in [0.0, -0.0]:

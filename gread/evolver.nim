@@ -278,13 +278,10 @@ proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
   elif p.zombie:
     return none V
   else:
-    result = p.getScoreFromCache(s.hash)
-    if result.isNone:
-      let began = getTime()
-      result = evo.fitone(evo.platform, s, p)
-      demandValid result
-      p.runtime.push (getTime() - began).inMilliseconds.float
-      p.addScoreToCache(s.hash, result)
+    let began = getTime()
+    result = evo.fitone(evo.platform, s, p)
+    demandValid result
+    p.runtime.push (getTime() - began).inMilliseconds.float
 
 proc score*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
                   p: Program[T]): Option[V] {.deprecated: "use greadFast".} =

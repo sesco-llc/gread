@@ -105,6 +105,7 @@ proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
 proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
                         order = Descending): Competitor[T] =
   ## find the fittest or least fit of a subset of the population
+  mixin strength
   if evo.population.len < 1:
     raise ValueError.newException:
       "cannot run a tournament with empty population"
@@ -172,7 +173,8 @@ proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
           # update the competitor and move to the next victim
           debug "victim ", i, " was ", victims[i].score, " now ", get s
           # adjust the score according to population parsimony
-          victims[i].score = evo.population.score(get s, victims[i].len)
+          victims[i].score =
+            evo.population.score(strength(get s), victims[i].len)
           victims[i].valid = victims[i].score.isValid
           debug "victim ", i, " ", victims[i].program
           inc i
