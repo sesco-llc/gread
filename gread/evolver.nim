@@ -195,10 +195,10 @@ proc getScoreFromCache[T, V](evo: var Evolver[T, V]; p: Program;
                              index: int): Option[V] =
   ## load optional score using dataset[index] (symbol set)
   assert evo.hasSampled(p, index)
-  var s = evo.cache.mgetOrPut(p.hash, @[])
-  setLen(s, max(s.len, index + 1))
-  evo.cache[p.hash] = s  # because otherwise, our setLen may have CoW'd it
-  result = s[index]
+  try:
+    result = evo.cache[p.hash][index]
+  except KeyError:
+    result = none V
 
 proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
                            score: Option[V]) =
