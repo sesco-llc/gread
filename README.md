@@ -300,6 +300,7 @@ reported.
 
 ### defines
 
+- `greadPin` pin each thread to a core
 - `greadFast` use partial evaluation of dataset for faster evolution
 - `greadHoeffding` set the degree of precision for above; `N` means `1/N`
 - `greadDebug` might enable some debugging here and there
