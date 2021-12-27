@@ -151,10 +151,6 @@ proc toTerminal(s: string): Terminal =
     except ValueError:
       result = Terminal(kind: Symbol, name: s)
 
-#
-# we produce [void] generics here because otherwise, npeg will not
-# compile due to out-of-phase sem of the peg capture clauses
-#
 proc bnf(s: string): seq[Component] =
   ## parse bnf to a sequence of components (production rules)
   var list: Production
@@ -206,14 +202,6 @@ proc bnf(s: string): seq[Component] =
       "error parsing grammar at `$#`" %
         s[(r.matchLen-1)..min(s.high, r.matchMax+30)]
 
-#
-# here we perform a recovery of the grammar type
-#
-proc bnf(gram: Grammar; s: string): seq[Component] =
-  ## basically a convenience to cast the `T` type
-  for rule in bnf(s).items:
-    result.add rule  # lie to the compiler
-
 func isReferential(c: Component): bool =
   ## true if the component is a pointer to a production as
   ## opposed to a materialized production definition itself
@@ -235,7 +223,7 @@ proc initGrammar*[T](gram: var Grammar; syntax: string) =
   ## initialize a grammar with the provided bnf syntax specification
   mixin parseToken
   initGrammar gram
-  var rules = gram.bnf(syntax)
+  var rules = bnf(syntax)
   var nonterminals = 0
   for r in rules.mitems:
     for c in r.rule.mitems:
