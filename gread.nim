@@ -4,7 +4,6 @@ import gread/generation
 import gread/maths
 import gread/operators
 import gread/population
-import gread/primitives
 import gread/programs
 import gread/spec
 import gread/tableau
@@ -20,7 +19,6 @@ export generation
 export maths
 export operators
 export population
-export primitives
 export programs
 export spec
 export tableau

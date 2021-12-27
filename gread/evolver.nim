@@ -38,7 +38,7 @@ type
 
   Evolver*[T, V] = object
     platform: T
-    grammar: Grammar[T]
+    grammar: Grammar
     fitone: FitOne[T, V]
     fitmany: FitMany[T, V]
     dataset: seq[SymbolSet[T, V]]
@@ -118,10 +118,10 @@ proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
 proc population*[T, V](evo: Evolver[T, V]): Population[T] =
   evo.population
 
-proc `grammar=`*[T, V](evo: var Evolver[T, V]; grammar: Grammar[T]) =
+proc `grammar=`*[T, V](evo: var Evolver[T, V]; grammar: Grammar) =
   evo.grammar = grammar
 
-proc grammar*[T, V](evo: Evolver[T, V]): Grammar[T] =
+proc grammar*[T, V](evo: Evolver[T, V]): Grammar =
   evo.grammar
 
 proc resetCache*(evo: var Evolver) =
@@ -377,7 +377,7 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
     try:
       let p =
         if not evo.grammar.isNil:
-          randProgram(evo.grammar, evo.tableau.seedProgramSize)
+          randProgram[T](evo.grammar, evo.tableau.seedProgramSize)
         else:
           raise ValueError.newException "need grammar"
       p.core = evo.core

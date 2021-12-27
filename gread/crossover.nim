@@ -8,7 +8,7 @@ import gread/genotype
 
 # FIXME: optimize this after confirming the semantics
 
-proc crossoverImpl[T](gram: Grammar[T];
+proc crossoverImpl[T](gram: Grammar;
                       a, b: Genome): Option[tuple[ast: Ast[T]; genome: Genome]] =
   # ensure the first crossover point occurs in mutual coding space
   let x = rand(0..min(a.high, b.high))
@@ -18,10 +18,10 @@ proc crossoverImpl[T](gram: Grammar[T];
   g.add b[x..<y]
   if y < a.high:
     g.add a[y..a.high]
-  let (pc, ast) = gram.πGE(g)                       # map the new genome
+  let (pc, ast) = πGE[T](gram, g)                       # map the new genome
   result = some (ast: ast, genome: g[0..<pc.int])
 
-proc randomCrossover*[T](gram: Grammar[T];
+proc randomCrossover*[T](gram: Grammar;
                          a: Genome): Option[tuple[ast: Ast[T]; genome: Genome]] =
   ## perform GE crossover between one parent and a random genome
   if a.len == 0:
@@ -29,9 +29,9 @@ proc randomCrossover*[T](gram: Grammar[T];
   let b = randomGenome(a.len)
   result = crossoverImpl(gram, a, b)
 
-proc geCrossover*[T](gram: Grammar[T];
+proc geCrossover*[T](gram: Grammar;
                      a, b: Genome): Option[tuple[ast: Ast[T]; genome: Genome]] =
   ## perform GE crossover between two parents to form a new child
   if a.len == 0 or b.len == 0:
     raise Defect.newException "received empty input genome"
-  result = crossoverImpl(gram, a, b)
+  result = crossoverImpl[T](gram, a, b)

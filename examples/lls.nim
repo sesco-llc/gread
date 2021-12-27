@@ -26,8 +26,8 @@ const
     <value>        ::= "x"
   """
 
-var gram: Grammar[Fennel]
-initGrammar(gram, llsGrammar)
+var gram: Grammar
+initGrammar[Fennel](gram, llsGrammar)
 
 # you can adjust these weights to change mutation rates
 let operators = {

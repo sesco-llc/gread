@@ -14,46 +14,47 @@ export ShortGenome
 
 type
   ComponentKind* = enum ckToken, ckRule, ckTerminal
-  Component*[T] = object
+  Component* = object
     case kind*: ComponentKind
     of ckToken:
       token: int16
       text: string
     of ckRule:
       name: string
-      rule: Production[T]
+      rule: Production
     of ckTerminal:
-      term: Terminal[T]
+      term: Terminal
 
-  Production*[T] = seq[Component[T]]
+  Production* = seq[Component]
 
-  GrammarObj[T] = object
-    s: Component[T]
-    p: LPTab[string, Production[T]]
-    t: HashSet[Terminal[T]]
-    n: HashSet[Function[T]]
-  Grammar*[T] = ptr GrammarObj[T]
+  GrammarObj = object
+    s: Component
+    p: LPTab[string, Production]
+    t: HashSet[Terminal]
+    #n: HashSet[Function[T]]
+  Grammar* = ptr GrammarObj
 
-proc start*[T](gram: Grammar[T]): Component[T] = gram.s
+proc start*[T](gram: Grammar): Component = gram.s
 
-iterator terminals*[T](gram: Grammar[T]): Terminal[T] =
+iterator terminals*(gram: Grammar): Terminal =
   for t in gram.t.items:
     yield t
 
-iterator functions*[T](gram: Grammar[T]): Function[T] =
-  for n in gram.n.items:
-    yield n
+when false:
+  iterator functions*[T](gram: Grammar[T]): Function[T] =
+    for n in gram.n.items:
+      yield n
 
-iterator productions*[T](gram: Grammar[T]; rule: string): Production[T] =
+iterator productions*(gram: Grammar; rule: string): Production =
   for key, value in gram.p.pairs:
     if key == rule:
       yield value
 
-iterator pairs*[T](gram: Grammar[T]): (string, Production[T]) =
+iterator pairs*(gram: Grammar): (string, Production) =
   for key, value in gram.p.pairs:
     yield (key, value)
 
-proc toAst[T](prod: Production[T]): Ast[T] =
+proc toAst[T](prod: Production): Ast[T] =
   ## map a production to matching ast
   mixin emptyNode
   mixin terminalNode
@@ -66,13 +67,13 @@ proc toAst[T](prod: Production[T]): Ast[T] =
         #
         # embed the rule name as a symbol so we can recover its name
         terminalNode[T](result,
-                        Terminal[T](kind: Symbol, name: component.name))
+                        Terminal(kind: Symbol, name: component.name))
       of ckToken:
         AstNode[T](kind: component.token)
       of ckTerminal:
         terminalNode[T](result, component.term)
 
-proc `[]`[T](tab: LPTab[string, Production[T]]; index: int): seq[Production[T]] =
+proc `[]`(tab: LPTab[string, Production]; index: int): seq[Production] =
   ## find satisfying rules by index
   var i = index
   for key in tab.keys:
@@ -83,7 +84,7 @@ proc `[]`[T](tab: LPTab[string, Production[T]]; index: int): seq[Production[T]] 
       return result
     dec i
 
-proc πGE*[T](gram: Grammar[T]; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
+proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
   ## map a genotype using the given grammar
   mixin programNode
   mixin terminalNode
@@ -96,7 +97,7 @@ proc πGE*[T](gram: Grammar[T]; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
   nts.add 0                                     # prime them with the head node
   result.ast.nodes.add:
     # we always start with the `start` production
-    terminalNode[T](result.ast, Terminal[T](kind: Symbol, name: "start"))
+    terminalNode[T](result.ast, Terminal(kind: Symbol, name: "start"))
 
   var i: PC                                     # start at the genotype's head
   var order, codon: uint16
@@ -114,7 +115,7 @@ proc πGE*[T](gram: Grammar[T]; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
         gram.p[chose] # RHS production choices
     let content = codon.int mod options.len     # choose content index
     let rule = options[content]                 # select the content production
-    let rhs = rule.toAst()                      # convert rule to nodes
+    let rhs = toAst[T](rule)                    # convert rule to nodes
     doAssert rule.len == rhs.len, "not yet supported"
     result.ast = result.ast.replace(chose, rhs) # add the nodes to the ast
     for item in nts.mitems:
@@ -138,34 +139,30 @@ proc πGE*[T](gram: Grammar[T]; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
   if result.pc == default PC:
     result.pc = i
 
-proc toTerminal[T](s: string): Terminal[T] =
+proc toTerminal(s: string): Terminal =
   ## turn a string into a Terminal
   try:
     let n = parseInt s
-    result = Terminal[T](kind: Integer, intVal: n)
+    result = Terminal(kind: Integer, intVal: n)
   except ValueError:
     try:
       let f = parseFloat s
-      result = Terminal[T](kind: Float, floatVal: f)
+      result = Terminal(kind: Float, floatVal: f)
     except ValueError:
-      result = Terminal[T](kind: Symbol, name: s)
+      result = Terminal(kind: Symbol, name: s)
 
-#
-# we produce [void] generics here because otherwise, npeg will not
-# compile due to out-of-phase sem of the peg capture clauses
-#
-proc bnf(s: string): seq[Component[void]] =
+proc bnf(s: string): seq[Component] =
   ## parse bnf to a sequence of components (production rules)
-  var list: Production[void]
-  var lists: seq[Production[void]]
-  var emits: seq[Component[void]]
+  var list: Production
+  var lists: seq[Production]
+  var emits: seq[Component]
   let p = peg "start":
     EOL        <- "\n" | "\r\n"
     s          <- *" "
     start      <- *rule * s * !1
     rule       <- s * "<" * >rule_name * ">" * s * "::=" * s * expression * s * EOL:
       for list in lists.items:
-        emits.add Component[void](kind: ckRule, name: $1, rule: list)
+        emits.add Component(kind: ckRule, name: $1, rule: list)
       setLen(lists, 0)
     expression <- list * s * *("|" * s * list)
     list       <- *(term * s):
@@ -176,16 +173,15 @@ proc bnf(s: string): seq[Component[void]] =
       if s.startsWith("\"") or s.startsWith("\'"):
         let s = s[1..^2]
         list.add:
-          Component[void](kind: ckTerminal, term: toTerminal[void](s))
+          Component(kind: ckTerminal, term: toTerminal(s))
       elif s == "":
         list.add:
-          Component[void](kind: ckTerminal,
-                          term: Terminal[void](kind: None))
+          Component(kind: ckTerminal, term: Terminal(kind: None))
       elif s.startsWith("<"):
         let s = s[1..^2]
-        list.add Component[void](kind: ckRule, name: s)
+        list.add Component(kind: ckRule, name: s)
       else:
-        list.add Component[void](kind: ckToken, text: s)
+        list.add Component(kind: ckToken, text: s)
     token      <- (symbolNoS | Alpha) * *(symbolNoS | Alpha | Digit)
     literal    <- '"' * text1 * '"' | "'" * text2 * "'"
     text1      <- *("\"\"" | character1)
@@ -206,14 +202,6 @@ proc bnf(s: string): seq[Component[void]] =
       "error parsing grammar at `$#`" %
         s[(r.matchLen-1)..min(s.high, r.matchMax+30)]
 
-#
-# here we perform a recovery of the grammar type
-#
-proc bnf[T](gram: Grammar[T]; s: string): seq[Component[T]] =
-  ## basically a convenience to cast the `T` type
-  for rule in bnf(s).items:
-    result.add cast[Component[T]](rule)  # lie to the compiler
-
 func isReferential(c: Component): bool =
   ## true if the component is a pointer to a production as
   ## opposed to a materialized production definition itself
@@ -222,20 +210,20 @@ func isReferential(c: Component): bool =
   else:
     raise ValueError.newException "nonsensical outside of production rules"
 
-proc initGrammar*[T](gram: var Grammar[T]) =
+proc initGrammar*(gram: var Grammar) =
   ## initialize a grammar
   if not gram.isNil:
     dealloc gram
-  gram = createShared(GrammarObj[T])
+  gram = createShared(GrammarObj)
   if gram.isNil:
     raise ValueError.newException "unable to create grammar"
   init gram.p
 
-proc initGrammar*[T](gram: var Grammar[T]; syntax: string) =
+proc initGrammar*[T](gram: var Grammar; syntax: string) =
   ## initialize a grammar with the provided bnf syntax specification
   mixin parseToken
   initGrammar gram
-  var rules = gram.bnf(syntax)
+  var rules = bnf(syntax)
   var nonterminals = 0
   for r in rules.mitems:
     for c in r.rule.mitems:

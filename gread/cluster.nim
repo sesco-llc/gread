@@ -36,7 +36,7 @@ type
     core*: Option[CoreId]                  ## threadId-like concept
     stats*: int                            ## how often to emit stats
     tableau*: Tableau
-    grammar*: Grammar[T]
+    grammar*: Grammar
     operators*: seq[OperatorWeight[T, V]]  ## operators & their weights
     dataset*: seq[SymbolSet[T, V]]
     targets*: Option[seq[V]]
@@ -88,7 +88,7 @@ proc sendToCore(c: C; core: Natural) =
   shelf[core mod shelf.len].push c
 
 proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
-                     grammar: Grammar[T] = nil;
+                     grammar: Grammar = nil;
                      operators: openArray[OperatorWeight[T, V]] = @[];
                      dataset: seq[SymbolSet[T, V]] = @[];
                      fitone: FitOne[T, V] = nil; fitmany: FitMany[T, V] = nil;

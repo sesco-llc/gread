@@ -17,7 +17,7 @@ type
     ident*: string        # XXX: switch to symbol
 
   TerminalKind* = enum Symbol, Boolean, Integer, Float, String, None, Token
-  Terminal*[T] = object
+  Terminal* = object
     case kind*: TerminalKind
     of Token:
       token*: int16
@@ -382,7 +382,7 @@ proc append*[T](a: Ast[T]; values: Ast[T]; parent = -1): Ast[T] =
   ## the `values` will be children of `a[parent]`
   insert(a, a.len, values, parent = parent)
 
-proc append*[T](a: Ast[T]; term: Terminal[T]; parent = -1): Ast[T] =
+proc append*[T](a: Ast[T]; term: Terminal; parent = -1): Ast[T] =
   ## convenience to directly append a terminal to the ast
   mixin terminalNode
   var b: Ast[T]
@@ -409,6 +409,8 @@ proc hash*(a: Ast): Hash =
 
 proc `$`*(t: Terminal): string =
   case t.kind
+  of None:
+    "nil"
   of Float:
     $t.floatVal
   of Boolean:
@@ -420,6 +422,8 @@ proc `$`*(t: Terminal): string =
     result
   of Symbol:
     t.name
+  of Token:
+    fmt"«{t.token}:{t.text}»"
 
 proc tokenNode*[T](a: var Ast[T]; token: int16; text = ""): AstNode[T] =
   ## produce a token node; stores the token's textual form if it's provided

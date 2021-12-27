@@ -45,7 +45,7 @@ type
 
   FennelStat* = MovingStat[float32]
 
-  Term* = Terminal[Fennel]
+  Term* = Terminal
   Fun* = Function[Fennel]
 
   FProg* = Program[Fennel]
@@ -435,7 +435,7 @@ proc emptyNode*[T: Fennel](a: var Ast[T]): AstNode[T] =
   ## create an "empty" node suitable as a placeholder
   AstNode[T](kind: fennelNil)
 
-proc terminalNode*[T: Fennel](a: var Ast[T]; term: Terminal[T]): AstNode[T] =
+proc terminalNode*[T: Fennel](a: var Ast[T]; term: Term): AstNode[T] =
   ## convert a terminal into an ast node
   case term.kind
   of Token:
@@ -459,9 +459,9 @@ proc terminalNode*[T: Fennel](a: var Ast[T]; term: Terminal[T]): AstNode[T] =
 proc composeCall*[T: Fennel](fun: Function[T]): Ast[T] =
   ## create a call of the given function
   result.nodes.add:
-    terminalNode(result, Terminal[T](kind: Token, token: int16 fennelList))
+    terminalNode(result, Term(kind: Token, token: int16 fennelList))
   result =
-    result.append(Terminal[T](kind: Symbol, name: fun.ident), parent = 0)
+    result.append(Term(kind: Symbol, name: fun.ident), parent = 0)
 
 proc isFunctionSymbol*[T: Fennel](a: Ast[T]; index: int): bool {.deprecated: "nonsensical".} =
   if index > 0 and index < a.high:
@@ -471,9 +471,9 @@ proc isFunctionSymbol*[T: Fennel](a: Ast[T]; index: int): bool {.deprecated: "no
 proc toAst[T: Fennel](node: TsFennelNode; s: string): Ast[T] =
   case node.kind
   of fennelSymbol:
-    result = result.append Terminal[T](kind: Symbol, name: s[node])
+    result = result.append Term(kind: Symbol, name: s[node])
   of fennelList, fennelMultiSymbol, fennelProgram:
-    result = result.append Terminal[T](kind: Token, token: node.kind)
+    result = result.append Term(kind: Token, token: node.kind)
     for item in node.items:
       # create each child and add them to the parent
       result = result.append(toAst[T](item, s), parent = 0)
