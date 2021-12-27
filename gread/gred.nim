@@ -28,7 +28,7 @@ proc store*[T](r: var Redis; p: Program[T]; key: string) =
   geno.add frostyMagic
   discard r.sadd(key, geno)
 
-proc unpack[T](gram: Grammar[T]; s: string): Option[Program[T]] =
+proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
   mixin newProgram
   const supportsParsing = compiles(newProgram "string")
   if s.len == 0:
@@ -42,7 +42,7 @@ proc unpack[T](gram: Grammar[T]; s: string): Option[Program[T]] =
       setLen(s, s.len - frostyMagic.len)  # remove the magic
       var geno: Genome
       thaw(s, geno)
-      var (pc, ast) = gram.πGE(geno)
+      var (pc, ast) = πGE[T](gram, geno)
       p = newProgram(ast, geno)
     else:
       when supportsParsing:
@@ -58,21 +58,21 @@ proc unpack[T](gram: Grammar[T]; s: string): Option[Program[T]] =
   except ThawError as e:
     raise StoreError.newException "deserialization failure: " & e.msg
 
-template removeFaulty[T](r: var Redis; gram: Grammar[T];
-                         key, s: string): Option[Program[T]] =
+proc removeFaulty[T](r: var Redis; gram: Grammar;
+                     key, s: string): Option[Program[T]] =
   try:
-    unpack(gram, s)
+    result = unpack[T](gram, s)
   except StoreError:
     discard r.srem(key, s)
-    none Program[T]
+    result = none Program[T]
 
-proc load*[T](r: var Redis; gram: Grammar[T]; key: string): Option[Program[T]] =
+proc load*[T](r: var Redis; gram: Grammar; key: string): Option[Program[T]] =
   ## try to fetch a random program from the redis key set
   mixin newProgram
   var s = r.srandmember(key)
-  result = removeFaulty(r, gram, key, s)
+  result = removeFaulty[T](r, gram, key, s)
 
-proc newPopulation*[T](r: var Redis; gram: Grammar[T]; key: string;
+proc newPopulation*[T](r: var Redis; gram: Grammar; key: string;
                        size: int; core = none int): Population[T] =
   ## Compose a new population using random selections from redis;
   ## may result in a short population if insufficient cached data
@@ -82,17 +82,17 @@ proc newPopulation*[T](r: var Redis; gram: Grammar[T]; key: string;
   # NOTE: create a population with the supplied size
   result = newPopulation[T](size = size, core = core)
   for s in strings.items:
-    let p = unpack(gram, s)
+    let p = unpack[T](gram, s)
     if p.isSome:
       result.add get(p)
 
-proc newPopulation*[T](r: var Redis; gram: Grammar[T]; key: string;
+proc newPopulation*[T](r: var Redis; gram: Grammar; key: string;
                        core = none int): Population[T] =
   ## Compose a new population using all cached programs from redis;
   ## swallows any deserialization failures.
   let strings = r.smembers(key)
   result = newPopulation[T](size = strings.len, core = core)
   for s in strings.items:
-    let p = unpack(gram, s)
+    let p = unpack[T](gram, s)
     if p.isSome:
       result.add get(p)
