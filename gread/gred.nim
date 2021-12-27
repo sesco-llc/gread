@@ -83,7 +83,6 @@ proc newPopulation*[T](r: var Redis; gram: Grammar; key: string;
   ## may result in a short population if insufficient cached data
   ## exists in redis, or if deserialization fails for key members.
   let strings = r.srandmember(key, size)
-  echo "got ", strings.len, " for query ", size, " on key ", key
   # NOTE: create a population with the supplied size
   result = newPopulation[T](size = size, core = core)
   for s in strings.items:
