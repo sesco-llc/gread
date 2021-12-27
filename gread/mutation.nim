@@ -7,12 +7,12 @@ import gread/ast
 import gread/grammar
 import gread/genotype
 
-proc geMutation*[T](gram: Grammar[T];
+proc geMutation*[T](gram: Grammar;
                     a: Genome): Option[tuple[ast: Ast[T]; genome: Genome]] =
   ## perform GE mutation of a program to create novel offspring
   if a.len == 0:
     raise Defect.newException "received empty input genome"
   var g = a
   g.string[rand(g.high)] = rand(int char.high).char
-  let (pc, ast) = gram.πGE(g)                       # map the new genome
+  let (pc, ast) = πGE[T](gram, g)                    # map the new genome
   result = some (ast: ast, genome: g)

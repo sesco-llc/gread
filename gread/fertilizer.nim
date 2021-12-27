@@ -6,8 +6,8 @@ import gread/programs
 import gread/genotype
 import gread/grammar
 
-proc randProgram*[T](gram: Grammar[T]; size = 20): Program[T] =
+proc randProgram*[T](gram: Grammar; size = 20): Program[T] =
   ## produce a random program of, roughly, the given size
   let genome = randomGenome size
-  let (pc, ast) = gram.πGE(genome)
+  let (pc, ast) = πGE[T](gram, genome)
   result = newProgram(ast, genome[0..<pc.int])
