@@ -29,6 +29,7 @@ proc store*[T](r: var Redis; p: Program[T]; key: string) =
   discard r.sadd(key, geno)
 
 proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
+  ## parse a string from redis into a program, if possible
   mixin newProgram
   const supportsParsing = compiles(newProgram "string")
   if s.len == 0:
@@ -42,8 +43,12 @@ proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
       setLen(s, s.len - frostyMagic.len)  # remove the magic
       var geno: Genome
       thaw(s, geno)
-      var (pc, ast) = πGE[T](gram, geno)
-      p = newProgram(ast, geno)
+      try:
+        var (pc, ast) = πGE[T](gram, geno)
+        p = newProgram(ast, geno)
+      except ShortGenome:
+        raise StoreError.newException:
+          "deserialization failure: short genome"
     else:
       when supportsParsing:
         # parse it using tree-sitter
@@ -82,9 +87,12 @@ proc newPopulation*[T](r: var Redis; gram: Grammar; key: string;
   # NOTE: create a population with the supplied size
   result = newPopulation[T](size = size, core = core)
   for s in strings.items:
-    let p = unpack[T](gram, s)
-    if p.isSome:
-      result.add get(p)
+    try:
+      let p = unpack[T](gram, s)
+      if p.isSome:
+        result.add get(p)
+    except StoreError:
+      discard
 
 proc newPopulation*[T](r: var Redis; gram: Grammar; key: string;
                        core = none int): Population[T] =
@@ -93,6 +101,9 @@ proc newPopulation*[T](r: var Redis; gram: Grammar; key: string;
   let strings = r.smembers(key)
   result = newPopulation[T](size = strings.len, core = core)
   for s in strings.items:
-    let p = unpack[T](gram, s)
-    if p.isSome:
-      result.add get(p)
+    try:
+      let p = unpack[T](gram, s)
+      if p.isSome:
+        result.add get(p)
+    except StoreError:
+      discard
