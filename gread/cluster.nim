@@ -123,6 +123,7 @@ proc share*(work: Work; p: Program) =
   for copies in 0..max(0, sharing):
     var transit = clone p
     transit.source = getThreadId()
+    transit.core = work.core         # set the core to help define origin
     push(work.io.outputs, transit)
 
 proc search*(work: Work; population: Population) =
