@@ -310,7 +310,7 @@ proc score*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
   else:
     let e = addr evo
     # the iterator evaluates each symbol set in the dataset
-    iterator iter(): (SymbolSet[T, V], V) =
+    iterator iter(): (ptr SymbolSet[T, V], ptr V) =
       for index, ss in dataset.pairs:
         let s =
           when defined(greadFast):
@@ -321,7 +321,7 @@ proc score*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
           raise UnfitError.newException "fitone fail"
         else:
           e[].addScoreToCache(p, index, s)
-          yield (ss, get s)
+          yield (unsafeAddr dataset[index], unsafeAddr (get s))
 
     # pass the iterator to fitmany() and check the result
     try:
