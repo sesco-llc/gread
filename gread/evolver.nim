@@ -280,7 +280,7 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
       p.runtime.push (getTime() - began).inMilliseconds.float
       evo.addScoreToCache(p, index, result)
 
-proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
+proc score*[T, V](evo: Evolver[T, V]; ss: ptr SymbolSet[T, V];
                   p: Program[T]): Option[V] {.deprecated: "use index".} =
   ## score the program against a single symbol set; if the program cache
   ## is enabled via its `programCache` constant, then we might simply
@@ -294,7 +294,7 @@ proc score*[T, V](evo: Evolver[T, V]; s: SymbolSet[T, V];
     return none V
   else:
     let began = getTime()
-    result = evo.fitone(evo.platform, s, p)
+    result = evo.fitone(evo.platform, ss[], p)
     demandValid result
     p.runtime.push (getTime() - began).inMilliseconds.float
 
@@ -316,7 +316,7 @@ proc score*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
           when defined(greadFast):
             e[].score(index, p)
           else:
-            e[].score(ss, p)
+            e[].score(unsafeAddr ss, p)
         if s.isNone:
           raise UnfitError.newException "fitone fail"
         else:

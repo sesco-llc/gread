@@ -116,11 +116,16 @@ proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
   # select quantity N random programs; they must be unique.
   var victims: seq[Competitor[T]]     # programs we'll test
   var seen: PackedSet[int]            # de-dupe victims
-  while victims.len < size:
-    var (i, p) = randomMember evo.population
-    if not seen.containsOrIncl i:
+  if size == evo.population.len:
+    for i, p in evo.population.pairs:
       victims.add (valid: not p.zombie, score: Score NaN,
                    len: p.len, index: i, program: p)
+  else:
+    while victims.len < size:
+      var (i, p) = randomMember evo.population
+      if not seen.containsOrIncl i:
+        victims.add (valid: not p.zombie, score: Score NaN,
+                     len: p.len, index: i, program: p)
 
   block byebye:
     # randomize the selection of datapoints
@@ -144,7 +149,7 @@ proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
         if p.cacheSize >= samples.len:
           inc i
         else:
-          let s = evo.score(data[^1], p)
+          let s = evo.score(addr data[^1], p)
           if s.isSome:
             inc i
           else:
