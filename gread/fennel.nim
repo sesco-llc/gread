@@ -1,4 +1,3 @@
-import std/packedsets
 import std/json
 import std/times
 import std/strformat
@@ -530,7 +529,6 @@ when compileOption"threads":
     evo.population.resetParsimony()
 
     var evoTime = getTime()
-    var shared: PackedSet[Hash]
     while evo.population.generations.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
@@ -545,9 +543,7 @@ when compileOption"threads":
       if fit.isSome:
         let fit = get fit
         if evo.dataset.len == 0 or evo.legit(fit):
-          if not shared.containsOrIncl(fit.hash):
-            #echo "share ", fit.score, " ", fit.hash, " ", evo.cacheSize(fit)
-            share(args, fit)  # send it to other threads
+          share(args, fit)
 
       discard evo.generation()
 
