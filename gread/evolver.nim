@@ -295,34 +295,6 @@ proc score*[T, V](evo: Evolver[T, V]; ss: ptr SymbolSet[T, V];
     demandValid result
     p.runtime.push (getTime() - began).inMilliseconds.float
 
-proc score*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
-                  p: Program[T]): Option[V] {.deprecated: "use greadFast".} =
-  ## score a program against a series of symbol sets
-  if evo.fitone.isNil:
-    raise ValueError.newException "evolver needs fitone assigned"
-  elif evo.fitmany.isNil:
-    raise ValueError.newException "evolver needs fitmany assigned"
-  elif p.zombie:
-    result = none V
-  else:
-    let e = addr evo
-    let d = unsafeAddr dataset
-    # the iterator evaluates each symbol set in the dataset
-    iterator iter(): (ptr SymbolSet[T, V], ptr V) =
-      for index in d[].low .. d[].high:
-        let s = e[].score(unsafeAddr d[][index], p)
-        if s.isNone:
-          raise UnfitError.newException "fitone fail"
-        else:
-          yield (unsafeAddr d[][index], unsafeAddr (get s))
-
-    # pass the iterator to fitmany() and check the result
-    try:
-      result = evo.fitmany(evo.platform, iter, p)
-      demandValid result
-    except UnfitError:
-      result = none V
-
 proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
                   p: Program[T]): Option[V] =
   ## score a program against a subset of symbol sets from the evolver
@@ -341,11 +313,10 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
         if e[].hasSampled(p, index):
           v = e[].getScoreFromCache(p, index)
         else:
-          let s = e[].score(unsafeAddr e[].dataset[index], p)
+          let s = e[].score(index, p)
           if s.isNone:
             raise UnfitError.newException "fitone fail"
           else:
-            e[].addScoreToCache(p, index, get s)
             v = unsafeAddr (get s)
         yield (unsafeAddr e[].dataset[index], v)
 
@@ -358,7 +329,7 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
 
 proc score*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   ## score the program against all available symbol sets
-  evo.score(evo.dataset, p)
+  evo.score(addr evo.indexes, p)
 
 proc scoreRandomly*[T, V](evo: var Evolver[T, V];
                           p: Program[T]): Option[V] =

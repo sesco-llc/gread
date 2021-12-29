@@ -39,10 +39,8 @@ type
     core*: Option[int]
     vm*: PState
     runs*: uint
-    cache: LPTab[Hash, LuaValue]
     nans*: LuaStat
     errors*: LuaStat
-    hits*: LuaStat
     runtime*: LuaStat
 
   LuaStat* = MovingStat[float32]
@@ -106,7 +104,6 @@ proc clearStats*(lua: Lua) =
   ## reset the MovingStat values in the Lua object
   clear lua.nans
   clear lua.errors
-  clear lua.hits
   clear lua.runtime
   when false:
     let began = getTime()
@@ -117,16 +114,15 @@ proc clearStats*(lua: Lua) =
 proc newLua*(core = none int): Lua =
   ## reset a Lua instance and prepare it for running programs
   result = Lua(vm: newState(), core: core)
-  init(result.cache, initialSize = initialCacheSize)
   clearStats result
 
   # setup the lua vm
   result.vm.openLibs()
 
-proc clearCache*(lua: Lua) =
-  ## clear the execution cache of the Lua instance
-  clear lua.cache
-  clear lua.hits
+proc clearCache*(lua: Lua) {.deprecated.} =
+  ## clear the execution cache of the Lua instance;
+  ## caching has been entirely lifted into the Evolver
+  discard
 
 proc fun*(s: string; arity = 0; args = arity..int.high): Fun =
   Fun(ident: s, arity: max(arity, args.a), args: args)
@@ -259,43 +255,34 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
     result = popStack vm
 
 proc evaluate*(lua: Lua; p: LProg; locals: Locals): LuaValue =
-  var h = hash(p, locals)
+  # prepare to run the vm
+  result = LuaValue(kind: TInvalid)
+  inc lua.runs
   try:
-    # try to fetch the score from cache
-    result = lua.cache[h]
-    lua.hits.push 1.0
-  except KeyError:
-    # prepare to run the vm
-    result = LuaValue(kind: TInvalid)
-    lua.hits.push 0.0
-    inc lua.runs
-    try:
-      # pass the program and the training inputs
-      let began = getTime()
-      let stack = evaluate(lua.vm, $p, locals)
-      lua.runtime.push (getTime() - began).inMilliseconds.float
-      lua.errors.push 0.0
-      # score a resultant value if one was produced
-      if not stack.isNil:
-        result = stack.value
-    except LuaError as e:
-      when semanticErrorsAreFatal:
-        debugEcho $p
-        debugEcho e.msg
-        quit 1
-      else:
-        discard e
-      lua.errors.push 1.0
+    # pass the program and the training inputs
+    let began = getTime()
+    let stack = evaluate(lua.vm, $p, locals)
+    lua.runtime.push (getTime() - began).inMilliseconds.float
+    lua.errors.push 0.0
+    # score a resultant value if one was produced
+    if not stack.isNil:
+      result = stack.value
+  except LuaError as e:
+    when semanticErrorsAreFatal:
+      debugEcho $p
+      debugEcho e.msg
+      quit 1
+    else:
+      discard e
+    lua.errors.push 1.0
 
-    # any failure to produce a scorable value
-    lua.nans.push:
-      if result.isValid:
-        # if it's valid, we'll cache it
-        lua.cache[h] = result
-        0.0
-      else:
-        p.zombie = true
-        1.0
+  # any failure to produce a scorable value
+  lua.nans.push:
+    if result.isValid:
+      0.0
+    else:
+      p.zombie = true
+      1.0
 
 proc dumpScore*(lua: Lua; p: LProg) =
   var s = fmt"{p.score}[{p.len}]: "
@@ -376,9 +363,6 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
          parsimony coefficient: {Score m.parsimony}
             insufficiency rate: {lua.nans.mean.percent}
            semantic error rate: {lua.errors.mean.percent}
-         recent lua cache hits: {int lua.hits.sum}
-            lua cache hit rate: {lua.hits.mean.percent}
-             lua vm cache size: {lua.cache.len}
              foreign influence: {m.usurper}
               immigration rate: {(m.immigrants.float / m.size.float).percent}
                best generation: {m.bestGen}
@@ -535,10 +519,6 @@ when compileOption"threads":
     var evoTime = getTime()
     while evo.population.generations.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
-
-      when false:
-        for invalid in invalidPrograms(args):
-          lua.cache[invalid.hash] = Score NaN
 
       search(args, evo.population)   # fresh meat from other threads
 

@@ -36,10 +36,8 @@ type
     core*: Option[int]
     vm*: PState
     runs*: uint
-    cache: LPTab[Hash, LuaValue]
     nans*: FennelStat
     errors*: FennelStat
-    hits*: FennelStat
     runtime*: FennelStat
 
   FennelStat* = MovingStat[float32]
@@ -112,7 +110,6 @@ proc clearStats*(fnl: Fennel) =
   ## reset the MovingStat values in the Fennel object
   clear fnl.nans
   clear fnl.errors
-  clear fnl.hits
   #clear fnl.runtime
   when false:
     let began = getTime()
@@ -151,7 +148,6 @@ const
 proc newFennel*(core = none int): Fennel =
   ## reset a Fennel instance and prepare it for running programs
   result = Fennel(vm: newState(), core: core)
-  init(result.cache, initialSize = initialCacheSize)
   clearStats result
 
   # setup the lua vm with the fennel compiler and any shims
@@ -162,10 +158,10 @@ proc newFennel*(core = none int): Fennel =
     result.vm.checkLua result.vm.doString sham.cstring:
       discard
 
-proc clearCache*(fnl: Fennel) =
-  ## clear the execution cache of the Fennel instance
-  clear fnl.cache
-  clear fnl.hits
+proc clearCache*(fnl: Fennel) {.deprecated.} =
+  ## clear the execution cache of the Fennel instance;
+  ## caching has been entirely lifted into the Evolver
+  discard
 
 proc fun*(s: string; arity = 0; args = arity..int.high): Fun =
   Fun(ident: s, arity: max(arity, args.a), args: args)
@@ -292,43 +288,34 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
     result = popStack vm
 
 proc evaluate*(fnl: Fennel; p: FProg; locals: Locals): LuaValue =
-  var h = hash(p, locals)
+  # prepare to run the vm
+  result = LuaValue(kind: TInvalid)
+  inc fnl.runs
   try:
-    # try to fetch the score from cache
-    result = fnl.cache[h]
-    fnl.hits.push 1.0
-  except KeyError:
-    # prepare to run the vm
-    result = LuaValue(kind: TInvalid)
-    fnl.hits.push 0.0
-    inc fnl.runs
-    try:
-      # pass the program and the training inputs
-      let began = getTime()
-      let stack = evaluate(fnl.vm, $p, locals)
-      fnl.runtime.push (getTime() - began).inMilliseconds.float
-      fnl.errors.push 0.0
-      # score a resultant value if one was produced
-      if not stack.isNil:
-        result = stack.value
-    except LuaError as e:
-      when semanticErrorsAreFatal:
-        debugEcho $p
-        debugEcho e.msg
-        quit 1
-      else:
-        discard e
-      fnl.errors.push 1.0
+    # pass the program and the training inputs
+    let began = getTime()
+    let stack = evaluate(fnl.vm, $p, locals)
+    fnl.runtime.push (getTime() - began).inMilliseconds.float
+    fnl.errors.push 0.0
+    # score a resultant value if one was produced
+    if not stack.isNil:
+      result = stack.value
+  except LuaError as e:
+    when semanticErrorsAreFatal:
+      debugEcho $p
+      debugEcho e.msg
+      quit 1
+    else:
+      discard e
+    fnl.errors.push 1.0
 
-    # any failure to produce a scorable value
-    fnl.nans.push:
-      if result.isValid:
-        # if it's valid, we'll cache it
-        fnl.cache[h] = result
-        0.0
-      else:
-        p.zombie = true
-        1.0
+  # any failure to produce a scorable value
+  fnl.nans.push:
+    if result.isValid:
+      0.0
+    else:
+      p.zombie = true
+      1.0
 
 proc dumpScore*(fnl: Fennel; p: FProg) =
   var s = fmt"{p.score}[{p.len}]: "
@@ -412,9 +399,6 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
          parsimony coefficient: {Score m.parsimony}
             insufficiency rate: {fnl.nans.mean.percent}
            semantic error rate: {fnl.errors.mean.percent}
-         recent lua cache hits: {int fnl.hits.sum}
-            lua cache hit rate: {fnl.hits.mean.percent}
-             lua vm cache size: {fnl.cache.len}
              foreign influence: {m.usurper}
               immigration rate: {(m.immigrants.float / m.size.float).percent}
           mapping failure rate: {evo.shortGenome.mean.percent}
@@ -531,11 +515,6 @@ when compileOption"threads":
     var evoTime = getTime()
     while evo.population.generations.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
-
-      when false:
-        for invalid in invalidPrograms(args):
-          fnl.cache[invalid.hash] = Score NaN
-          discard
 
       search(args, evo.population)   # fresh meat from other threads
 
