@@ -13,6 +13,7 @@ import gread/genotype
 export ShortGenome
 
 type
+  OrderedProductions = LPTabz[string, Production, int8, 0]
   ComponentKind* = enum ckToken, ckRule, ckTerminal
   Component* = object
     case kind*: ComponentKind
@@ -29,7 +30,7 @@ type
 
   GrammarObj = object
     s: Component
-    p: LPTab[string, Production]
+    p: OrderedProductions
     t: HashSet[Terminal]
     #n: HashSet[Function[T]]
   Grammar* = ptr GrammarObj
@@ -73,7 +74,7 @@ proc toAst[T](prod: Production): Ast[T] =
       of ckTerminal:
         terminalNode[T](result, component.term)
 
-proc `[]`(tab: LPTab[string, Production]; index: int): seq[Production] =
+proc `[]`(tab: OrderedProductions; index: int): seq[Production] =
   ## find satisfying rules by index
   var i = index
   for key in tab.keys:
