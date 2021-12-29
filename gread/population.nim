@@ -73,11 +73,25 @@ proc resetParsimony*(pop: Population) =
     profile "reset parsimony":
       pop.ken.parsimony = parsimony pop
 
+import std/strformat
+proc checkLengths(pop: Population; p: Program) =
+  ## bugfinding assert
+  when not defined(danger):
+    if pop.ken.lengths.mean.int < 1:
+      writeStackTrace()
+      stdmsg().write fmt"""
+      bug.
+      program length: {p.len.float}
+        mean lengths: {pop.ken.lengths.mean}
+      """
+      quit 0
+
 template learn(pop: Population; p: Program; pos: int) =
   when populationCache:
     pop.cache.incl p.hash
   if p.isValid:
     pop.ken.lengths.push p.len.float
+    checkLengths(pop, p)
     if p.score.isValid:
       pop.ken.scores.push p.score
     else:
@@ -96,6 +110,7 @@ template forget(pop: Population; p: Program; pos: int) =
   if p.isValid:
     if p.score.isValid:
       pop.ken.lengths.pop p.len.float
+      checkLengths(pop, p)
       pop.ken.scores.pop p.score
       pop.ken.validity.pop 1.0
     else:
