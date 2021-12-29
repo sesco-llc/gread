@@ -139,17 +139,18 @@ proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
     var data: seq[SymbolSet[T, V]]       # datapoints we've tested
     while samples.len > 0 and victims.len > 1:
       # pick a novel datapoint we have not tested previously
-      data.add evo.dataset[pop samples]
+      let index = pop samples
+      data.add evo.dataset[index]
 
       # test all victims against the datapoint
       var i = 0
-      debug "scoring against ", data[^1]
+      debug "scoring against ", evo.dataset[index]
       while i <= victims.high and victims.len > 1:
         let p = victims[i].program
-        if p.cacheSize >= samples.len:
+        if evo.cacheSize(p) >= samples.len:
           inc i
         else:
-          let s = evo.score(addr data[^1], p)
+          let s = evo.score(index, p)
           if s.isSome:
             inc i
           else:
