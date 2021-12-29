@@ -127,7 +127,6 @@ Here's sample metrics output from the `lls` example:
           validity rate in pop: 98.00%
            average valid score: -22.8557
           greatest of all time: -5.0000
-           program cache usage: 0.00%
            evolver cache count: 1770
            evolver cache usage: 81.04%
           average program size: 25
@@ -136,9 +135,6 @@ Here's sample metrics output from the `lls` example:
          parsimony coefficient: -0.0001
             insufficiency rate: 0.01%
            semantic error rate: 0.00%
-         recent lua cache hits: 953
-            lua cache hit rate: 10.96%
-             lua vm cache size: 16680
              foreign influence: -
               immigration rate: 2.80%
           mapping failure rate: 41.79%
@@ -208,7 +204,6 @@ low cache usage figure is ideal, because it signifies efficient comparison of
 programs without exhaustive evaluation.
 
 ```
-           program cache usage: 0.00%
            evolver cache count: 1770
            evolver cache usage: 81.04%
 ```
@@ -231,17 +226,6 @@ evaluated on a single symbol set as in `fitone()`, do not produce an acceptable
 ```
             insufficiency rate: 0.01%
            semantic error rate: 0.00%
-```
-
-Some caching is performed at the layer of the LuaVM so that we do not
-accidentally evaluate a program multiple times with the same inputs. Basically,
-any cache hits here reflect an inefficiency in selection, sorting, and caching
-processes elsewhere in the system.
-
-```
-         recent lua cache hits: 953
-            lua cache hit rate: 10.96%
-             lua vm cache size: 16680
 ```
 
 Foreign influence is simply defined as whether the `fittest` program in the
