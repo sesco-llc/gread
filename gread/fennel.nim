@@ -42,7 +42,6 @@ type
 
   FennelStat* = MovingStat[float32]
 
-  Term* = Terminal
   Fun* = Function[Fennel]
 
   FProg* = Program[Fennel]
@@ -166,18 +165,18 @@ proc clearCache*(fnl: Fennel) {.deprecated.} =
 proc fun*(s: string; arity = 0; args = arity..int.high): Fun =
   Fun(ident: s, arity: max(arity, args.a), args: args)
 
-proc term*(value: float): Term =
-  Term(kind: Float, floatVal: value)
-proc term*(value: bool): Term =
-  Term(kind: Boolean, boolVal: value)
-proc str*(value: string): Term =
-  Term(kind: String, strVal: value)
-proc sym*(value: string): Term =
-  Term(kind: Symbol, name: value)
-proc term*(value: int): Term =
-  Term(kind: Integer, intVal: value)
+proc term*(value: float): Terminal =
+  Terminal(kind: Float, floatVal: value)
+proc term*(value: bool): Terminal =
+  Terminal(kind: Boolean, boolVal: value)
+proc str*(value: string): Terminal =
+  Terminal(kind: String, strVal: value)
+proc sym*(value: string): Terminal =
+  Terminal(kind: Symbol, name: value)
+proc term*(value: int): Terminal =
+  Terminal(kind: Integer, intVal: value)
 
-proc pushGlobal*(vm: PState; name: string; value: Term) =
+proc pushGlobal*(vm: PState; name: string; value: Terminal) =
   ## push a name/value pair into the vm as a global
   case value.kind
   of Float:
@@ -418,7 +417,7 @@ proc emptyNode*[T: Fennel](a: var Ast[T]): AstNode[T] =
   ## create an "empty" node suitable as a placeholder
   AstNode[T](kind: fennelNil)
 
-proc terminalNode*[T: Fennel](a: var Ast[T]; term: Term): AstNode[T] =
+proc terminalNode*[T: Fennel](a: var Ast[T]; term: Terminal): AstNode[T] =
   ## convert a terminal into an ast node
   case term.kind
   of Token:
@@ -442,9 +441,9 @@ proc terminalNode*[T: Fennel](a: var Ast[T]; term: Term): AstNode[T] =
 proc composeCall*[T: Fennel](fun: Function[T]): Ast[T] =
   ## create a call of the given function
   result.nodes.add:
-    terminalNode(result, Term(kind: Token, token: int16 fennelList))
+    terminalNode(result, Terminal(kind: Token, token: int16 fennelList))
   result =
-    result.append(Term(kind: Symbol, name: fun.ident), parent = 0)
+    result.append(Terminal(kind: Symbol, name: fun.ident), parent = 0)
 
 proc isFunctionSymbol*[T: Fennel](a: Ast[T]; index: int): bool {.deprecated: "nonsensical".} =
   if index > 0 and index < a.high:
@@ -454,9 +453,9 @@ proc isFunctionSymbol*[T: Fennel](a: Ast[T]; index: int): bool {.deprecated: "no
 proc toAst[T: Fennel](node: TsFennelNode; s: string): Ast[T] =
   case node.kind
   of fennelSymbol:
-    result = result.append Term(kind: Symbol, name: s[node])
+    result = result.append Terminal(kind: Symbol, name: s[node])
   of fennelList, fennelMultiSymbol, fennelProgram:
-    result = result.append Term(kind: Token, token: node.kind)
+    result = result.append Terminal(kind: Token, token: node.kind)
     for item in node.items:
       # create each child and add them to the parent
       result = result.append(toAst[T](item, s), parent = 0)

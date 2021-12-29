@@ -14,12 +14,12 @@ suite "trees":
   var trees: seq[Program[G]]
   block:
     ## tree tests
-    var gram: Grammar[G]
-    gram.initGrammar(glangGrammar)
+    var gram: Grammar
+    initGrammar[G](gram, glangGrammar)
     while trees.len < 10_000:
       try:
         trees.add:
-          randProgram(gram, size=100)  #
+          randProgram[G](gram, size=100)  #
       except ShortGenome:
         discard
     let sizes = mapIt(trees, it.len)

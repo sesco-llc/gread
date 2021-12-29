@@ -50,13 +50,13 @@ proc fun*(s: string; arity = 0; args = arity..int.high): Function[G] =
   ## shorthand for defining glang functions
   Function[G](ident: s, arity: max(arity, args.a), args: args)
 
-proc term*(value: float): Terminal[G] =
+proc term*(value: float): Terminal =
   ## shorthand for defining glang terminals
-  Terminal[G](kind: Float, floatVal: value)
+  Terminal(kind: Float, floatVal: value)
 
-proc sym*(value: string): Terminal[G] =
+proc sym*(value: string): Terminal =
   ## shorthand for defining glang symbols
-  Terminal[G](kind: Symbol, name: value)
+  Terminal(kind: Symbol, name: value)
 
 # define the necessary api for gread
 func isParent*[T: G](n: AstNode[T]): bool = n.kind.GKind == Dad
@@ -67,7 +67,7 @@ func isNumberLit*[T: G](n: AstNode[T]): bool = n.kind.GKind in {Int, Flo, Bul}
 func programNode*[T: G](a: var Ast[T]): AstNode[T] = AstNode[T](kind: int16 Pro)
 func emptyNode*[T: G](a: var Ast[T]): AstNode[T] = AstNode[T](kind: int16 Nop)
 
-proc terminalNode*[T: G](a: var Ast[T]; term: Terminal[T]): AstNode[T] =
+proc terminalNode*[T: G](a: var Ast[T]; term: Terminal): AstNode[T] =
   case term.kind
   of Token:
     tokenNode(a, term.token, text = term.text)
@@ -89,8 +89,8 @@ proc terminalNode*[T: G](a: var Ast[T]; term: Terminal[T]): AstNode[T] =
 
 proc composeCall*[T: G](fun: Function[T]): Ast[T] =
   result.nodes.add:
-    terminalNode(result, Terminal[T](kind: Token, token: Dad.toInt16))
-  result = result.append(Terminal[T](kind: Symbol, name: fun.ident), parent = 0)
+    terminalNode(result, Terminal(kind: Token, token: Dad.toInt16))
+  result = result.append(Terminal(kind: Symbol, name: fun.ident), parent = 0)
 
 proc render*[T: G](a: Ast[T]; n: AstNode[T]; index = 0): string =
   ## showing gread how to render individual glang nodes

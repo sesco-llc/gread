@@ -45,7 +45,6 @@ type
 
   LuaStat* = MovingStat[float32]
 
-  Term* = Terminal[Lua]
   Fun* = Function[Lua]
 
   LProg* = Program[Lua]
@@ -127,18 +126,18 @@ proc clearCache*(lua: Lua) {.deprecated.} =
 proc fun*(s: string; arity = 0; args = arity..int.high): Fun =
   Fun(ident: s, arity: max(arity, args.a), args: args)
 
-proc term*(value: float): Term =
-  Term(kind: Float, floatVal: value)
-proc term*(value: bool): Term =
-  Term(kind: Boolean, boolVal: value)
-proc str*(value: string): Term =
-  Term(kind: String, strVal: value)
-proc sym*(value: string): Term =
-  Term(kind: Symbol, name: value)
-proc term*(value: int): Term =
-  Term(kind: Integer, intVal: value)
+proc term*(value: float): Terminal =
+  Terminal(kind: Float, floatVal: value)
+proc term*(value: bool): Terminal =
+  Terminal(kind: Boolean, boolVal: value)
+proc str*(value: string): Terminal =
+  Terminal(kind: String, strVal: value)
+proc sym*(value: string): Terminal =
+  Terminal(kind: Symbol, name: value)
+proc term*(value: int): Terminal =
+  Terminal(kind: Integer, intVal: value)
 
-proc pushGlobal*(vm: PState; name: string; value: Term) =
+proc pushGlobal*(vm: PState; name: string; value: Terminal) =
   ## push a name/value pair into the vm as a global
   case value.kind
   of Float:
@@ -381,7 +380,7 @@ proc emptyNode*[T: Lua](a: var Ast[T]): AstNode[T] =
   ## create an "empty" node suitable as a placeholder
   AstNode[T](kind: luaNil)
 
-proc terminalNode*[T: Lua](a: var Ast[T]; term: Terminal[T]): AstNode[T] =
+proc terminalNode*[T: Lua](a: var Ast[T]; term: Terminal): AstNode[T] =
   ## convert a terminal into an ast node
   case term.kind
   of Token:
@@ -410,9 +409,9 @@ proc terminalNode*[T: Lua](a: var Ast[T]; term: Terminal[T]): AstNode[T] =
 proc composeCall*[T: Lua](fun: Function[T]): Ast[T] =
   ## create a call of the given function
   result.nodes.add:
-    terminalNode(result, Terminal[T](kind: Token, token: luaFunctionCall))
+    terminalNode(result, Terminal(kind: Token, token: luaFunctionCall))
   result =
-    result.append(Terminal[T](kind: Symbol, name: fun.ident), parent = 0)
+    result.append(Terminal(kind: Symbol, name: fun.ident), parent = 0)
 
 proc isFunctionSymbol*[T: Lua](a: Ast[T]; index: int): bool {.deprecated: "nonsensical".} =
   if index > 0 and index < a.high:
@@ -436,10 +435,10 @@ when false:
 proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
   case node.kind
   of luaIdentifier, luaPropertyIdentifier:
-    result = result.append Terminal[T](kind: Symbol, name: s[node])
+    result = result.append Terminal(kind: Symbol, name: s[node])
   of luaParents:
     #echo "parent kind ", node.kind, " text ", s[node]
-    result = result.append Terminal[T](kind: Token,
+    result = result.append Terminal(kind: Token,
                                        token: node.kind)
 
     # transcribe the children directly
@@ -449,11 +448,11 @@ proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
       if item.isNamed:
         result = result.append(toAst[T](item, s), parent = 0)
       else:
-        let sym = Terminal[T](kind: Symbol, name: s[node{i}])
+        let sym = Terminal(kind: Symbol, name: s[node{i}])
         result = result.append(sym, parent = 0)
 
   of luaTokenKinds:
-    result = result.append Terminal[T](kind: Token,
+    result = result.append Terminal(kind: Token,
                                        text: s[node],
                                        token: node.kind)
   of luaComment:

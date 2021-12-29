@@ -53,12 +53,6 @@ const
     <terminate>    ::= return <numexpr>
   """
 
-var c = newPrimitives[Lua]()
-c.functions = @[
-  fun("+", arity=2), fun("-", arity=2),
-  fun("*", arity=2), fun("/", arity=2),
-]
-
 suite "basic lua stuff":
   var p: LProg
   var lua: Lua
@@ -112,19 +106,19 @@ suite "basic lua stuff":
 
   block:
     ## parse lua grammar
-    var gram: Grammar[Lua]
-    gram.initGrammar(luaGrammar)
+    var gram: Grammar
+    initGrammar[Lua](gram, luaGrammar)
     for name, production in gram.pairs:
       if name == "terminate":
         checkpoint production
     let geno = randomGenome(2000)
-    let (pc, ast) = gram.πGE(geno)
+    let (pc, ast) = πGE[Lua](gram, geno)
     checkpoint "program counter: ", pc
     var p = newProgram(ast, geno[0..<pc.int])
     let s = $p
     checkpoint s
     checkpoint "genome length: ", p.genome.len
-    let (pc1, ast1) = gram.πGE(p.genome)
+    let (pc1, ast1) = πGE[Lua](gram, p.genome)
     check $p == $newProgram(ast1, p.genome[0..<pc1.int])
     var locals = initLocals:
       {

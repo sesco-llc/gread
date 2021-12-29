@@ -31,8 +31,8 @@ suite "grammar":
      <rule-char>      ::= <letter> | <digit> | "-"
     """
 
-    var gram: Grammar[G]
-    gram.initGrammar(example)
+    var gram: Grammar
+    initGrammar[G](gram, example)
     var seen: HashSet[string]
     for name, production in gram.pairs:
       check name != ""
@@ -54,8 +54,8 @@ suite "grammar":
 
   block:
     ## parse glang grammar
-    var gram: Grammar[G]
-    gram.initGrammar(glangGrammar)
+    var gram: Grammar
+    initGrammar[G](gram, glangGrammar)
     for name, production in gram.pairs:
       checkpoint name, " ", production
       if name == "terminate":

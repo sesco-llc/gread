@@ -14,12 +14,11 @@ include ./glang
 var prims = newPrimitives[G]()
 prims.functions = @[fun"+"]
 
-proc asAst*[T](term: Terminal[T]; c: Primitives[T]): Ast[T] =
+proc asAst*[T](term: Terminal): Ast[T] =
   ## convenience
   c.initAst term
 
-proc asAst*[T](fun: Function[T]; c: Primitives[T];
-               args: varargs[Ast[T], asAst]): Ast[T] =
+proc asAst*[T](fun: Function[T]; args: varargs[Ast[T], asAst]): Ast[T] =
   ## convenience
   result = c.initAst fun
   for a in args.items:
@@ -91,7 +90,7 @@ suite "basic machinery":
     a = a.append prims.initAst(term 2.0)
     let dad = a.parentOf a.high
     let (c, d) = (prims.initAst(term 6.0), prims.initAst(term 1.0))
-    var b = asAst(fun"-", prims)
+    var b = asAst(fun"-")
     b = b.append c
     b = b.append d
     a = a.append b
@@ -112,7 +111,7 @@ suite "basic machinery":
     var a = prims.initAst fun"+"
     let dad = a.parentOf a.high
     let (c, d) = (prims.initAst(term 6.0), prims.initAst(term 1.0))
-    var b = asAst(fun"-", prims)
+    var b = asAst(fun"-")
     b = b.append c
     b = b.append d
     a = a.append b

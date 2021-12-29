@@ -118,19 +118,19 @@ suite "basic fennel stuff":
 
   block:
     ## parse fennel grammar
-    var gram: Grammar[Fennel]
-    gram.initGrammar fennelGrammar
+    var gram: Grammar
+    initGrammar[Fennel](gram, fennelGrammar)
     for name, production in gram.pairs:
       if name == "start":
         checkpoint production
     let geno = randomGenome(2000)
-    let (pc, ast) = gram.πGE(geno)
+    let (pc, ast) = πGE[Fennel](gram, geno)
     checkpoint "program counter: ", pc
     var p = newProgram(ast, geno[0..<pc.int])
     let s = $p
     checkpoint s
     checkpoint "genome length: ", p.genome.len
-    let (pc1, ast1) = gram.πGE(p.genome)
+    let (pc1, ast1) = πGE[Fennel](gram, p.genome)
     check $p == $newProgram(ast1, p.genome[0..<pc1.int])
     var locals = initLocals:
       {
