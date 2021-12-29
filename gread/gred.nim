@@ -68,6 +68,7 @@ proc removeFaulty[T](r: var Redis; gram: Grammar;
   try:
     result = unpack[T](gram, s)
   except StoreError:
+    echo "rm'ing bad redis value, did your grammar change?"
     discard r.srem(key, s)
     result = none Program[T]
 
