@@ -73,6 +73,15 @@ proc choose*[T](am: AliasMethod[T]): T =
     else:
       am.alias[i]
 
+proc choose*[T](rng: var Rand; am: AliasMethod[T]): T =
+  ## weighted random choice from the list of inputs
+  let i = rng.rand(am.prob.high)
+  `[]`(am.data):
+    if rng.rand(1.0) < am.prob[i]:
+      i
+    else:
+      am.alias[i]
+
 proc len*(am: AliasMethod): int =
   ## the cardinality of values
   am.data.len

@@ -18,7 +18,7 @@ proc geCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
     raise ValueError.newException:
       "population contains programs without genomes"
   try:
-    let x = geCrossover[T](evo.grammar, a.genome, b.genome)
+    let x = geCrossover[T](evo.rng, evo.grammar, a.genome, b.genome)
     if x.isSome:
       result = some: newProgram(x.get.ast, x.get.genome)
     evo.shortGenome false
@@ -33,8 +33,8 @@ proc randomCrossover*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
     raise ValueError.newException:
       "population contains programs without genomes"
   try:
-    let b = randomGenome(evo.tableau.seedProgramSize)
-    let x = geCrossover[T](evo.grammar, a.genome, b)
+    let b = randomGenome(evo.rng, evo.tableau.seedProgramSize)
+    let x = geCrossover[T](evo.rng, evo.grammar, a.genome, b)
     if x.isSome:
       result = some: newProgram(x.get.ast, x.get.genome)
     evo.shortGenome false
@@ -46,7 +46,7 @@ proc geMutation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
   template size: int = evo.tableau.tournamentSize
   let a = tournament(evo, size).program
   try:
-    let x = geMutation[T](evo.grammar, a.genome)
+    let x = geMutation[T](evo.rng, evo.grammar, a.genome)
     if x.isSome:
       result = some: newProgram(x.get.ast, x.get.genome)
     evo.shortGenome false

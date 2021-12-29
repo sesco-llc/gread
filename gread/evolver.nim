@@ -38,6 +38,7 @@ type
 
   Evolver*[T, V] = object
     platform: T
+    rng*: Rand                      # we essentially need to expose mutability
     grammar: Grammar
     fitone: FitOne[T, V]
     fitmany: FitMany[T, V]
@@ -150,9 +151,9 @@ proc dataset*[T, V](evo: Evolver[T, V]): lent seq[SymbolSet[T, V]] =
 proc `targets=`*[T, V](evo: var Evolver[T, V]; targets: seq[V]) =
   evo.targets = some targets
 
-proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau) =
+proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau; rng: Rand = randState()) =
   ## perform initial setup of the Evolver, binding platform and tableau
-  evo = Evolver[T, V](platform: platform, tableau: tableau)
+  evo = Evolver[T, V](platform: platform, tableau: tableau, rng: rng)
   evo.resetCache()
 
 proc tableau*(evo: Evolver): Tableau = evo.tableau
@@ -162,11 +163,11 @@ proc fittest*[T, V](evo: Evolver[T, V]): Option[Program[T]] =
     if not evo.population.fittest.isNil:
       result = some evo.population.fittest
 
-proc randomOperator*[T, V](evo: Evolver[T, V]): Operator[T, V] =
+proc randomOperator*[T, V](evo: var Evolver[T, V]): Operator[T, V] =
   if evo.operators.len == 0:
     raise ValueError.newException "evolver needs operators assigned"
   else:
-    choose evo.operators
+    choose(evo.rng, evo.operators)
 
 proc hasSampled(evo: Evolver; p: Program; index: int): bool =
   ## true if the program has been sampled with the symbol set at `index`
@@ -334,7 +335,7 @@ proc score*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
 proc scoreRandomly*[T, V](evo: var Evolver[T, V];
                           p: Program[T]): Option[V] =
   ## evaluate a program against a random symbol set; a smoke test
-  evo.score(rand evo.dataset.high, p)
+  evo.score(evo.rng.rand evo.dataset.high, p)
 
 proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
   ## assign a new fitness function to the evolver
@@ -363,7 +364,7 @@ proc randomSymbols*[T, V](evo: Evolver[T, V]): SymbolSet[T, V] =
   if evo.dataset.len == 0:
     raise ValueError.newException "evolver needs dataset assigned"
   else:
-    evo.dataset[rand evo.dataset.high]
+    evo.dataset[evo.rng.rand evo.dataset.high]
 
 proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
   ## create a new (random) population using the given evolver's parameters
@@ -374,7 +375,7 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
     try:
       let p =
         if not evo.grammar.isNil:
-          randProgram[T](evo.grammar, evo.tableau.seedProgramSize)
+          randProgram[T](evo.rng, evo.grammar, evo.tableau.seedProgramSize)
         else:
           raise ValueError.newException "need grammar"
       p.core = evo.core
@@ -395,12 +396,12 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
       #echo "short genome on core ", evo.core, "; pop size ", result.len
   echo "pop generation complete on core ", evo.core
 
-proc randomDataIndexes*(evo: Evolver): seq[int] =
+proc randomDataIndexes*(evo: var Evolver): seq[int] =
   ## a randomly-ordered sequence of dataset indexes
   result = newSeqOfCap[int](evo.dataset.len)
   for i in evo.dataset.low .. evo.dataset.high:
     result.add i
-  shuffle result
+  shuffle(evo.rng, result)
 
 proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
   ## compare two programs with high confidence and minimal sampling

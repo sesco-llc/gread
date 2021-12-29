@@ -14,6 +14,7 @@ proc `$`*(pc: PC): string {.borrow.}
 proc `==`*(a, b: PC): bool {.borrow.}
 proc inc(pc: var PC; n: int32) {.borrow.}
 
+proc low*(geno: Genome): int {.borrow.}
 proc high*(geno: Genome): int {.borrow.}
 proc len*(geno: Genome): int {.borrow.}
 proc add(geno: var Genome; c: char) {.borrow.}     # nim bug;
@@ -22,6 +23,9 @@ proc `&`*(a, b: Genome): Genome {.borrow.}
 proc `[]`*[T, U: Ordinal](geno: Genome; hs: HSlice[T, U]): Genome =
   ## essentially a `.borrow.` which works around a nim bug
   Genome geno.string[hs]
+
+proc `[]=`(geno: var Genome; index: int; ch: char) =
+  geno.string[index] = ch
 
 proc canRead*[T: Genes](geno: Genome; pc: PC; count = 1): bool =
   ## true if there remain at least `count` genes `T between the
@@ -54,8 +58,9 @@ proc read*[T: Genes](geno: Genome; pc: var PC): T =
   ## advance the program counter `pc`
   read(geno, pc, result)
 
-proc randomGenome*(size: int): Genome =
+proc randomGenome*(rng: var Rand; size: int): Genome =
+  ## using the provided random state,
   ## generate a random genome of the given size
-  result = Genome newStringOfCap(size)
-  while result.len < size:
-    result.add rand(int char.high).char
+  result = Genome newString(size)
+  for i in result.low ..< result.high:
+    result[i] = rng.rand(int char.high).char

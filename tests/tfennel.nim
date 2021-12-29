@@ -10,7 +10,6 @@ import gread
 import gread/fennel
 
 randomize()
-
 const
   fennelGrammar = """
     <start>        ::= <expr>
@@ -119,11 +118,12 @@ suite "basic fennel stuff":
   block:
     ## parse fennel grammar
     var gram: Grammar
+    var rng = randState()
     initGrammar[Fennel](gram, fennelGrammar)
     for name, production in gram.pairs:
       if name == "start":
         checkpoint production
-    let geno = randomGenome(2000)
+    let geno = randomGenome(rng, 2000)
     let (pc, ast) = πGE[Fennel](gram, geno)
     checkpoint "program counter: ", pc
     var p = newProgram(ast, geno[0..<pc.int])
@@ -140,3 +140,22 @@ suite "basic fennel stuff":
     let score = fnl.evaluate(p, locals)
     checkpoint $score
     check not score.float.isNaN
+
+  block:
+    ## mapping seems to be stable
+    var s: string
+    var p: Program[Fennel]
+    var gram: Grammar
+    var rng = initRand(5)
+    let geno = randomGenome(rng, 100)
+
+    for i in 1..10:
+      randomize()
+      initGrammar[Fennel](gram, fennelGrammar)
+      let (pc, ast) = πGE[Fennel](gram, geno)
+      p = newProgram(ast, geno[0..<pc.int])
+      s = $p
+      check s == "(if (not= 2.0 1.0 ) b b )"
+
+    checkpoint s
+    checkpoint "genome length: ", p.genome.len

@@ -35,6 +35,7 @@ type
   Work*[T, V] = object
     core*: Option[CoreId]                  ## threadId-like concept
     stats*: int                            ## how often to emit stats
+    rng*: Option[Rand]                     ## seeded RNG
     tableau*: Tableau
     grammar*: Grammar
     operators*: seq[OperatorWeight[T, V]]  ## operators & their weights
@@ -92,7 +93,7 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
                      operators: openArray[OperatorWeight[T, V]] = @[];
                      dataset: seq[SymbolSet[T, V]] = @[];
                      fitone: FitOne[T, V] = nil; fitmany: FitMany[T, V] = nil;
-                     targets = none seq[V];
+                     targets = none seq[V]; rng = none Rand;
                      core = none int; stats = 1000) =
   ## initialize a work object for passing setup instructions to worker threads;
   ## this is now just a convenience to reduce line count
@@ -120,7 +121,7 @@ proc share*(work: Work; p: Program) =
       int work.tableau.sharingRate
 
   # share the program as widely as is requested
-  for copies in 0..max(0, sharing):
+  for copies in 0..<max(0, sharing):
     var transit = clone p
     transit.source = getThreadId()
     transit.core = work.core         # set the core to help define origin
