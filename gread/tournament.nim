@@ -136,25 +136,30 @@ proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
     debug "sample order:"
     debug samples
 
-    var data: seq[SymbolSet[T, V]]       # datapoints we've tested
+    var indices: PackedSet[int]          # indices we've tested
     while samples.len > 0 and victims.len > 1:
       # pick a novel datapoint we have not tested previously
       let index = pop samples
-      data.add evo.dataset[index]
+      indices.incl index
 
       # test all victims against the datapoint
       var i = 0
       debug "scoring against ", evo.dataset[index]
       while i <= victims.high and victims.len > 1:
         let p = victims[i].program
-        if evo.cacheSize(p) >= samples.len:
-          inc i
+
+        when false: # let's not confuse the issue here
+          if evo.cacheSize(p) >= samples.len:
+            inc i
+            continue # added so the when makes sense
+
         else:
+
           let s = evo.score(index, p)
           if s.isSome:
             inc i
           else:
-            debug "victim ", i, " failed score against ", data[^1]
+            debug "victim ", i, " failed score against ", evo.dataset[index]
             debug "victim ", i, " ", victims[i].program
             victims[i].score = NaN
             victims[i].valid = false
@@ -174,7 +179,7 @@ proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
       while i <= victims.high and victims.len > 1:
         let p = victims[i].program
         # re-score the program against all datapoints tested to date
-        let s = evo.score(data, p)
+        let s = evo.score(addr indices, p)
         if s.isSome:
           # update the competitor and move to the next victim
           debug "victim ", i, " was ", victims[i].score, " now ", get s

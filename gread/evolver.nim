@@ -51,8 +51,8 @@ type
     operators: AliasMethod[Operator[T, V]]
     gentime: MovingStat[float32]
     shorties: MovingStat[float32]
-    novel: LPTab[Hash, PackedSet[int]]
-    cache: LPTab[Hash, seq[Option[V]]]
+    novel: LPTab[Hash, PackedSet[int]]  # NOTE: literally un-novel 🙄
+    cache: LPTab[Hash, seq[V]]
     cacheCounter: int
     indexes: PackedSet[int]
 
@@ -192,17 +192,17 @@ iterator sampleSets(evo: var Evolver; a, b: Program): PackedSet[int] =
   yield evo.indexes - (x + y)
 
 proc getScoreFromCache[T, V](evo: var Evolver[T, V]; p: Program;
-                             index: int): Option[V] =
-  ## load optional score using dataset[index] (symbol set)
+                             index: int): ptr V =
+  ## load score using dataset[index] (symbol set)
   assert evo.hasSampled(p, index)
   try:
-    result = evo.cache[p.hash][index]
+    result = addr evo.cache[p.hash][index]
   except KeyError:
-    result = none V
+    result = nil
 
 proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
-                           score: Option[V]) =
-  ## store optional score using dataset[index] (symbol set)
+                           score: V) =
+  ## store score using dataset[index] (symbol set)
   demandValid score
   mixin strength
   var ps = evo.novel.mgetOrPut(p.hash, initPackedSet[int]())
@@ -211,7 +211,7 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
     try:
       # omit it for now
       when false:
-        var s: seq[Option[V]]
+        var s: seq[V]
         s = evo.cache[p.hash]
         if index > s.high:
           # need to check the performance on these
@@ -220,12 +220,11 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
         s[index] = score
       evo.cache[p.hash][index] = score
     except KeyError:
-      var s: seq[Option[V]]
+      var s: seq[V]
       newSeq(s, evo.dataset.len)  # work around cps `()`()
       s[index] = score
       evo.cache[p.hash] = s
-    if score.isSome:
-      p.push strength(get score)
+    p.push score.strength
 
 proc scoreFromCache*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   ## compute a new score for the program using prior evaluations
@@ -247,10 +246,7 @@ proc scoreFromCache*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   # setting up an iterator over populated cache entries
   iterator iter(): (ptr SymbolSet[T, V], ptr V) =
     for index in novel[].items:
-      if cache[][index].isNone:
-        raise Defect.newException "cache missing value"
-      else:
-        yield (addr data[][index], addr (get cache[][index]))
+      yield (addr data[][index], addr cache[][index])
 
   # pass the iterator to fitmany() and check the result
   try:
@@ -272,13 +268,14 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
     return none V
   else:
     if evo.hasSampled(p, index):
-      result = evo.getScoreFromCache(p, index)
+      let v = evo.getScoreFromCache(p, index)
+      result = some v[]
     else:
       let began = getTime()
       result = evo.fitone(evo.platform, evo.dataset[index], p)
       demandValid result
       p.runtime.push (getTime() - began).inMilliseconds.float
-      evo.addScoreToCache(p, index, result)
+      evo.addScoreToCache(p, index, get result)
 
 proc score*[T, V](evo: Evolver[T, V]; ss: ptr SymbolSet[T, V];
                   p: Program[T]): Option[V] {.deprecated: "use index".} =
@@ -318,6 +315,39 @@ proc score*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]];
           raise UnfitError.newException "fitone fail"
         else:
           yield (unsafeAddr d[][index], unsafeAddr (get s))
+
+    # pass the iterator to fitmany() and check the result
+    try:
+      result = evo.fitmany(evo.platform, iter, p)
+      demandValid result
+    except UnfitError:
+      result = none V
+
+proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
+                  p: Program[T]): Option[V] =
+  ## score a program against a subset of symbol sets from the evolver
+  if evo.fitone.isNil:
+    raise ValueError.newException "evolver needs fitone assigned"
+  elif evo.fitmany.isNil:
+    raise ValueError.newException "evolver needs fitmany assigned"
+  elif p.zombie:
+    result = none V
+  else:
+    let e = addr evo
+    # the iterator evaluates each symbol set in the dataset
+    iterator iter(): (ptr SymbolSet[T, V], ptr V) =
+      for index in indices[].items:
+        var v: ptr V
+        if e[].hasSampled(p, index):
+          v = e[].getScoreFromCache(p, index)
+        else:
+          let s = e[].score(unsafeAddr e[].dataset[index], p)
+          if s.isNone:
+            raise UnfitError.newException "fitone fail"
+          else:
+            e[].addScoreToCache(p, index, get s)
+            v = unsafeAddr (get s)
+        yield (unsafeAddr e[].dataset[index], v)
 
     # pass the iterator to fitmany() and check the result
     try:
