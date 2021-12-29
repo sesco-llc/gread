@@ -73,10 +73,12 @@ proc resetParsimony*(pop: Population) =
     profile "reset parsimony":
       pop.ken.parsimony = parsimony pop
 
-import std/strformat
-proc checkLengths(pop: Population; p: Program) =
-  ## bugfinding assert
-  when not defined(danger):
+when defined(danger):
+  template checkLengths(pop, p: typed) = discard
+else:
+  import std/strformat
+  proc checkLengths(pop: Population; p: Program) =
+    ## bugfinding assert
     if pop.ken.lengths.mean.int < 1:
       writeStackTrace()
       stdmsg().write fmt"""
