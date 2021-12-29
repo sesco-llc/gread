@@ -344,6 +344,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
     lua.dumpScore pop.fittest
 
   var dumb = m.lengths.variance.int  # work around nim bug
+  # program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
   checkpoint fmt"""
                core and thread: {m.core}/{threaded}
                   dataset size: {evo.dataset.len}
@@ -354,7 +355,6 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
           validity rate in pop: {m.validity.mean.percent}
            average valid score: {Score m.scores.mean}
           greatest of all time: {m.bestScore}
-           program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
            evolver cache count: {evo.cacheSize}
            evolver cache usage: {evo.cacheUsage.percent}
           average program size: {m.lengths.mean.int}
