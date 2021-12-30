@@ -111,7 +111,7 @@ suite "basic lua stuff":
     for name, production in gram.pairs:
       if name == "terminate":
         checkpoint production
-    let geno = randomGenome(2000)
+    let geno = randomGenome(randState(), 2000)
     let (pc, ast) = πGE[Lua](gram, geno)
     checkpoint "program counter: ", pc
     var p = newProgram(ast, geno[0..<pc.int])
