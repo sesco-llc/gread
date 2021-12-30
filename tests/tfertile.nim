@@ -1,3 +1,4 @@
+import std/random
 import std/sequtils
 
 import pkg/balls
@@ -19,7 +20,7 @@ suite "trees":
     while trees.len < 10_000:
       try:
         trees.add:
-          randProgram[G](gram, size=100)  #
+          randProgram[G](randState(), gram, size=100)  #
       except ShortGenome:
         discard
     let sizes = mapIt(trees, it.len)
