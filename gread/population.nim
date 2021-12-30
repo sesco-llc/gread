@@ -29,7 +29,7 @@ type
   PopMetrics* = object
     core*: CoreSpec
     generation*: Generation
-    lengths*: MovingStat[float32]
+    lengths*: MovingStat[float32]       ## accurate only after resetMetrics()
     scores*: MovingStat[float64]
     ages*: MovingStat[float32]
     immigrants*: int
@@ -73,27 +73,10 @@ proc resetParsimony*(pop: Population) =
     profile "reset parsimony":
       pop.ken.parsimony = parsimony pop
 
-when defined(danger):
-  template checkLengths(pop, p: typed) = discard
-else:
-  import std/strformat
-  proc checkLengths(pop: Population; p: Program) =
-    ## bugfinding assert
-    if pop.ken.lengths.mean.int < 1:
-      writeStackTrace()
-      stdmsg().write fmt"""
-      bug.
-      program length: {p.len.float}
-        mean lengths: {pop.ken.lengths.mean}
-      """
-      quit 0
-
 template learn(pop: Population; p: Program; pos: int) =
   when populationCache:
     pop.cache.incl p.hash
   if p.isValid:
-    pop.ken.lengths.push p.len.float
-    checkLengths(pop, p)
     if p.score.isValid:
       pop.ken.scores.push p.score
     else:
@@ -111,8 +94,6 @@ template forget(pop: Population; p: Program; pos: int) =
     pop.cache.excl p.hash
   if p.isValid:
     if p.score.isValid:
-      pop.ken.lengths.pop p.len.float
-      checkLengths(pop, p)
       pop.ken.scores.pop p.score
       pop.ken.validity.pop 1.0
     else:
@@ -381,19 +362,18 @@ proc core*(pop: Population): CoreSpec =
   withInitialized pop:
     pop.ken.core
 
-proc resetScoreMetrics(pop: Population) =
+proc resetMetrics(pop: Population) =
   ## reset validity, score, and parsimony metrics in the population; O(n)
   withInitialized pop:
     clear pop.ken.validity
     clear pop.ken.scores
     clear pop.ken.caches
+    clear pop.ken.lengths
     for p in pop.items:
       if p.isValid:
         pop.ken.validity.push 1.0
-        if p.score.isValid:
-          pop.ken.scores.push p.score
-        else:
-          raise
+        pop.ken.scores.push p.score
+        pop.ken.lengths.push p.len.float
       else:
         pop.ken.validity.push 0.0
       pop.ken.caches.push p.cacheSize.float
@@ -401,7 +381,7 @@ proc resetScoreMetrics(pop: Population) =
 
 proc metrics*(pop: Population): PopMetrics =
   ## returns a copy of the population's metrics
-  resetScoreMetrics pop
+  resetMetrics pop
   result = pop.ken
   result.size = pop.len
   if not pop.fittest.isNil:
