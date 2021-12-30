@@ -36,11 +36,9 @@ type
     core*: Option[int]
     vm*: PState
     runs*: uint
-    nans*: FennelStat
-    errors*: FennelStat
-    runtime*: FennelStat
-
-  FennelStat* = MovingStat[float32]
+    nans*: MovingStat[float32, uint32]
+    errors*: MovingStat[float32, uint32]
+    runtime*: MovingStat[float32, uint32]
 
   Fun* = Function[Fennel]
 
@@ -372,7 +370,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
   ## a threadsafe echo of some statistics regarding the vm and population
   var fnl = evo.platform
   var pop = evo.population
-  template genTime: FennelStat = evo.generationTime
+  template genTime: untyped = evo.generationTime
   let m = pop.metrics
   let threaded = when compileOption"threads": $getThreadId() else: "-"
   if not pop.fittest.isNil:

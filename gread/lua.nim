@@ -39,11 +39,9 @@ type
     core*: Option[int]
     vm*: PState
     runs*: uint
-    nans*: LuaStat
-    errors*: LuaStat
-    runtime*: LuaStat
-
-  LuaStat* = MovingStat[float32]
+    nans*: MovingStat[float32, uint32]
+    errors*: MovingStat[float32, uint32]
+    runtime*: MovingStat[float32, uint32]
 
   Fun* = Function[Lua]
 
@@ -336,7 +334,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
   ## a threadsafe echo of some statistics regarding the vm and population
   var lua = evo.platform
   var pop = evo.population
-  template genTime: LuaStat = evo.generationTime
+  template genTime: untyped = evo.generationTime
   let m = pop.metrics
   let threaded = when compileOption"threads": $getThreadId() else: "-"
   if not pop.fittest.isNil:

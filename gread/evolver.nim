@@ -50,8 +50,8 @@ type
     tableau: Tableau
     population: Population[T]
     operators: AliasMethod[Operator[T, V]]
-    gentime: MovingStat[float32]
-    shorties: MovingStat[float32]
+    gentime: MovingStat[float32, uint32]
+    shorties: MovingStat[float32, uint32]
     novel: LPTab[Hash, PackedSet[int]]  # NOTE: literally un-novel 🙄
     cache: LPTab[Hash, seq[V]]
     cacheCounter: int
@@ -86,7 +86,7 @@ proc del*(evo: var Evolver; p: Program) =
   except KeyError:
     discard
 
-proc shortGenome*(evo: Evolver): MovingStat[float32] =
+proc shortGenome*(evo: Evolver): MovingStat[float32, uint32] =
   ## retrieve the statistics on mapping failures due to short genomes
   evo.shorties
 
@@ -94,7 +94,7 @@ proc shortGenome*(evo: var Evolver; tooShort: bool) =
   ## record a short (true) or sufficient (false) genome result due to mapping
   evo.shorties.push float(ord tooShort)
 
-proc generationTime*(evo: Evolver): MovingStat[float32] =
+proc generationTime*(evo: Evolver): MovingStat[float32, uint32] =
   ## fetch the generation time statistics
   evo.gentime
 

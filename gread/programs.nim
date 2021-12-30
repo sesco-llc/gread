@@ -22,14 +22,14 @@ type
     genome: Genome            ## the genome used to construct the program
     code: Option[string]      ## cache of the rendered source code
     core*: Option[int]        ## ideally holds the core where we were invented
-    runtime*: MovingStat[float32]  ## tracks the runtime for this program
+    runtime*: MovingStat[float32, uint32]  ## tracks the runtime for this program
     source*: int              ## usually the threadId where we were invented
     generation*: Generation   ## the generation number in which we arrived
     hash*: Hash               ## pre-generated hash for the program's ast
     score*: Score             ## the score of this program when last evaluated
     flags*: set[ProgramFlag]  ## flag enums associated with the program
     ast*: Ast[T]              ## the ast of the program itself
-    scores*: MovingStat[float64] ## statistics around valid scores
+    scores*: MovingStat[float64, uint32] ## statistics around valid scores
     when programCache:
       cache: LPTab[Hash, Option[Score]] ## cache of score given symbol set hash
   Program*[T] = ref ProgramObj[T]
