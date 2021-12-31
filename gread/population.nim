@@ -295,10 +295,10 @@ type
     index: int
     program: Program[T]
 
-proc randomMember*[T](pop: Population[T]): IndexedProgram[T] =
+proc randomMember*[T](rng: var Rand; pop: Population[T]): IndexedProgram[T] =
   ## return a random member of the population
   withPopulated pop:
-    let index = rand pop.programs.high
+    let index = rng.rand pop.programs.high
     result = (index: index, program: pop.programs[index])
 
 proc del*[T](pop: Population[T]; index: int) =

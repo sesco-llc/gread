@@ -74,7 +74,7 @@ proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
   var victim: Competitor[T]
   var seen: PackedSet[Hash]           # de-dupe fighters
   while seen.len < size:
-    var (i, p) = randomMember evo.population
+    var (i, p) = randomMember(evo.rng, evo.population)
     if not seen.containsOrIncl p.hash:
       victim = (valid: p.isValid, score: Score NaN,
                 len: p.len, index: i, program: p)
@@ -122,7 +122,7 @@ proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
                    len: p.len, index: i, program: p)
   else:
     while victims.len < size:
-      var (i, p) = randomMember evo.population
+      var (i, p) = randomMember(evo.rng, evo.population)
       if not seen.containsOrIncl i:
         victims.add (valid: not p.zombie, score: Score NaN,
                      len: p.len, index: i, program: p)

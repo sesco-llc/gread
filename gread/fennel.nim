@@ -519,11 +519,8 @@ when compileOption"threads":
 
       search(args, evo.population)   # fresh meat from other threads
 
-      let fit = evo.fittest
-      if fit.isSome:
-        let fit = get fit
-        if evo.dataset.len == 0 or evo.legit(fit):
-          share(args, fit)
+      let stale = randomMember(evo.rng, evo.population)
+      share(args, stale.program)
 
       discard evo.generation()
 

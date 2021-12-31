@@ -523,12 +523,8 @@ when compileOption"threads":
 
       search(args, evo.population)   # fresh meat from other threads
 
-      let fit = evo.fittest
-      if fit.isSome:
-        let fit = get fit
-        if fit.hash != leader:
-          leader = fit.hash
-          share(args, fit)  # send it to other threads
+      let stale = randomMember(evo.rng, evo.population)
+      share(args, stale.program)
 
       if evo.tableau.useParsimony:
         profile "parsimony":
