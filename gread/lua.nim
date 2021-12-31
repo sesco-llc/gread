@@ -508,6 +508,8 @@ when compileOption"threads":
     let lua = newLua args.core
     var evo: Evolver[Lua, LuaValue]
     initEvolver(evo, lua, args.tableau)
+    if args.rng.isSome:
+      evo.rng = get args.rng
     evo.operators = args.operators
     evo.dataset = args.dataset
     evo.core = lua.core

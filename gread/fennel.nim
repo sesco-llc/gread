@@ -504,6 +504,8 @@ when compileOption"threads":
     let fnl = newFennel(core = args.core)
     var evo: Evolver[Fennel, LuaValue]
     initEvolver(evo, fnl, args.tableau)
+    if args.rng.isSome:
+      evo.rng = get args.rng
     evo.grammar = args.grammar
     evo.operators = args.operators
     evo.dataset = args.dataset
