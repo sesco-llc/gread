@@ -31,8 +31,8 @@ proc randomCrossover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
   if a.genome.len == 0:
     raise ValueError.newException:
       "population contains programs without genomes"
-  #let b = randomGenome(evo.rng, evo.tableau.seedProgramSize)
-  for x in randomCrossover[T](evo.rng, evo.grammar, a.genome):
+  for x in randomCrossover[T](evo.rng, evo.grammar, a.genome,
+                              size = evo.tableau.seedProgramSize):
     if x.isSome:
       evo.shortGenome false
       result.add newProgram(x.get.ast, x.get.genome)

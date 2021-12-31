@@ -57,11 +57,11 @@ iterator subtreeXover*[T](rng: var Rand; gram: Grammar;
   yield subtreeXoverImpl[T](rng, gram, a, b)
 
 iterator randomCrossover*[T](rng: var Rand; gram: Grammar;
-                             a: Genome): ResultForm[T] =
+                             a: Genome; size: int): ResultForm[T] =
   ## perform GE crossover between one parent and a random genome
   if a.len == 0:
     raise Defect.newException "received empty input genome"
-  let b = randomGenome(rng, a.len)
+  let b = randomGenome(rng, size)
   for r in crossoverImpl[T](rng, gram, a, b):
     yield r
 
