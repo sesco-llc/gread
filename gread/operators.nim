@@ -47,12 +47,12 @@ proc subtreeXover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
   if a.genome.len == 0 or b.genome.len == 0:
     raise ValueError.newException:
       "population contains programs without genomes"
-  let x = subtreeXover[T](evo.rng, evo.grammar, a.genome, b.genome)
-  if x.isSome:
-    evo.shortGenome false
-    result.add newProgram(x.get.ast, x.get.genome)
-  else:
-    evo.shortGenome true
+  for x in subtreeXover[T](evo.rng, evo.grammar, a.genome, b.genome):
+    if x.isSome:
+      evo.shortGenome false
+      result.add newProgram(x.get.ast, x.get.genome)
+    else:
+      evo.shortGenome true
 
 proc randomSubtreeXover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
   ## perform GE crossover with a random genome to form a new child
@@ -61,13 +61,12 @@ proc randomSubtreeXover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
   if a.genome.len == 0:
     raise ValueError.newException:
       "population contains programs without genomes"
-  #let b = randomGenome(evo.rng, evo.tableau.seedProgramSize)
-  let x = randomSubtreeXover[T](evo.rng, evo.grammar, a)
-  if x.isSome:
-    evo.shortGenome false
-    result.add newProgram(x.get.ast, x.get.genome)
-  else:
-    evo.shortGenome true
+  for x in randomSubtreeXover[T](evo.rng, evo.grammar, a.genome):
+    if x.isSome:
+      evo.shortGenome false
+      result.add newProgram(x.get.ast, x.get.genome)
+    else:
+      evo.shortGenome true
 
 proc geMutation*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
   ## perform GE mutation of a program to create novel offspring
