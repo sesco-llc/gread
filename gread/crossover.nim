@@ -31,10 +31,11 @@ proc subtreeXoverImpl[T](rng: var Rand; gram: Grammar;
 iterator crossoverImpl[T](rng: var Rand; gram: Grammar;
                           a, b: Genome): ResultForm[T] =
   # ensure the crossover point occurs in mutual coding space
-  let n = rng.rand(0..min(a.high, b.high))
-  for (x, y) in [(a, b), (b, a)].items:
-    var g = x[0..<n]                                    # start with the head
-    g.add y[n..<y.high]                                 # add an opposite tail
+  let coding = min(a.high, b.high)
+  let n = rng.rand(0..coding)
+  for (x, y, i) in [(a, b, n), (b, a, coding-n)].items:
+    var g = x[0..<i]                                    # start with the head
+    g.add y[i..y.high]                                  # add an opposite tail
     try:
       let (pc, ast) = πGE[T](gram, g)                   # map the new genome
       yield some (ast: ast, genome: g[0..<pc.int])
