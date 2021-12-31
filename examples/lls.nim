@@ -107,7 +107,7 @@ when isMainModule:
   tab.seedPopulation = 500
   tab.maxPopulation = 500
   tab.tournamentSize = 10
-  tab.sharingRate = 3.0
+  tab.sharingRate = 0.05
   tab.maxGenerations = 200_000
   tab.requireValid = true
 

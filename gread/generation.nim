@@ -9,69 +9,51 @@ import gread/programs
 import gread/data
 import gread/evolver
 
-proc generation*[T, V](evo: var Evolver[T, V]): Option[Program[T]] =
-  ## try to create a novel program from better existing programs
+iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
+  ## try to create novel program(s) from better existing programs
   mixin strength
 
   let clock = getTime()
 
+  var discoveries = 0
   try:
     # inform the pop that we're in a new generation
     let gen = nextGeneration evo.population
 
     var p: Program[T]
-
-    while result.isNone and evo.tableau.requireValid:
-      while result.isNone:
-        let operator = evo.randomOperator()
-        profile "running the operator":
-          result = operator evo
-
-      p = get result
-      p.generation = gen
-      p.core = evo.core
-      # FIXME: optimization point
-      let s =
-        when defined(greadFast):
-          # sample a single datapoint in order to check validity
-          evo.scoreRandomly(p)
+    while discoveries == 0:
+      let operator = evo.randomOperator()
+      for p in operator(evo).items:
+        p.generation = gen
+        p.core = evo.core
+        # FIXME: optimization point
+        let s =
+          when defined(greadFast):
+            # sample a single datapoint in order to check validity
+            evo.scoreRandomly(p)
+          else:
+            # sample all datapoints in order to develop useful score
+            evo.score(p)
+        if s.isSome:
+          p.score = strength(get s)
         else:
-          # sample all datapoints in order to develop useful score
-          evo.score(p)
-      if s.isSome:
-        p.score = strength(get s)
-      else:
-        p.zombie = true
-        if evo.tableau.requireValid:
-          result = none Program[T]
+          p.zombie = true
 
-    if not evo.tableau.requireValid or p.isValid:
-      # make room for the new program
-      template size: int = evo.tableau.tournamentSize
-      while evo.population.len > evo.tableau.maxPopulation-1:
-        profile "loser's tournament":
-          let loser = tournament(evo, size, order = Ascending)
-          del(evo, loser.program)            # warn evolver to clear cache
-          del(evo.population, loser.index)   # rm program from population
+        if not evo.tableau.requireValid or p.isValid:
+          inc discoveries   # we have something worth adding
+          # make room for the new program
+          template size: int = evo.tableau.tournamentSize
+          while evo.population.len > evo.tableau.maxPopulation-1:
+            profile "loser's tournament":
+              let loser = tournament(evo, size, order = Ascending)
+              del(evo, loser.program)            # warn evolver to clear cache
+              del(evo.population, loser.index)   # rm program from population
+          evo.population.add p
+          yield p
 
-      # we cannot afford to do so much work just for reporting
-      when false and defined(greadFast):
-        if not evo.population.fittest.isNil:
-          if not evo.population.fittest.hash == p.hash:
-            var samples = evo.randomDataIndexes()
-            discard confidentComparison(evo, samples, p,
-                                        evo.population.fittest)
-            let s = evo.scoreFromCache(p)
-            if s.isSome:
-              p.score = get s
-            else:
-              p.zombie = true
-
-      if not evo.tableau.requireValid or p.isValid:
-        evo.population.add p
-
+  finally:
+    if discoveries > 0:
       # update the parsimony to account for additions and removals
       resetParsimony evo.population
 
-  finally:
     evo.generationTime (getTime() - clock).inMilliseconds.float

@@ -32,8 +32,7 @@ type
                         p: Program[T]): Option[V] ##
   ## a fitness function that runs against a series of symbolsets
 
-  Operator*[T, V] = proc(pop: var Evolver[T, V]): Option[Program[T]] {.nimcall.}
-  #Weight = float or float64
+  Operator*[T, V] = proc(evo: var Evolver[T, V]): seq[Program[T]] {.nimcall.}
   OperatorWeight*[T, V] = tuple[operator: Operator[T, V]; weight: float64]
 
   Evolver*[T, V] = object
@@ -44,7 +43,6 @@ type
     fitmany: FitMany[T, V]
     dataset: seq[SymbolSet[T, V]]
     targets: Option[seq[V]]
-    weights: LPTab[int, float]
     balance: AliasMethod[int]
     core: CoreSpec
     tableau: Tableau

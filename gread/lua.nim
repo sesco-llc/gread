@@ -526,22 +526,11 @@ when compileOption"threads":
       let stale = randomMember(evo.rng, evo.population)
       share(args, stale.program)
 
-      if evo.tableau.useParsimony:
-        profile "parsimony":
-          discard evo.population.parsimony
+      for discovery in evo.generation():
+        discard
 
-      let invention = evo.generation()
+      if evo.population.generations.int mod args.stats == 0:
+        dumpStats(evo, evoTime)
+        clearStats evo
 
-      if invention.isSome:
-        let p = get invention
-        if p.core.isNone and lua.core.isSome:
-          p.core = lua.core
-
-        if p.generation mod args.stats == 0:
-          dumpStats(evo, evoTime)
-          clearStats evo
-
-        when false:
-          if p.score.isNaN:
-            negativeCache(args, p)
     quit 0

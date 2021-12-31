@@ -522,7 +522,8 @@ when compileOption"threads":
       let stale = randomMember(evo.rng, evo.population)
       share(args, stale.program)
 
-      discard evo.generation()
+      for discovery in evo.generation():
+        discard
 
       if evo.population.generations.int mod args.stats == 0:
         dumpStats(evo, evoTime)

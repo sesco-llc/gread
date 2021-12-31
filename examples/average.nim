@@ -153,7 +153,8 @@ suite "simulation":
     while pop.generations < tab.maxGenerations:
       if best >= goodEnough:
         break
-      let invented = evo.generation()
+      for discovery in evo.generation():
+        discard
       let p = pop.fittest
       if not p.isNil:
         if evo.cacheSize(p) == training.len:
