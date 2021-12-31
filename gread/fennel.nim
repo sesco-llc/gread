@@ -380,14 +380,16 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
 
   var dumb = m.lengths.variance.int  # work around nim bug
   # program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
+  let age = int(m.generation.int.float - m.ages.mean)
   checkpoint fmt"""
                core and thread: {m.core}/{threaded}
                   dataset size: {evo.dataset.len}
           virtual machine runs: {fnl.runs} (never reset)
             average vm runtime: {fnl.runtime.mean:>6.2f} ms
          total population size: {m.size}
-            average age in pop: {int(m.generation.int.float - m.ages.mean)}
           validity rate in pop: {m.validity.mean.percent}
+            average age in pop: {age}
+            age vs generations: {percent(age.float / m.generation.int.float)}
            average valid score: {Score m.scores.mean}
           greatest of all time: {m.bestScore}
            evolver cache count: {evo.cacheSize}
