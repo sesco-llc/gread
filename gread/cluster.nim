@@ -152,7 +152,7 @@ proc programQueues*[T, V](cluster: Cluster[T, V]): IO[T] =
 
 proc size*(cluster: Cluster): int =
   ## returns the number of evolvers in the cluster
-  cluster.threads.len
+  cluster.cores.len
 
 proc nextCore*(cluster: Cluster): Option[CoreId] =
   ## returns the next CoreId which will be used by the cluster
