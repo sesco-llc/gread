@@ -338,6 +338,7 @@ proc scoreRandomly*[T, V](evo: var Evolver[T, V];
 proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
   ## assign a new fitness function to the evolver
   evo.fitone = fitter
+  evo.resetCache()
 
 proc fitone*[T, V](evo: Evolver[T, V]): FitOne[T, V] =
   ## the currently configured fitness function for a single symbol set
