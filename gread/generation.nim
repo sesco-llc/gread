@@ -13,14 +13,12 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
   ## try to create novel program(s) from better existing programs
   mixin strength
 
+  # inform the pop that we're in a new generation
+  let gen = nextGeneration evo.population
   let clock = getTime()
-
   var discoveries = 0
-  try:
-    # inform the pop that we're in a new generation
-    let gen = nextGeneration evo.population
 
-    var p: Program[T]
+  try:
     while discoveries == 0:
       let operator = evo.randomOperator()
       for p in operator(evo).items:
