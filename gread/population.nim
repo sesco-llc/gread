@@ -204,7 +204,8 @@ proc maybeResetFittest*[T](pop: Population[T]; p: Program[T]) =
         if not pop.fittest.isNil:
           if pop.fittest.hash == p.hash:
             break
-          if pop.score(pop.fittest) >= pop.score(p):
+          # the fittest is not a function of parsimony
+          if pop.fittest >= p:
             break
         pop.fittest = p
         p.flags.incl FinestKnown
