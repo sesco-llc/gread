@@ -28,8 +28,6 @@ const
     <start>        ::= <numexpr>
     <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
     <numexpr>      ::= <value>
-    <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
-    <numexpr>      ::= <value>
     <numbop>       ::= "+" | "-" | "*" | "/"
     <value>        ::= "1" | "0" | "0.5" | "2"
     <value>        ::= "hi" | "lo"
@@ -51,8 +49,8 @@ tab.requireValid = true
 # define the different ways in which we evolve, and their weights
 let operators = {
   geCrossover[Fennel, LuaValue]:   100.0,
-  geMutation[Fennel, LuaValue]:     50.0,
-  randomCrossover[Fennel, LuaValue]: 5.0,
+  geMutation[Fennel, LuaValue]:     70.0,
+  randomCrossover[Fennel, LuaValue]: 0.1,
 }
 
 var

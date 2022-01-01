@@ -31,9 +31,9 @@ initGrammar[Fennel](gram, llsGrammar)
 
 # you can adjust these weights to change mutation rates
 let operators = {
-  geCrossover[Fennel, LuaValue]:    50.0,
-  geMutation[Fennel, LuaValue]:     25.0,
-  randomCrossover[Fennel, LuaValue]: 5.0,
+  geCrossover[Fennel, LuaValue]:    100.0,
+  geMutation[Fennel, LuaValue]:      70.0,
+  randomCrossover[Fennel, LuaValue]:  0.1,
 }
 
 const
@@ -102,12 +102,12 @@ when isMainModule:
 
   # now setup the workers with their unique populations, etc.
   var tab = defaultTableau
-  tab.useParsimony = true
+  tab.useParsimony = false
   tab.seedProgramSize = 200
   tab.seedPopulation = 500
   tab.maxPopulation = 500
-  tab.tournamentSize = 10
-  tab.sharingRate = 0.05
+  tab.tournamentSize = int(0.02 * tab.maxPopulation.float)
+  tab.sharingRate = 0.01
   tab.maxGenerations = 200_000
   tab.requireValid = true
 
@@ -118,7 +118,8 @@ when isMainModule:
            dataset = dataset, fitone = fitone, fitmany = fitmany,
            stats = statFrequency)
 
-  for core in 0..<countProcessors():
+  let cores = max(countProcessors() div 2, 4)
+  for core in 1..cores:
     clump.boot(whelp worker(args), args.core)
     clump.redress args
 
