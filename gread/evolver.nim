@@ -66,20 +66,25 @@ proc cacheUsage*(evo: Evolver): float =
 
 proc cacheSize*[T, V](evo: Evolver[T, V]): int =
   ## the total number of cached scores in the evolver
-  evo.cachecounter
+  evo.cacheCounter
 
 proc cacheSize*[T, V](evo: Evolver[T, V]; p: Program[T]): int =
   ## the number of cached scores measured for the program
-  try:
-    evo.novel[p.hash].len
-  except KeyError:
-    0
+  result =
+    try:
+      evo.novel[p.hash].len
+    except KeyError:
+      0
+  assert result <= evo.dataset.len
 
 proc del*(evo: var Evolver; p: Program) =
   ## remove a program from the evolver; currently used to drop cache entries
+  dec(evo.cacheCounter, evo.cacheSize(p))
   try:
-    dec(evo.cacheCounter, evo.cacheSize(p))
     del(evo.cache, p.hash)
+  except KeyError:
+    discard
+  try:
     del(evo.novel, p.hash)
   except KeyError:
     discard
@@ -219,10 +224,10 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
         s[index] = score
       evo.cache[p.hash][index] = score
     except KeyError:
-      var s: seq[V]
-      newSeq(s, evo.dataset.len)  # work around cps `()`()
+      var s = newSeq[V](evo.dataset.len)
       s[index] = score
       evo.cache[p.hash] = s
+    assert evo.cache[p.hash].len <= evo.dataset.len
     p.push score.strength
 
 proc scoreFromCache*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
