@@ -521,7 +521,7 @@ when compileOption"threads":
 
       search(args, evo.population)   # fresh meat from other threads
 
-      let stale = randomMember(evo.rng, evo.population)
+      let stale = randomMember(evo.population, evo.rng)
       share(args, stale.program)
 
       for discovery in evo.generation():

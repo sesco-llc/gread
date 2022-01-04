@@ -296,7 +296,7 @@ type
     index: int
     program: Program[T]
 
-proc randomMember*[T](rng: var Rand; pop: Population[T]): IndexedProgram[T] =
+proc randomMember*[T](pop: Population[T]; rng: var Rand): IndexedProgram[T] =
   ## return a random member of the population
   withPopulated pop:
     let index = rng.rand pop.programs.high

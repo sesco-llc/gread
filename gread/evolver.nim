@@ -204,6 +204,11 @@ proc getScoreFromCache[T, V](evo: var Evolver[T, V]; p: Program;
   except KeyError:
     result = nil
 
+proc initCache[T, V](evo: var Evolver[T, V]; p: Program; index: int; score: V) =
+  var s = newSeq[V](evo.dataset.len)
+  s[index] = score
+  evo.cache[p.hash] = s
+
 proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
                            score: V) =
   ## store score using dataset[index] (symbol set)
@@ -224,9 +229,7 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
         s[index] = score
       evo.cache[p.hash][index] = score
     except KeyError:
-      var s = newSeq[V](evo.dataset.len)
-      s[index] = score
-      evo.cache[p.hash] = s
+      initCache(evo, p, index, score)
     assert evo.cache[p.hash].len <= evo.dataset.len
     p.push score.strength
 
@@ -416,16 +419,23 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
     if a.isValid: return 1 else: return -1
   elif not a.isValid: return 0
 
+  var x, y: PackedSet[int]
+  x = evo.novel.mgetOrPut(a.hash, x)
+  y = evo.novel.mgetOrPut(b.hash, y)
+
+  var sampled = x * y
+
   debug ""
   debug "it begins"
-  # start with the scores as recovered from the cache
-  var a1 = evo.scoreFromCache(a)
-  var b1 = evo.scoreFromCache(b)
+  # start with the scores of training results both programs were run with
+  var a1 = evo.score(addr sampled, a)
+  var b1 = evo.score(addr sampled, b)
 
   var runs = 0
   template resample(p: Program; i: int; z: int): untyped {.dirty.} =
     ## if a program could move; let's test it further and maybe bail
     inc runs
+    sampled.incl i
     let score = evo.score(i, p)
     if score.isNone:
       debug "scored none; return " & $z
@@ -462,24 +472,22 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
         debug "delta is ", d
 
         # how probable is each program's score to move the given distance?
-        let csa = evo.cacheSize(a)
-        let csb = evo.cacheSize(b)
-        let ha = hoeffding(csa, d)
-        let hb = hoeffding(csb, d)
+        let ha = hoeffding(sampled.len, d)
+        let hb = hoeffding(sampled.len, d)
 
         if ha < p and hb < p:
-          if runs > 0:
+          if false and runs > 0:
             debug "hoeffding ran ", runs, " saved ",
-              percent(1.0 - (float(runs) / (samples.len.float*2.0)))
+              percent(1.0 - (float(runs) / (evo.indexes.len.float*2.0)))
           break done
 
         # sample the index for any program that hasn't done so yet
         if ha > p and not evo.hasSampled(a, i):
           resample(a, i, -1)
-          a1 = evo.scoreFromCache(a)
+          a1 = evo.score(addr evo.novel[a.hash], a)
         if hb > p and not evo.hasSampled(b, i):
           resample(b, i, 1)
-          b1 = evo.scoreFromCache(b)
+          b1 = evo.score(addr evo.novel[b.hash], b)
 
   guard()  # ensure the programs score safely
 

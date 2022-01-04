@@ -72,21 +72,27 @@ proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
 
   # the winner of each bout fights again
   var victim: Competitor[T]
-  var seen: PackedSet[Hash]           # de-dupe fighters
+  var seen: PackedSet[int]           # de-dupe fighters by index;
+  # we're counting unique programs, not unique members!
   while seen.len < size:
-    var (i, p) = randomMember(evo.rng, evo.population)
-    if not seen.containsOrIncl p.hash:
+    var (i, p) = randomMember(evo.population, evo.rng)
+    if not seen.containsOrIncl i:
       victim = (valid: p.isValid, score: Score NaN,
                 len: p.len, index: i, program: p)
       if result.program.isNil:
-        result = victim        # it's our first time through the loop
+        # it's our first time through the loop, so we'll establish
+        # the defender
+        result = victim
       else:
+        # we have an encumbent; see what's better when
         profile "confident comparo":
           let cmp =
             confidentComparison(evo, victim.program, result.program)
         if cmp == -1 and order == Ascending:
+          discharge(evo, result)
           result = victim
         elif cmp == 1 and order == Descending:
+          discharge(evo, result)
           result = victim
         else:
           discharge(evo, victim)
@@ -122,7 +128,7 @@ proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
                    len: p.len, index: i, program: p)
   else:
     while victims.len < size:
-      var (i, p) = randomMember(evo.rng, evo.population)
+      var (i, p) = randomMember(evo.population, evo.rng)
       if not seen.containsOrIncl i:
         victims.add (valid: not p.zombie, score: Score NaN,
                      len: p.len, index: i, program: p)
