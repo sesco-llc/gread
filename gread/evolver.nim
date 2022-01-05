@@ -270,6 +270,7 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
   ## to evaluate the program result. this scoring function also runs
   ## a stopwatch over `fitone()` and update's the program's runtime
   ## statistics.
+  mixin isValid
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   elif p.zombie:
@@ -306,6 +307,7 @@ proc score*[T, V](evo: Evolver[T, V]; ss: ptr SymbolSet[T, V];
 proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
                   p: Program[T]): Option[V] =
   ## score a program against a subset of symbol sets from the evolver
+  mixin isValid
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   elif evo.fitmany.isNil:
@@ -337,6 +339,7 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
 
 proc score*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   ## score the program against all available symbol sets
+  mixin isValid
   evo.score(addr evo.indexes, p)
 
 proc scoreRandomly*[T, V](evo: var Evolver[T, V];
@@ -377,6 +380,7 @@ proc randomSymbols*[T, V](evo: Evolver[T, V]): SymbolSet[T, V] =
 proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
   ## create a new (random) population using the given evolver's parameters
   mixin strength
+  mixin isValid
   result = newPopulation[T](evo.tableau.seedPopulation, core = evo.core)
   result.toggleParsimony(evo.tableau.useParsimony)
   while result.len < evo.tableau.seedPopulation:

@@ -7,10 +7,11 @@ import pkg/balls
 import pkg/frosty/streams as brrr
 
 import gread
+import gread/decompile
 import gread/fennel
 
-randomize()
 const
+  expectedMapping = "(if (not= 2.0 1.0 ) b b )"
   fennelGrammar = """
     <start>        ::= <expr>
     <expr>         ::= ( "if" <boolexpr> <expr> <expr> )
@@ -155,7 +156,21 @@ suite "basic fennel stuff":
       let (pc, ast) = πGE[Fennel](gram, geno)
       p = newProgram(ast, geno[0..<pc.int])
       s = $p
-      check s == "(if (not= 2.0 1.0 ) b b )"
+      check s == expectedMapping
 
     checkpoint s
     checkpoint "genome length: ", p.genome.len
+
+  block:
+    ## decompilation is a thing
+    var gram: Grammar
+    initGrammar[Fennel](gram, fennelGrammar)
+    var rng = initRand(5)
+    var evo = decompiler[Fennel](grammar, expectedMapping, rng = rng)
+    while evo.fittest.isNil or $evo.fittest != expectedMapping:
+      for discovery in evo.generation():
+        discard
+      if evo.fittest.isNil:
+        echo evo.population.generations
+      else:
+        echo evo.population.generations, " ", $evo.fittest
