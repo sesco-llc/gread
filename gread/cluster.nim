@@ -33,6 +33,7 @@ type
   Worker*[T, V] = proc(w: Work[T, V]) {.thread.}
 
   Work*[T, V] = object
+    name*: string                          ## for reporting purposes
     core*: Option[CoreId]                  ## threadId-like concept
     stats*: int                            ## how often to emit stats
     rng*: Option[Rand]                     ## seeded RNG
@@ -94,11 +95,12 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
                      dataset: seq[SymbolSet[T, V]] = @[];
                      fitone: FitOne[T, V] = nil; fitmany: FitMany[T, V] = nil;
                      targets = none seq[V]; rng = none Rand;
-                     core = none int; stats = 1000) =
+                     core = none int; stats = 1000; name = "") =
   ## initialize a work object for passing setup instructions to worker threads;
   ## this is now just a convenience to reduce line count
   work.tableau = tab
   work.grammar = grammar
+  work.name = name
   work.dataset = dataset
   work.operators = @operators
   work.stats = stats

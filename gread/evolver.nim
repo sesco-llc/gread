@@ -38,6 +38,7 @@ type
   Evolver*[T, V] = object
     platform: T
     rng*: Rand                      # we essentially need to expose mutability
+    name*: string                   # for reporting purposes
     grammar: Grammar
     fitone: FitOne[T, V]
     fitmany: FitMany[T, V]

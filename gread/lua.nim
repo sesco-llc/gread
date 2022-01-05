@@ -346,7 +346,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
   # program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
   let age = int(m.generation.int.float - m.ages.mean)
   checkpoint fmt"""
-               core and thread: {m.core}/{threaded}
+               core and thread: {m.core}/{threaded} -- {evo.name}
                   dataset size: {evo.dataset.len}
           virtual machine runs: {lua.runs} (never reset)
             average vm runtime: {lua.runtime.mean:>6.2f} ms
@@ -510,6 +510,7 @@ when compileOption"threads":
     initEvolver(evo, lua, args.tableau)
     if args.rng.isSome:
       evo.rng = get args.rng
+    evo.name = args.name
     evo.operators = args.operators
     evo.dataset = args.dataset
     evo.core = lua.core
