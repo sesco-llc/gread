@@ -530,6 +530,9 @@ when compileOption"threads":
         dumpStats(evo, evoTime)
         clearStats evo
 
+    while evo.population.len > 0:
+      share(args, randomRemoval(evo.population, evo.rng))
+
     quit 0
 
 proc parseToken*[T: Fennel](s: string): FennelNodeKind =
