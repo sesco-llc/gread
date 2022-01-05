@@ -26,7 +26,8 @@ proc store*[T](r: var Redis; p: Program[T]; key: string) =
   ## store a program to a given redis key set
   var geno = freeze p.genome
   geno.add frostyMagic
-  discard r.sadd(key, geno)
+  p.flags.incl Cached
+  discard r.sadd(key, geno)   # return value is number of elements added
 
 proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
   ## parse a string from redis into a program, if possible
@@ -58,7 +59,7 @@ proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
         raise StoreError.newException:
           "deserialization failure: no tree-sitter available"
     if not p.isNil:
-      p.ast[0].flags.incl Cached
+      p.flags.incl Cached
       result = some p
   except ThawError as e:
     raise StoreError.newException "deserialization failure: " & e.msg

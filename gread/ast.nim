@@ -36,40 +36,35 @@ type
       name*: string
 
   NodeFlag* = enum
-    Compiled
-    Cached
-    Scored
-    Optimized
-    DeadCode
+    Dead
   NodeFlags* = set[NodeFlag]
 
   AstNode*[T] = object
     kind*: int16
     operand*: int32  # length for parents, LitId for leaves
     # flags are similarly advisory only; they have no semantic bearing
-    flags*: NodeFlags
-    #origin: AstOrigin
+    when false:
+      flags*: NodeFlags
+      origin: AstOrigin
 
   Ast*[T] = object
     nodes*: seq[AstNode[T]]          # avoid games with a distinct seq
     strings*: BiTable[string]        # string literals contained within
     numbers*: BiTable[BiggestInt]    # numeric literals contained within
 
-when false:
-  # not used yet...
-  type
-    AstOrigin = object
-      core: Option[int]
-      population: Monotime
-      generation: Generation
-      monotime: Monotime
-      parents: (Hash, Hash)
+  AstOrigin = object # not used yet...
+    core: Option[int]
+    population: Monotime
+    generation: Generation
+    monotime: Monotime
+    parents: (Hash, Hash)
 
 proc `$`*[T](n: AstNode[T]): string =
   mixin `$`
   result = $n.kind & "." & $n.operand
-  if n.flags != {}:
-    result.add "/" & $n.flags
+  when false:
+    if n.flags != {}:
+      result.add "/" & $n.flags
 
 proc `$`*[T](a: Ast[T]): string =
   mixin `$`

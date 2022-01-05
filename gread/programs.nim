@@ -16,6 +16,8 @@ const
 type
   ProgramFlag* = enum
     FinestKnown
+    Cached
+    DeadCode
 
   #Program*[T] = ref object
   ProgramObj[T] = object
@@ -44,12 +46,12 @@ proc genome*(p: Program): Genome {.inline.} =
 
 proc zombie*(p: Program): bool {.inline.} =
   ## true if the program is invalid and may only be used for genetic data
-  DeadCode in p.ast[0].flags
+  DeadCode in p.flags
 
 proc `zombie=`*(p: Program; b: bool) =
   ## mark a program as invalid; idempotent
   if b:
-    incl(p.ast[0].flags, DeadCode)
+    incl(p.flags, DeadCode)
   elif p.zombie:
     raise Defect.newException "the undead must never live again"
 

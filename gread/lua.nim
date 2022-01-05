@@ -65,8 +65,6 @@ proc strength*(score: LuaValue): float =
 proc `$`*[T: Lua](n: AstNode[T]): string =
   ## rendering lua ast kinds
   result = $(LuaNodeKind n.kind) & "." & $n.operand
-  if n.flags != {}:
-    result.add "/" & $n.flags
 
 proc serialize*[S](output: var S; input: LuaValue) =
   ## serialize a LuaValue; used internally by frosty

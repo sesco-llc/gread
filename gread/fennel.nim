@@ -63,8 +63,6 @@ proc strength*(score: LuaValue): float =
 proc `$`*[T: Fennel](n: AstNode[T]): string =
   ## rendering fennel ast kinds
   result = $(FennelNodeKind n.kind) & "." & $n.operand
-  if n.flags != {}:
-    result.add "/" & $n.flags
 
 proc serialize*[S](output: var S; input: LuaValue) =
   ## serialize a LuaValue; used internally by frosty
