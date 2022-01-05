@@ -308,10 +308,12 @@ proc del*[T](pop: Population[T]; index: int) =
     pop.forget(pop.programs[index], index)
     del(pop.programs, index)
 
-proc randomRemoval*[T](pop: Population[T]): Program[T] =
+proc randomRemoval*[T](pop: Population[T]; rng: var Rand): Program[T] =
   ## remove a random member of the population
   withPopulated pop:
-    del(pop, rand pop.programs.high)
+    let query = pop.randomMember(rng)
+    result = query.program
+    del(pop, query.index)
 
 proc parsimony*(pop: Population): float =
   ## compute parsimony for members of the population with valid scores
