@@ -271,6 +271,7 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
   ## a stopwatch over `fitone()` and update's the program's runtime
   ## statistics.
   mixin isValid
+  mixin strength
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   elif p.zombie:
@@ -308,6 +309,7 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
                   p: Program[T]): Option[V] =
   ## score a program against a subset of symbol sets from the evolver
   mixin isValid
+  mixin strength
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   elif evo.fitmany.isNil:
@@ -340,6 +342,7 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
 proc score*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   ## score the program against all available symbol sets
   mixin isValid
+  mixin strength
   evo.score(addr evo.indexes, p)
 
 proc scoreRandomly*[T, V](evo: var Evolver[T, V];

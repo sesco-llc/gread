@@ -120,7 +120,7 @@ suite "basic fennel stuff":
     ## parse fennel grammar
     var gram: Grammar
     var rng = randState()
-    initGrammar[Fennel](gram, fennelGrammar)
+    initFennelGrammar(gram, fennelGrammar)
     for name, production in gram.pairs:
       if name == "start":
         checkpoint production
@@ -152,7 +152,7 @@ suite "basic fennel stuff":
 
     for i in 1..10:
       randomize()
-      initGrammar[Fennel](gram, fennelGrammar)
+      initFennelGrammar(gram, fennelGrammar)
       let (pc, ast) = πGE[Fennel](gram, geno)
       p = newProgram(ast, geno[0..<pc.int])
       s = $p
@@ -164,13 +164,13 @@ suite "basic fennel stuff":
   block:
     ## decompilation is a thing
     var gram: Grammar
-    initGrammar[Fennel](gram, fennelGrammar)
+    initFennelGrammar(gram, fennelGrammar)
     var rng = initRand(5)
-    var evo = decompiler[Fennel](grammar, expectedMapping, rng = rng)
-    while evo.fittest.isNil or $evo.fittest != expectedMapping:
+    var evo = decompiler(Fennel, gram, expectedMapping, rng = rng)
+    while evo.fittest.isNone or $(get evo.fittest) != expectedMapping:
       for discovery in evo.generation():
         discard
-      if evo.fittest.isNil:
+      if evo.fittest.isNone:
         echo evo.population.generations
       else:
-        echo evo.population.generations, " ", $evo.fittest
+        echo evo.population.generations, " ", $(get evo.fittest)

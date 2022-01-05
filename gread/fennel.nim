@@ -22,6 +22,7 @@ import gread/programs
 import gread/maths except variance
 import gread/data
 import gread/evolver
+import gread/grammar
 
 export stat
 export lptabz
@@ -554,3 +555,11 @@ proc parseToken*[T: Fennel](s: string): FennelNodeKind =
   of "&as":           fennelAmpersandasTok
   else:
     raise ValueError.newException "unsupported token: `$#`" % [ s ]
+
+proc parseFennelToken(s: string): int16 =
+  ## generic-free fennel token parser for use in grammars
+  parseToken[Fennel](s).int16
+
+proc initFennelGrammar*(gram: var Grammar; syntax: string) =
+  mixin initGrammar
+  initGrammar(gram, parseFennelToken, syntax)

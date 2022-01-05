@@ -220,9 +220,9 @@ proc initGrammar*(gram: var Grammar) =
     raise ValueError.newException "unable to create grammar"
   init gram.p
 
-proc initGrammar*[T](gram: var Grammar; syntax: string) =
+proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
+                  syntax: string) =
   ## initialize a grammar with the provided bnf syntax specification
-  mixin parseToken
   initGrammar gram
   var rules = bnf(syntax)
   var nonterminals = 0
@@ -230,10 +230,10 @@ proc initGrammar*[T](gram: var Grammar; syntax: string) =
     for c in r.rule.mitems:
       case c.kind
       of ckToken:
-        c.token = int16 parseToken[T](c.text)
+        c.token = parseToken(c.text)
       of ckTerminal:
         if c.term.kind == Token:
-          c.term.token = int16 parseToken[T](c.term.text)
+          c.term.token = parseToken(c.term.text)
         else:
           gram.t.incl c.term
       of ckRule:
