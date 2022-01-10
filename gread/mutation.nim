@@ -1,8 +1,6 @@
 import std/options
-import std/sequtils
 import std/random
 
-import gread/spec
 import gread/ast
 import gread/grammar
 import gread/genotype

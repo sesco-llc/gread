@@ -1,5 +1,4 @@
 import std/options
-import std/strutils
 import std/random
 
 import gread/ast

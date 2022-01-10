@@ -556,7 +556,7 @@ proc parseToken*[T: Fennel](s: string): FennelNodeKind =
   else:
     raise ValueError.newException "unsupported token: `$#`" % [ s ]
 
-proc parseFennelToken(s: string): int16 =
+proc parseFennelToken*(s: string): int16 =
   ## generic-free fennel token parser for use in grammars
   parseToken[Fennel](s).int16
 

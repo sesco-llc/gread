@@ -105,23 +105,37 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
   while nts.len > 0:
     geno.read(i, order)                         # read the order codon
     geno.read(i, codon)                         # read the content codon
+
+    # chose represents a non-terminal index in the ast which
+    # we have not yet resolved; we'll replace it now...
     let index = order.int mod nts.len           # select from non-terminals
     let chose = nts[index]                      # the LHS component to resolve
     delete(nts, index)                          # we must worry about order
     let options =
+      # if it's a symbol in the ast, treat it as a non-terminal name
       if result.ast[chose].isSymbol:
         let name = result.ast.name(chose)       # resolve the nt name
         toSeq gram.productions(name)            # RHS production choices
       else:
-        gram.p[chose] # RHS production choices
+        raise Defect.newException "bug.  bad indices in nts queue"
+
+    # content points to the production index from the `chose`n options
     let content = codon.int mod options.len     # choose content index
     let rule = options[content]                 # select the content production
     let rhs = toAst[T](rule)                    # convert rule to nodes
     doAssert rule.len == rhs.len, "not yet supported"
+
+    # we can now perform the substitution in the ast at the `chose`n index
     result.ast = result.ast.replace(chose, rhs) # add the nodes to the ast
+
+    # adjust the remaining non-terminal indices so they refer to
+    # the same nodes in the ast
     for item in nts.mitems:
       if item > chose:
-        item = item + (rhs.len-1)               # increment the indices
+        item = item + rhs.high                  # increment the indices
+
+    # add any new non-terminals to the queue; we exploit rule.len == rhs.len
+    # so this is perhaps more subtle than it appears...
     for n, component in rule.pairs:             # add non-terminals to nts
       if component.kind == ckRule:
         nts.insert(chose + n, index)            # insert for ordering reasons
