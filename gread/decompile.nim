@@ -1,3 +1,6 @@
+import std/strutils
+import std/tables
+import std/hashes
 import std/sequtils
 import std/random
 import std/json
@@ -18,43 +21,52 @@ type
   Invention[T] = tuple[ast: Ast[T]; genome: Genome]
   ResultForm[T] = Option[Invention[T]]
 
-proc hamming[T](x1, x2: seq[T]; normalize = false): float =
-  let cols = x1.len
-  var total: int
-  for k in 0..<cols:
-    total += (x1[k] != x2[k]).ord
-  result =
-    if normalize:
-      total.float / cols.float
-    else:
-      total.float
+proc hash[T](a: Ast[T]; n: AstNode[T]): Hash =
+  ## perform a stable hash of node `n` within ast `a`
+  mixin isSymbol
+  mixin isStringLit
+  mixin isNumberLit
+  mixin isParent
 
-proc jaccard*[T](x1, x2: seq[T]; normalize = false): float =
-  let cols = x1.len
-  var
-    total_min: int
-    total_max: int
-  for k in 0..<cols:
-    total_min += min(x1[k], x2[k]).ord
-    total_max += max(x1[k], x2[k]).ord
-  result =
-    if total_max == 0:
-      0.0
-    else:
-      1.0 - (total_min.float / total_max.float)
+  var h: Hash = 0
+  h = h !& hash(n.kind)
+  if n.isSymbol or n.isStringLit:
+    h = h !& hash(a.strings[LitId n.operand])
+  elif n.isNumberLit:
+    h = h !& hash(a.numbers[LitId n.operand])
+  elif not n.isParent and n.operand != 0:  # NOTE: assume it's a token
+    discard
+  result = !$h
+
+proc toCountTable(a: Ast): CountTable[Hash] =
+  ## count the occurrences of nodes in an ast
+  for n in a.nodes.items:
+    result.inc a.hash(n)
+
+proc `-`[T](a, b: CountTable[T]): CountTable[T] =
+  ## diff two CountTables
+  for key, value in a.pairs:
+    result.inc(key, value - b.getOrDefault(key, 0))
+
+proc sum[T](t: CountTable[T]): int =
+  ## sum the counters in a CountTable
+  for value in t.values:
+    result.inc value
+
+proc bag*[T](a, b: T): int =
+  ## bag distance between two openArray-ish things
+  let one = a.toCountTable
+  let two = b.toCountTable
+  result = max(sum(one - two), sum(two - one))
 
 proc strength*(score: G): float =
   #const expectedMapping = "(if (> 2.0 b ) 2.0 (- 0.0 a ) )"
   const
     expectedMapping = "(if (or (not= 0.0 2.0 ) (not= 1.0 1.0 ) ) 0.0 0.5 )"
-  let codeAsCharacters = toSeq expectedMapping
-  let gs = score.toSeq
-  result =
-    if gs.len == codeAsCharacters.len:
-      #-hamming(gs, codeAsCharacters, normalize = true)
-      -jaccard(gs, codeAsCharacters, normalize = true)
-    else:
-      -(200.0 * abs(gs.len - codeAsCharacters.len).float)
+  # FIXME: switch to ast comparo
+  let codeAsCharacters = expectedMapping
+  let gs = score
+  result = -bag(gs, codeAsCharacters).float
 
 proc isValid*(g: G): bool =
   g.len > 0
