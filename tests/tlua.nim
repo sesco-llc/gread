@@ -107,7 +107,7 @@ suite "basic lua stuff":
   block:
     ## parse lua grammar
     var gram: Grammar
-    initGrammar[Lua](gram, luaGrammar)
+    initGrammar(gram, parseLuaToken, luaGrammar)
     for name, production in gram.pairs:
       if name == "terminate":
         checkpoint production

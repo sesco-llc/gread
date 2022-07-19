@@ -491,7 +491,7 @@ proc parseToken*[T: Lua](s: string): LuaNodeKind =
   else:
     raise ValueError.newException "unsupported token: `$#`" % [ s ]
 
-proc parseLuaToken(s: string): int16 =
+proc parseLuaToken*(s: string): int16 =
   ## generic-free lua token parser for use in grammars
   parseToken[Lua](s).int16
 
