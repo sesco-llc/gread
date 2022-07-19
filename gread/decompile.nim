@@ -76,7 +76,7 @@ proc decompiler*[T](d: var T; tableau: Tableau; gram: Grammar;
   let codeAsCharacters = source.toSeq
   proc strength(g: G): float =
     let gs = g.toSeq
-    result = jaccard(gs, codeAsCharacters, normalize = true)
+    result = bag(gs, codeAsCharacters).float
 
   proc fitone(d: T; data: SymbolSet[T, G]; p: Program[T]): Option[G] =
     result = some $p
