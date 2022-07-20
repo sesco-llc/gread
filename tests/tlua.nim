@@ -111,20 +111,30 @@ suite "basic lua stuff":
     for name, production in gram.pairs:
       if name == "terminate":
         checkpoint production
-    let geno = randomGenome(randState(), 2000)
-    let (pc, ast) = πGE[Lua](gram, geno)
-    checkpoint "program counter: ", pc
-    var p = newProgram(ast, geno[0..<pc.int])
-    let s = $p
-    checkpoint s
-    checkpoint "genome length: ", p.genome.len
-    let (pc1, ast1) = πGE[Lua](gram, p.genome)
-    check $p == $newProgram(ast1, p.genome[0..<pc1.int])
-    var locals = initLocals:
-      {
-        "a": 3.toLuaValue,
-        "b": 5.toLuaValue,
-      }
-    let score = lua.evaluate(p, locals)
-    checkpoint $score
-    check not score.float.isNaN
+    proc run_test() =
+      let geno = randomGenome(randState(), 4000)
+      let (pc, ast) = πGE[Lua](gram, geno)
+      checkpoint "program counter: ", pc
+      var p = newProgram(ast, geno[0..<pc.int])
+      let s = $p
+      checkpoint s
+      checkpoint "genome length: ", p.genome.len
+      let (pc1, ast1) = πGE[Lua](gram, p.genome)
+      check $p == $newProgram(ast1, p.genome[0..<pc1.int])
+      var locals = initLocals:
+        {
+          "a": 3.toLuaValue,
+          "b": 5.toLuaValue,
+        }
+      let score = lua.evaluate(p, locals)
+      checkpoint $score
+      check not score.float.isNaN
+
+    block alright:
+      for _ in 0..10:
+        try:
+          run_test()
+          break alright
+        except ShortGenome:
+          discard
+      assert false, "your genes are too short"
