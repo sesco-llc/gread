@@ -16,7 +16,7 @@ suite "trees":
   block:
     ## tree tests
     var gram: Grammar
-    initGrammar[G](gram, glangGrammar)
+    initGrammar(gram, parseToken, glangGrammar)
     while trees.len < 10_000:
       try:
         trees.add:

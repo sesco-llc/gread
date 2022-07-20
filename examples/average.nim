@@ -34,7 +34,7 @@ const
   """
 
 var gram: Grammar
-initGrammar[Fennel](gram, averageGrammar)
+initFennelGrammar(gram, averageGrammar)
 
 # no point in slowing down this simple example
 var tab = defaultTableau

@@ -291,7 +291,8 @@ proc delete*[T](a: Ast[T]; index: int): Ast[T] =
   audit a: echo "delete entry: ", a
   let size = a.sizeOfSubtree(index)
   if a.len - size < 0:
-    debugEcho fmt"{a} index to delete: {index} and size {size}"
+    # NOTE: unprintable ast due to mixin issues for generic `$`
+    debugEcho fmt"(unprintable) index to delete: {index} and size {size}"
     raise Defect.newException:
       fmt"corrupted ast: {a.len} - {size} < 0"
   result.len = a.len - size

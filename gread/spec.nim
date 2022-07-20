@@ -79,11 +79,21 @@ when defined(greadProfile):
 else:
   template profile*(s: string; logic: untyped): untyped = logic
 
-template demandValid*[T](s: T): untyped =
-  mixin isValid
-  if not s.isValid:
-    raise Defect.newException "valid scores are not nan/inf/-inf"
-
-template demandValid*[T](s: Option[T]): untyped =
-  if s.isSome:
-    demandValid(get s)
+when true:
+  proc demandValid*[T](s: T) =
+    mixin isValid
+    if not s.isValid:
+      raise Defect.newException "score of `{s}` is invalid"
+  proc demandValid*[T](s: Option[T]) =
+    mixin isValid
+    if s.isSome:
+      demandValid(get s)
+else:
+  template demandValid*(s: untyped): untyped =
+    mixin isValid
+    if not s.isValid:
+      raise Defect.newException "score of `{s}` is invalid"
+  template demandValid*[T](s: Option[T]): untyped =
+    mixin isValid
+    if s.isSome:
+      demandValid(get s)

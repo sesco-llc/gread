@@ -27,7 +27,7 @@ const
   """
 
 var gram: Grammar
-initGrammar[Fennel](gram, llsGrammar)
+initFennelGrammar(gram, llsGrammar)
 
 # you can adjust these weights to change mutation rates
 let operators = {

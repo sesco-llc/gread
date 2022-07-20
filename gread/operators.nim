@@ -3,10 +3,8 @@ import std/options
 import gread/mutation
 import gread/programs
 import gread/tournament
-import gread/fertilizer
 import gread/crossover
 import gread/evolver
-import gread/grammar
 import gread/genotype
 
 proc geCrossover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =

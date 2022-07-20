@@ -345,6 +345,28 @@ when populationCache:
     withInitialized pop:
       p.hash in pop.cache
 
+template qualityTrackIt*(pop: Population; p: Program; s: Score;
+                         body: untyped): untyped =
+  withInitialized pop:
+    if s.isValid:
+      pop.ken.scores.pop s
+    var it {.inject.}: Score = NaN
+    body
+    if it.isValid:
+      pop.ken.scores.push it
+      when not defined(greadFast):
+        maybeResetFittest(pop, p)
+
+template qualityTrackIt*(pop: Population; p: Program; s: Option[Score];
+                         body: untyped): untyped =
+  let score: Score =
+    if s.isSome:
+      get s
+    else:
+      NaN
+  qualityTrackIt(pop, p, score):
+    body
+
 proc scoreChanged*[V](pop: Population; p: Program; s: Option[V]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
   ## is used to update metrics, parsimony, and the `fittest` population member

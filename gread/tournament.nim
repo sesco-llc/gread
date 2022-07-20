@@ -1,7 +1,6 @@
 import std/hashes
 import std/math
 import std/packedsets
-import std/random
 import std/options
 import std/heapqueue
 import std/algorithm
@@ -47,13 +46,21 @@ proc remover[T, V](evo: var Evolver[T, V];
       else:
         NaN
     debug "rm ", i, " t-score ", c.score, " was ", c.program.score, " now ", score
-  evo.population.scoreChanged(c.program, s, c.index)
+  when true:
+    evo.population.scoreChanged(c.program, s, c.index)
+  else:
+    qualityTrackIt(evo.population, c.program, c.program.score):
+      it = s
   del(competitors, i)
 
 proc discharge(evo: var Evolver; c: Competitor) =
   ## a modern remover
-  scoreChanged(evo.population, c.program,
-               evo.scoreFromCache(c.program), c.index)
+  when true:
+    scoreChanged(evo.population, c.program,
+                 evo.scoreFromCache(c.program), c.index)
+  else:
+    qualityTrackIt(evo.population, c.program, c.program.score):
+      it = evo.quality evo.scoreFromCache(c.program)
   if evo.cacheSize(c.program) == evo.dataset.len:
     maybeResetFittest(evo.population, c.program)
 

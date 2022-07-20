@@ -43,8 +43,9 @@ converter toInt16(gk: GKind): int16 {.used.} = int16 gk
 proc `$`*[T: G](n: AstNode[T]): string =
   ## tweaking the rendering of glang ast nodes to render our GKind
   result = $(GKind n.kind) & "." & $n.operand
-  if n.flags != {}:
-    result.add "/" & $n.flags
+  when false:
+    if n.flags != {}:
+      result.add "/" & $n.flags
 
 proc fun*(s: string; arity = 0; args = arity..int.high): Function[G] =
   ## shorthand for defining glang functions
@@ -146,5 +147,5 @@ proc render*(a: Ast[G]): string =
       inc i
   closeParens()
 
-proc parseToken*[T: G](s: string): GKind =
+proc parseToken*(s: string): int16 =
   parseEnum[GKind](s)

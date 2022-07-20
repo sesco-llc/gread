@@ -32,7 +32,7 @@ suite "grammar":
     """
 
     var gram: Grammar
-    initGrammar[G](gram, example)
+    initGrammar(gram, parseToken, example)
     var seen: HashSet[string]
     for name, production in gram.pairs:
       check name != ""
@@ -55,7 +55,7 @@ suite "grammar":
   block:
     ## parse glang grammar
     var gram: Grammar
-    initGrammar[G](gram, glangGrammar)
+    initGrammar(gram, parseToken, glangGrammar)
     for name, production in gram.pairs:
       checkpoint name, " ", production
       if name == "terminate":

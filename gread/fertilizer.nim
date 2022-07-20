@@ -1,6 +1,5 @@
 import std/random
 
-import gread/spec
 import gread/ast
 import gread/programs
 import gread/genotype

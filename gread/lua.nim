@@ -491,6 +491,10 @@ proc parseToken*[T: Lua](s: string): LuaNodeKind =
   else:
     raise ValueError.newException "unsupported token: `$#`" % [ s ]
 
+proc parseLuaToken*(s: string): int16 =
+  ## generic-free lua token parser for use in grammars
+  parseToken[Lua](s).int16
+
 proc initLocals*[V](values: openArray[(string, V)]): SymbolSet[Lua, V] {.deprecated: "workaround for cps".} =
   ## convert an openArray of (name, value) pairs into Locals
   ## suitable for evaluate()
@@ -524,7 +528,7 @@ when compileOption"threads":
 
       search(args, evo.population)   # fresh meat from other threads
 
-      let stale = randomMember(evo.rng, evo.population)
+      let stale = randomMember(evo.population, evo.rng)
       share(args, stale.program)
 
       for discovery in evo.generation():
@@ -538,3 +542,7 @@ when compileOption"threads":
       share(args, randomRemoval(evo.population, evo.rng))
 
     quit 0
+
+proc initLuaGrammar*(gram: var Grammar; syntax: string) =
+  mixin initGrammar
+  initGrammar(gram, parseLuaToken, syntax)
