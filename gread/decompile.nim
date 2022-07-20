@@ -84,24 +84,21 @@ proc bag*[T](a, b: T): int =
   let two = b.toCountTable
   result = max(sum(one - two), sum(two - one))
 
-proc strength*(score: G): float =
-  #const expectedMapping = "(if (> 2.0 b ) 2.0 (- 0.0 a ) )"
-  const
-    expectedMapping = "(if (or (not= 0.0 2.0 ) (not= 1.0 1.0 ) ) 0.0 0.5 )"
-  # FIXME: switch to ast comparo
-  let codeAsCharacters = expectedMapping
-  let gs = score
-  result = -bag(gs, codeAsCharacters).float
-
 proc isValid*(g: G): bool =
   g.len > 0
 
 proc decompiler*[T](d: var T; tableau: Tableau; gram: Grammar;
                     source: string; rng: Rand = randState()): Evolver[T, G] =
   let codeAsCharacters = source.toSeq
-  proc strength(g: G): float =
-    let gs = g.toSeq
-    result = bag(gs, codeAsCharacters).float
+
+  proc strength(score: G): float =
+    # FIXME: pending #39; and switch to ast comparo
+    let bagged = bag(score, codeAsCharacters)
+    if bagged == 0:
+      let jacked = jaccard(score, codeAsCharacters)
+      result = -jacked.float
+    else:
+      result = -bagged.float
 
   proc fitone(d: T; data: SymbolSet[T, G]; p: Program[T]): Option[G] =
     result = some $p
