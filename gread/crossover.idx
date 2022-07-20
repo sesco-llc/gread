@@ -1,0 +1,4 @@
+randomSubtreeXover	gread/crossover.html#randomSubtreeXover.i,Rand,Grammar,Genome	crossover: randomSubtreeXover[T](rng: var Rand; gram: Grammar; a: Genome): ResultForm[T]	
+subtreeXover	gread/crossover.html#subtreeXover.i,Rand,Grammar,Genome,Genome	crossover: subtreeXover[T](rng: var Rand; gram: Grammar; a, b: Genome): ResultForm[T]	
+randomCrossover	gread/crossover.html#randomCrossover.i,Rand,Grammar,Genome,int	crossover: randomCrossover[T](rng: var Rand; gram: Grammar; a: Genome; size: int): ResultForm[\n    T]	
+geCrossover	gread/crossover.html#geCrossover.i,Rand,Grammar,Genome,Genome	crossover: geCrossover[T](rng: var Rand; gram: Grammar; a, b: Genome): ResultForm[T]	

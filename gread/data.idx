@@ -1,0 +1,16 @@
+SymbolSet	gread/data.html#SymbolSet	data: SymbolSet	
+DataPoint	gread/data.html#DataPoint	data: DataPoint	
+toValue	gread/data.html#toValue.c,DataPoint[T,V]	data: toValue[T, V](point: DataPoint[T, V]): V	
+len	gread/data.html#len,SymbolSet	data: len(ss: SymbolSet): int	
+`$`	gread/data.html#$,DataPoint	data: `$`(dp: DataPoint): string	
+`$`	gread/data.html#$,SymbolSet	data: `$`(ss: SymbolSet): string	
+initDataPoint	gread/data.html#initDataPoint,string,V	data: initDataPoint[T, V](name: string; value: V): DataPoint[T, V]	
+initSymbolSet	gread/data.html#initSymbolSet,openArray[DataPoint[T,V]]	data: initSymbolSet[T, V](values: openArray[DataPoint[T, V]]): SymbolSet[T, V]	
+initSymbolSet	gread/data.html#initSymbolSet,openArray[]	data: initSymbolSet[T, V](values: openArray[(string, V)]): SymbolSet[T, V]	
+pairs	gread/data.html#pairs.i,SymbolSet[T,V]	data: pairs[T, V](ss: SymbolSet[T, V]): NamePoint[T, V]	
+items	gread/data.html#items.i,SymbolSet[T,V]	data: items[T, V](ss: SymbolSet[T, V]): DataPoint[T, V]	
+keys	gread/data.html#keys.i,SymbolSet[T,V]	data: keys[T, V](ss: SymbolSet[T, V]): string	
+values	gread/data.html#values.i,ptr.SymbolSet[T,V]	data: values[T, V](ss: ptr SymbolSet[T, V]): ptr DataPoint[T, V]	
+values	gread/data.html#values,SymbolSet[T,V]	data: values[T, V](ss: SymbolSet[T, V]): lent seq[DataPoint[T, V]]	
+hash	gread/data.html#hash,SymbolSet	data: hash(ss: SymbolSet): Hash	
+`[]`	gread/data.html#[],SymbolSet[T,V],string	data: `[]`[T, V](ss: SymbolSet[T, V]; name: string): DataPoint[T, V]	

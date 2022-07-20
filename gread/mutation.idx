@@ -1,0 +1,1 @@
+geMutation	gread/mutation.html#geMutation.i,Rand,Grammar,Genome	mutation: geMutation[T](rng: var Rand; gram: Grammar; a: Genome): ResultForm[T]	

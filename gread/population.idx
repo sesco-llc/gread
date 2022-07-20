@@ -1,0 +1,36 @@
+PopMetrics	gread/population.html#PopMetrics	population: PopMetrics	
+Population	gread/population.html#Population	population: Population	
+toggleParsimony	gread/population.html#toggleParsimony,Population	population: toggleParsimony(pop: Population; value = on)	
+usesParsimony	gread/population.html#usesParsimony,Population	population: usesParsimony(pop: Population): bool	
+resetParsimony	gread/population.html#resetParsimony,Population	population: resetParsimony(pop: Population)	
+withInitialized	gread/population.html#withInitialized.t,Population,untyped	population: withInitialized(pop: Population; logic: untyped): untyped	
+withPopulated	gread/population.html#withPopulated.t,Population,untyped	population: withPopulated(pop: Population; logic: untyped): untyped	
+newPopulation	gread/population.html#newPopulation,int	population: newPopulation[T](size = 0; core = none int): Population[T]	
+len	gread/population.html#len,Population[T]	population: len[T](p: Population[T]): int	
+best	gread/population.html#best,Population	population: best(pop: Population): Score	
+fittest	gread/population.html#fittest,Population[T]	population: fittest[T](pop: Population[T]): Program[T]	
+rescale	gread/population.html#rescale,Population,Score,Score	population: rescale(pop: Population; score: Score; outlier: Score): Score	
+rescale	gread/population.html#rescale,Population,Score	population: rescale(pop: Population; score: Score): Score	
+score	gread/population.html#score,Population,Score,int,Score	population: score(pop: Population; score: Score; length: int; outlier: Score): Score	
+score	gread/population.html#score,Population,Score,int	population: score(pop: Population; score: Score; length: int): Score	
+score	gread/population.html#score,Population,Program	population: score(pop: Population; p: Program): Score	
+maybeResetFittest	gread/population.html#maybeResetFittest,Population[T],Program[T]	population: maybeResetFittest[T](pop: Population[T]; p: Program[T])	
+introduce	gread/population.html#introduce,Population[T],Program[T]	population: introduce[T](pop: Population[T]; p: Program[T])	
+add	gread/population.html#add,Population[T],Program[T]	population: add[T](pop: Population[T]; p: Program[T])	
+top	gread/population.html#top.i,Population[T],int	population: top[T](pop: Population[T]; n: int): TopPop[T]	
+first	gread/population.html#first,Population[T]	population: first[T](pop: Population[T]): Program[T]	
+items	gread/population.html#items.i,Population[T]	population: items[T](pop: Population[T]): Program[T]	
+mitems	gread/population.html#mitems.i,Population[T]	population: mitems[T](pop: Population[T]): var Program[T]	
+pairs	gread/population.html#pairs.i,Population[T]	population: pairs[T](pop: Population[T]): (int, Program[T])	
+randomMember	gread/population.html#randomMember,Population[T],Rand	population: randomMember[T](pop: Population[T]; rng: var Rand): IndexedProgram[T]	
+del	gread/population.html#del,Population[T],int	population: del[T](pop: Population[T]; index: int)	
+randomRemoval	gread/population.html#randomRemoval,Population[T],Rand	population: randomRemoval[T](pop: Population[T]; rng: var Rand): Program[T]	
+parsimony	gread/population.html#parsimony,Population	population: parsimony(pop: Population): float	
+nextGeneration	gread/population.html#nextGeneration,Population	population: nextGeneration(pop: Population): Generation	
+generations	gread/population.html#generations,Population	population: generations(pop: Population): Generation	
+contains	gread/population.html#contains,Population,Program	population: contains(pop: Population; p: Program): bool	
+qualityTrackIt	gread/population.html#qualityTrackIt.t,Population,Program,Score,untyped	population: qualityTrackIt(pop: Population; p: Program; s: Score; body: untyped): untyped	
+qualityTrackIt	gread/population.html#qualityTrackIt.t,Population,Program,Option[Score],untyped	population: qualityTrackIt(pop: Population; p: Program; s: Option[Score]; body: untyped): untyped	
+scoreChanged	gread/population.html#scoreChanged,Population,Program,Option[V],int	population: scoreChanged[V](pop: Population; p: Program; s: Option[V]; index: int)	
+core	gread/population.html#core,Population	population: core(pop: Population): CoreSpec	
+metrics	gread/population.html#metrics,Population	population: metrics(pop: Population): PopMetrics	

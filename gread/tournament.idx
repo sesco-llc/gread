@@ -1,0 +1,4 @@
+Competitor	gread/tournament.html#Competitor	tournament: Competitor	
+tournament3	gread/tournament.html#tournament3,Evolver[T,V],int	tournament: tournament3[T, V](evo: var Evolver[T, V]; size: int; order = Descending): Competitor[\n    T]	
+tournament2	gread/tournament.html#tournament2,Evolver[T,V],int	tournament: tournament2[T, V](evo: var Evolver[T, V]; size: int; order = Descending): Competitor[\n    T]	
+tournament	gread/tournament.html#tournament.t,Evolver[T,V],int	tournament: tournament[T, V](evo: Evolver[T, V]; size: int; order = Descending): Competitor[\n    T]	

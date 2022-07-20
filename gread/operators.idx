@@ -1,0 +1,5 @@
+geCrossover	gread/operators.html#geCrossover,Evolver[T,V]	operators: geCrossover[T, V](evo: var Evolver[T, V]): seq[Program[T]]	
+randomCrossover	gread/operators.html#randomCrossover,Evolver[T,V]	operators: randomCrossover[T, V](evo: var Evolver[T, V]): seq[Program[T]]	
+subtreeXover	gread/operators.html#subtreeXover,Evolver[T,V]	operators: subtreeXover[T, V](evo: var Evolver[T, V]): seq[Program[T]]	
+randomSubtreeXover	gread/operators.html#randomSubtreeXover,Evolver[T,V]	operators: randomSubtreeXover[T, V](evo: var Evolver[T, V]): seq[Program[T]]	
+geMutation	gread/operators.html#geMutation,Evolver[T,V]	operators: geMutation[T, V](evo: var Evolver[T, V]): seq[Program[T]]	
