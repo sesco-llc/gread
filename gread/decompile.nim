@@ -53,6 +53,31 @@ proc sum[T](t: CountTable[T]): int =
   for value in t.values:
     result.inc value
 
+proc hamming[T](x1, x2: seq[T]; normalize = false): float =
+  let cols = x1.len
+  var total: int
+  for k in 0..<cols:
+    total += (x1[k] != x2[k]).ord
+  result =
+    if normalize:
+      total.float / cols.float
+    else:
+      total.float
+
+proc jaccard*[T](x1, x2: seq[T]; normalize = false): float =
+  let cols = x1.len
+  var
+    total_min: int
+    total_max: int
+  for k in 0..<cols:
+    total_min += min(x1[k], x2[k]).ord
+    total_max += max(x1[k], x2[k]).ord
+  result =
+    if total_max == 0:
+      0.0
+    else:
+      1.0 - (total_min.float / total_max.float)
+
 proc bag*[T](a, b: T): int =
   ## bag distance between two openArray-ish things
   let one = a.toCountTable
