@@ -64,20 +64,20 @@ proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
   except ThawError as e:
     raise StoreError.newException "deserialization failure: " & e.msg
 
-proc removeFaulty[T](r: var Redis; gram: Grammar;
-                     key, s: string): Option[Program[T]] =
-  try:
-    result = unpack[T](gram, s)
-  except StoreError:
-    echo "rm'ing bad redis value, did your grammar change?"
-    discard r.srem(key, s)
-    result = none Program[T]
-
 proc load*[T](r: var Redis; gram: Grammar; key: string): Option[Program[T]] =
   ## try to fetch a random program from the redis key set
   mixin newProgram
   var s = r.srandmember(key)
-  result = removeFaulty[T](r, gram, key, s)
+  if s.len < frostyMagic.len:
+    result = none Program[T]
+  else:
+    try:
+      result = unpack[T](gram, s)
+    except StoreError as e:
+      echo e.msg
+      echo "rm'ing bad redis value -- did your grammar change?"
+      discard r.srem(key, s)
+      result = none Program[T]
 
 proc newPopulation*[T](r: var Redis; gram: Grammar; key: string;
                        size: int; core = none int): Population[T] =
