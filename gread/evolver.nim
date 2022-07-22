@@ -150,7 +150,10 @@ proc `dataset=`*[T, V](evo: var Evolver[T, V];
   evo.targets = some mapIt(dataset, it[1])
 
 proc dataset*[T, V](evo: Evolver[T, V]): lent seq[SymbolSet[T, V]] =
-  evo.dataset
+  if evo.dataset.high >= 0:
+    result = evo.dataset
+  else:
+    raise ValueError.newException "evolver lacks a dataset"
 
 proc `targets=`*[T, V](evo: var Evolver[T, V]; targets: seq[V]) =
   evo.targets = some targets
@@ -272,6 +275,8 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
   ## statistics.
   mixin isValid
   mixin strength
+  if index notin 0..evo.dataset.high:
+    raise AssertionDefect.newException: "received bogus index"
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   elif p.zombie:
@@ -348,7 +353,10 @@ proc score*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
 proc scoreRandomly*[T, V](evo: var Evolver[T, V];
                           p: Program[T]): Option[V] =
   ## evaluate a program against a random symbol set; a smoke test
-  evo.score(evo.rng.rand evo.dataset.high, p)
+  if evo.dataset.len == 0:
+    raise ValueError.newException "evolver lacks a dataset"
+  else:
+    evo.score(evo.rng.rand evo.dataset.high, p)
 
 proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
   ## assign a new fitness function to the evolver
