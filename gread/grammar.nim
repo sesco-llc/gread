@@ -1,7 +1,9 @@
+import std/hashes
+import std/macros
+import std/md5
 import std/sequtils
 import std/sets
 import std/strutils
-import std/macros
 
 import pkg/adix/lptabz
 import pkg/npeg
@@ -33,7 +35,11 @@ type
     p: OrderedProductions
     t: HashSet[Terminal]
     #n: HashSet[Function[T]]
+    h: MD5Digest
   Grammar* = ptr GrammarObj
+
+proc hash*(gram: Grammar): Hash =
+  hash gram.h
 
 proc start*[T](gram: Grammar): Component = gram.s
 
@@ -238,6 +244,7 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
                   syntax: string) =
   ## initialize a grammar with the provided bnf syntax specification
   initGrammar gram
+  gram.h = toMD5(syntax)
   var rules = bnf(syntax)
   var nonterminals = 0
   for r in rules.mitems:
