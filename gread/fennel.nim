@@ -386,25 +386,25 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
           virtual machine runs: {fnl.runs} (never reset)
             average vm runtime: {fnl.runtime.mean:>6.2f} ms
          total population size: {m.size}
-          validity rate in pop: {m.validity.mean.percent}
+          validity rate in pop: {m.validity.mean.percent} <= 100%
             average age in pop: {age}
-            age vs generations: {percent(age.float / m.generation.int.float)}
+            age vs generations: {percent(age.float / m.generation.int.float)} <= 100%
            average valid score: {Score m.scores.mean}
           greatest of all time: {m.bestScore}
            evolver cache count: {evo.cacheSize}
-           evolver cache usage: {evo.cacheUsage.percent}
+           evolver cache usage: {evo.cacheUsage.percent} >= 0%
           average program size: {m.lengths.mean.int}
          program size variance: {dumb}
           size of best program: {m.bestSize}
          parsimony coefficient: {Score m.parsimony}
-            insufficiency rate: {fnl.nans.mean.percent}
-           semantic error rate: {fnl.errors.mean.percent}
+            insufficiency rate: {fnl.nans.mean.percent} >= 0%
+           semantic error rate: {fnl.errors.mean.percent} >= 0%
              foreign influence: {m.usurper}
               immigration rate: {(m.immigrants.float / m.size.float).percent}
           mapping failure rate: {evo.shortGenome.mean.percent}
                best generation: {m.bestGen}
              total generations: {m.generation}
-             invention recency: {m.staleness.percent}
+             invention recency: {m.staleness.percent} <= 100%
                generation time: {Score genTime.mean} ms
                 evolution time: {(getTime() - evoTime).inSeconds} sec
   """
