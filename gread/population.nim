@@ -415,7 +415,7 @@ proc metrics*(pop: Population): PopMetrics =
     result.bestGen = pop.fittest.generation
     if pop.fittest.core == pop.ken.core:
       let current = pop.ken.generation.int.float
-      result.staleness = (current - pop.fittest.generation.float) / current
+      result.staleness = pop.fittest.generation.float / current
       result.usurper = none int
     else:
       result.staleness = NaN
