@@ -516,6 +516,7 @@ when compileOption"threads":
     evo.population.resetParsimony()
 
     var evoTime = getTime()
+    var fittest: Program[Fennel]
     while evo.population.generations.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
@@ -523,6 +524,12 @@ when compileOption"threads":
 
       let stale = randomMember(evo.population, evo.rng)
       share(args, stale.program)
+
+      # share any new winner
+      if not evo.population.fittest.isNil:
+        if fittest.isNil or fittest != evo.population.fittest:
+          fittest = evo.population.fittest
+          forceShare(args, fittest)
 
       for discovery in evo.generation():
         discard
