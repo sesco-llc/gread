@@ -1,8 +1,9 @@
-import std/packedsets
-import std/times
-import std/sequtils
-import std/random
 import std/options
+import std/packedsets
+import std/random
+import std/sequtils
+import std/strformat
+import std/times
 
 import pkg/adix/lptabz
 import pkg/adix/stat
@@ -121,20 +122,22 @@ proc `operators=`*[T, V](evo: var Evolver[T, V];
 proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
   mixin strength
   evo.population = population
-  if not population.isNil:
+  if not evo.population.isNil:
     if evo.tableau.useParsimony:
       for p in evo.population.items():
-        # FIXME: optimization point
-        let s =
-          when defined(greadFast):
-            evo.scoreRandomly(p)
-          else:
-            evo.score(p)
-        if s.isSome:
-          p.score = strength(get s)
-        else:
-          p.score = NaN
-      evo.population.toggleParsimony(evo.tableau.useParsimony)
+        if p.score.isNaN:
+          # FIXME: optimization point
+          let s =
+            when defined(greadFast):
+              evo.scoreRandomly(p)
+            else:
+              evo.score(p)
+          p.score =
+            if s.isSome:
+              strength(get s)
+            else:
+              NaN
+      evo.population.toggleParsimony()
 
 proc population*[T, V](evo: Evolver[T, V]): Population[T] =
   evo.population
@@ -287,7 +290,7 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
   ## score the program against a single symbol set; we'll run the
   ## evolver's `fitone` function against the platform and data record
   ## to evaluate the program result. this scoring function also runs
-  ## a stopwatch over `fitone()` and update's the program's runtime
+  ## a stopwatch over `fitone()` and updates the program's runtime
   ## statistics.
   mixin isValid
   mixin strength
@@ -315,7 +318,7 @@ proc score*[T, V](evo: Evolver[T, V]; ss: ptr SymbolSet[T, V];
   ## fetch the score from there. otherwise, we'll run the evolver's
   ## `fitone` function against the platform and data record to evaluate
   ## the program. this scoring function also runs a stopwatch over
-  ## `fitone()` and update's the programs runtime statistics.
+  ## `fitone()` and updates the programs runtime statistics.
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   elif p.zombie:
@@ -424,10 +427,11 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
           evo.scoreRandomly(p)
         else:
           evo.score(p)
-      if s.isSome:
-        p.score = strength(get s)
-      else:
-        p.score = NaN
+      p.score =
+        if s.isSome:
+          strength(get s)
+        else:
+          NaN
       if not evo.tableau.requireValid or p.isValid:
         result.add p
     except ShortGenome:
