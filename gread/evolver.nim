@@ -123,21 +123,21 @@ proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
   mixin strength
   evo.population = population
   if not evo.population.isNil:
+    for p in evo.population.items():
+      if p.score.isNaN:
+        # FIXME: optimization point
+        let s =
+          when defined(greadFast):
+            evo.scoreRandomly(p)
+          else:
+            evo.score(p)
+        p.score =
+          if s.isSome:
+            strength(get s)
+          else:
+            NaN
     if evo.tableau.useParsimony:
-      for p in evo.population.items():
-        if p.score.isNaN:
-          # FIXME: optimization point
-          let s =
-            when defined(greadFast):
-              evo.scoreRandomly(p)
-            else:
-              evo.score(p)
-          p.score =
-            if s.isSome:
-              strength(get s)
-            else:
-              NaN
-      evo.population.toggleParsimony()
+      evo.population.toggleParsimony(on)
 
 proc population*[T, V](evo: Evolver[T, V]): Population[T] =
   evo.population
