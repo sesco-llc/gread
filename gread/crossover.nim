@@ -21,6 +21,10 @@ proc subtreeXoverImpl[T](rng: var Rand; gram: Grammar;
   g.add b[x..<y]
   if y < a.high:
     g.add a[y..a.high]
+  when greadWrapping:
+    g.add g
+    g.add g
+    g.add g
   try:
     let (pc, ast) = πGE[T](gram, g)                     # map the new genome
     result = some (ast: ast, genome: g[0..<pc.int])
@@ -35,6 +39,10 @@ iterator crossoverImpl[T](rng: var Rand; gram: Grammar;
   for (x, y, i) in [(a, b, n), (b, a, coding-n)].items:
     var g = x[0..<i]                                    # start with the head
     g.add y[i..y.high]                                  # add an opposite tail
+    when greadWrapping:
+      g.add g                                           # double it
+      g.add g                                           # again!
+      g.add g                                           # again!
     try:
       let (pc, ast) = πGE[T](gram, g)                   # map the new genome
       yield some (ast: ast, genome: g[0..<pc.int])
