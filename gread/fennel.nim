@@ -512,8 +512,12 @@ when compileOption"threads":
     evo.core = fnl.core
     evo.fitone = args.fitone
     evo.fitmany = args.fitmany
-    evo.population = evo.randomPop()
-    evo.population.resetParsimony()
+    evo.population =
+      if args.population.isNil:
+        evo.randomPop()
+      else:
+        args.population
+    evo.population.toggleParsimony(evo.tableau.useParsimony)
 
     var evoTime = getTime()
     var fittest: Program[Fennel]
