@@ -45,7 +45,7 @@ proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
       var geno: Genome
       thaw(s, geno)
       try:
-        var (pc, ast) = πGE[T](gram, geno)
+        var (pc {.used.}, ast) = πGE[T](gram, geno)
         p = newProgram(ast, geno)
       except ShortGenome:
         raise StoreError.newException:

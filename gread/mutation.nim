@@ -17,7 +17,7 @@ iterator geMutation*[T](rng: var Rand; gram: Grammar;
   var g = a
   g.string[rng.rand(g.high)] = rng.rand(int char.high).char
   try:
-    let (pc, ast) = πGE[T](gram, g)                    # map the new genome
+    let (pc {.used.}, ast) = πGE[T](gram, g)                    # map the new genome
     yield some (ast: ast, genome: g)
   except ShortGenome:
     yield none Invention[T]
