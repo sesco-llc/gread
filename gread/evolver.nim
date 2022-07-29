@@ -118,7 +118,22 @@ proc `operators=`*[T, V](evo: var Evolver[T, V];
   initAliasMethod(evo.operators, weighted)
 
 proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
+  mixin strength
   evo.population = population
+  if not population.isNil:
+    if evo.tableau.useParsimony:
+      for p in evo.population.items():
+        # FIXME: optimization point
+        let s =
+          when defined(greadFast):
+            evo.scoreRandomly(p)
+          else:
+            evo.score(p)
+        if s.isSome:
+          p.score = strength(get s)
+        else:
+          p.score = NaN
+      evo.population.toggleParsimony(evo.tableau.useParsimony)
 
 proc population*[T, V](evo: Evolver[T, V]): Population[T] =
   evo.population
