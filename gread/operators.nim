@@ -70,7 +70,12 @@ proc geMutation*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
   ## perform GE mutation of a program to create novel offspring
   template size: int = evo.tableau.tournamentSize
   let a = tournament(evo, size).program
-  for x in geMutation[T](evo.rng, evo.grammar, a.genome):
+  var g = a.genome
+  when greadWrapping:
+    g.add g
+    g.add g
+    g.add g
+  for x in geMutation[T](evo.rng, evo.grammar, g):
     if x.isSome:
       evo.shortGenome false
       result.add newProgram(x.get.ast, x.get.genome)
