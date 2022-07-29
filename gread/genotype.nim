@@ -28,7 +28,7 @@ proc `[]=`(geno: var Genome; index: int; ch: char) =
   geno.string[index] = ch
 
 proc canRead*[T: Genes](geno: Genome; pc: PC; count = 1): bool =
-  ## true if there remain at least `count` genes `T between the
+  ## true if there remain at least `count` genes between the
   ## program counter `pc` and the end of the genome
   pc.int <= geno.len - (sizeof(T) * count)
 
