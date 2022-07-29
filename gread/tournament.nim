@@ -234,3 +234,12 @@ template tournament*[T, V](evo: Evolver[T, V]; size: int;
     tournament3(evo, size, order)
   else:
     tournament2(evo, size, order)
+
+iterator trim[T, V](evo: var Evolver[T, V]): Program[T] =
+  ## emit the worst programs until the population is
+  ## within the maximum defined by the tableau
+  while evo.population.len > evo.tableau.maxPopulation:
+    let loser = tournament(evo, evo.population.len, order = Ascending)
+    del(evo, loser.program)
+    del(evo.population, loser.index)
+    yield loser.program

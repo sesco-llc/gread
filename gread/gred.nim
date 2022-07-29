@@ -9,6 +9,8 @@ import gread/ast
 import gread/grammar
 import gread/genotype
 import gread/population
+import gread/evolver
+import gread/tournament
 
 ##[
 
@@ -115,3 +117,11 @@ proc newPopulation*[T](r: var Redis; gram: Grammar; key: string;
         result.add get(p)
     except StoreError:
       discard
+
+iterator trim[T, V](r: var Redis; evo: var Evolver[T, V]; domain: string): Program[T] =
+  ## emit the worst programs until the population is within the maximum
+  ## defined by the tableau; also remove programs from the cache domain
+  for loser in evo.trim():
+    echo "clear: " & $loser
+    clear(r, loser, domain)
+    yield loser

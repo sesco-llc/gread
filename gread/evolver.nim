@@ -17,6 +17,7 @@ import gread/fertilizer
 import gread/tableau
 import gread/grammar
 import gread/maths
+import gread/tournament
 
 const
   greadHoeffding* {.intdefine.} = 20
