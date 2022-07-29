@@ -15,8 +15,8 @@ import pkg/loony
 import pkg/adix/lptabz
 
 const
-  goodEnough = -1.00     # termination condition
-  statFrequency = 10000  # report after this many generations
+  goodEnough = -0.00     # termination condition
+  statFrequency = 2000  # report after this many generations
   llsGrammar = """
     <start>        ::= <numexpr>
     <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
@@ -31,9 +31,9 @@ initFennelGrammar(gram, llsGrammar)
 
 # you can adjust these weights to change mutation rates
 let operators = {
-  geCrossover[Fennel, LuaValue]:    100.0,
-  geMutation[Fennel, LuaValue]:      70.0,
-  randomCrossover[Fennel, LuaValue]:  0.1,
+  geCrossover[Fennel, LuaValue]:    4.0,
+  geMutation[Fennel, LuaValue]:     1.0,
+  randomCrossover[Fennel, LuaValue]:  2.0,
 }
 
 const
@@ -82,11 +82,11 @@ when isMainModule:
   var tab = defaultTableau
   tab.useParsimony = false
   tab.seedProgramSize = 200
-  tab.seedPopulation = 5000
-  tab.maxPopulation = 5000
+  tab.seedPopulation = 300
+  tab.maxPopulation = 300
   tab.tournamentSize = int(0.02 * tab.maxPopulation.float)
-  tab.sharingRate = 0.01
-  tab.maxGenerations = 2_000_000
+  tab.sharingRate = 0.025
+  tab.maxGenerations = 50_000
   tab.requireValid = true
 
   # the main loop monitors inventions
