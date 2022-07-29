@@ -116,7 +116,9 @@ proc clone*[T](p: Program[T]): Program[T] =
 proc isValid*(p: Program): bool =
   ## true if the program is known to yield valid output; this will raise
   ## a defect if we have not scored the program yet
-  if p.zombie:
+  if p.isNil:
+    raise ValueError.newException "caught a nil program"
+  elif p.zombie:
     false
   else:
     p.score.isValid
