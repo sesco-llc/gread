@@ -109,8 +109,16 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
   if work.core.isNone:
     work.core = core
 
+proc forceShare*(work: Work; p: Program) =
+  ## send a better program to other threads
+  var transit = clone p
+  transit.source = getThreadId()
+  transit.core = work.core         # set the core to help define origin
+  push(work.io.outputs, transit)
+
 proc share*(work: Work; p: Program) =
   ## send a better program to other threads
+  ## if we meet the tableau's sharing rate
   let sharing =
     # if the sharing rate is < 1.0, it's a weight
     if work.tableau.sharingRate < 1.0:
@@ -124,10 +132,7 @@ proc share*(work: Work; p: Program) =
 
   # share the program as widely as is requested
   for copies in 0..<max(0, sharing):
-    var transit = clone p
-    transit.source = getThreadId()
-    transit.core = work.core         # set the core to help define origin
-    push(work.io.outputs, transit)
+    forceShare(work, p)
 
 proc search*(work: Work; population: Population) =
   ## try to get some fresh genes from another thread
