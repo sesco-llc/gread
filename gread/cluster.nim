@@ -39,6 +39,7 @@ type
     rng*: Option[Rand]                     ## seeded RNG
     tableau*: Tableau
     grammar*: Grammar
+    population*: Population[T]
     operators*: seq[OperatorWeight[T, V]]  ## operators & their weights
     dataset*: seq[SymbolSet[T, V]]
     targets*: Option[seq[V]]
@@ -94,6 +95,7 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
                      operators: openArray[OperatorWeight[T, V]] = @[];
                      dataset: seq[SymbolSet[T, V]] = @[];
                      fitone: FitOne[T, V] = nil; fitmany: FitMany[T, V] = nil;
+                     population: Population[T] = nil;
                      targets = none seq[V]; rng = none Rand;
                      core = none int; stats = 1000; name = "") =
   ## initialize a work object for passing setup instructions to worker threads;
@@ -106,6 +108,7 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
   work.stats = stats
   work.fitone = fitone
   work.fitmany = fitmany
+  work.population = population
   if work.core.isNone:
     work.core = core
 
