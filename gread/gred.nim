@@ -64,6 +64,13 @@ proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
   except ThawError as e:
     raise StoreError.newException "deserialization failure: " & e.msg
 
+proc clear*[T](r: var Redis; p: Program[T]; key: string) =
+  ## remove a program from the redis key set
+  var geno = freeze p.genome
+  geno.add frostyMagic
+  p.flags.excl Cached
+  discard r.srem(key, geno)
+
 proc load*[T](r: var Redis; gram: Grammar; key: string): Option[Program[T]] =
   ## try to fetch a random program from the redis key set
   mixin newProgram
@@ -86,7 +93,7 @@ proc newPopulation*[T](r: var Redis; gram: Grammar; key: string;
   ## exists in redis, or if deserialization fails for key members.
   let strings = r.srandmember(key, size)
   # NOTE: create a population with the supplied size
-  result = newPopulation[T](size = size, core = core)
+  result = newPopulation[T](size = max(size, strings.len), core = core)
   for s in strings.items:
     try:
       let p = unpack[T](gram, s)
