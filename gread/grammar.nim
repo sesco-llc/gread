@@ -147,7 +147,8 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
         nts.insert(chose + n, index)            # insert for ordering reasons
 
     if not canRead[uint16](geno, i, 2):         # if we're out of genome,
-      if greadWrapping:                         # and wrapping is enabled,
+      # XXX: wrapping is impl via a hack atm
+      if false:                                 # and wrapping is enabled,
         result.pc = i                           # record the consumed genome,
         i = default PC                          # & wrap the program counter,
       else:                                     # otherwise,
