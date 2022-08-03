@@ -39,7 +39,7 @@ proc remover[T, V](evo: var Evolver[T, V];
       evo.scoreFromCache(c.program)
     else:
       evo.score(c.program)
-  when debugging:
+  when false:
     let score =
       if s.isSome:
         get s
@@ -67,6 +67,7 @@ proc discharge(evo: var Evolver; c: Competitor) =
 proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
                        order = Descending): Competitor[T] =
   ## v3 baby
+  mixin strength
   if evo.population.len < 1:
     raise ValueError.newException:
       "cannot run a tournament with empty population"
@@ -92,9 +93,17 @@ proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
         result = victim
       else:
         # we have an encumbent; see what's better when
-        profile "confident comparo":
+        when defined(greadFast):
+          profile "confident comparo":
+            let cmp =
+              confidentComparison(evo, victim.program, result.program)
+        else:
+          # XXX: temporary hack?  needs to be profiled...
+          let (v, r) = (evo.score(victim.program), evo.score(result.program))
           let cmp =
-            confidentComparison(evo, victim.program, result.program)
+            if v.isNone:   -1
+            elif r.isNone:  1
+            else:           system.cmp(strength(get v), strength(get r))
         if cmp == -1 and order == Ascending:
           discharge(evo, result)
           result = victim
@@ -215,7 +224,7 @@ proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
         while victims.len > 1 and (victims[^1].score != victims[0].score or victims[^1].program.hash == victims[0].program.hash):
           evo.remover(victims, victims.high)
 
-      debug "loop done at ", i, " with data len ", data.len, " order ", order
+      debug "loop done at ", i, " with data len ", indices.len, " order ", order
 
     # the result will be the greatest winner
     result = victims[0]
@@ -230,7 +239,7 @@ proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
 
 template tournament*[T, V](evo: Evolver[T, V]; size: int;
                            order = Descending): Competitor[T] =
-  when defined(greadFast):
+  when true or defined(greadFast):
     tournament3(evo, size, order)
   else:
     tournament2(evo, size, order)
