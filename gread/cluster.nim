@@ -109,6 +109,7 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
   work.fitone = fitone
   work.fitmany = fitmany
   work.population = population
+  work.rng = rng
   if work.core.isNone:
     work.core = core
 
