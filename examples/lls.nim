@@ -31,9 +31,11 @@ initFennelGrammar(gram, llsGrammar)
 
 # you can adjust these weights to change mutation rates
 let operators = {
-  geCrossover[Fennel, LuaValue]:    4.0,
-  geMutation[Fennel, LuaValue]:     1.0,
-  randomCrossover[Fennel, LuaValue]:  2.0,
+  geCrossover[Fennel, LuaValue]:        1.0,
+  geMutation[Fennel, LuaValue]:         1.0,
+  subtreeXover[Fennel, LuaValue]:       1.0,
+  randomSubtreeXover[Fennel, LuaValue]: 1.0,
+  randomCrossover[Fennel, LuaValue]:    1.0,
 }
 
 const
@@ -141,6 +143,7 @@ when isMainModule:
 
   let cores = max(countProcessors() div 2, 4)
   for core in 1..cores:
+    args.rng = some initRand()
     clump.boot(whelp worker(args), args.core)
     clump.redress args
 

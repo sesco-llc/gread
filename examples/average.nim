@@ -6,7 +6,6 @@ import std/random
 import std/options
 import std/math
 import std/algorithm
-import std/strutils
 
 import gread
 import gread/fennel
@@ -39,18 +38,20 @@ initFennelGrammar(gram, averageGrammar)
 # no point in slowing down this simple example
 var tab = defaultTableau
 tab.useParsimony = true
-tab.seedProgramSize = 200
-tab.seedPopulation = 500
-tab.maxPopulation = 500
+tab.seedProgramSize = 50
+tab.seedPopulation = 200
+tab.maxPopulation = 200
 tab.tournamentSize = 10
 tab.maxGenerations = 30_000
 tab.requireValid = true
 
 # define the different ways in which we evolve, and their weights
 let operators = {
-  geCrossover[Fennel, LuaValue]:   100.0,
-  geMutation[Fennel, LuaValue]:     70.0,
-  randomCrossover[Fennel, LuaValue]: 0.1,
+  geCrossover[Fennel, LuaValue]:        1.0,
+  geMutation[Fennel, LuaValue]:         1.0,
+  subtreeXover[Fennel, LuaValue]:       1.0,
+  randomSubtreeXover[Fennel, LuaValue]: 1.0,
+  randomCrossover[Fennel, LuaValue]:    1.0,
 }
 
 var
