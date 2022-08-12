@@ -315,6 +315,17 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals): LuaValue =
       p.zombie = true
       1.0
 
+proc injectLocals*(p: FProg; locals: Locals): string =
+  result = "(let ["
+  for point in locals.items:
+    result.add point.name
+    result.add " "
+    result.add $point.value
+    result.add " "
+  result.add "] "
+  result.add $p
+  result.add ")"
+
 proc dumpScore*(fnl: Fennel; p: FProg) =
   var s = fmt"{p.score}[{p.len}]: "
   s.add $p
