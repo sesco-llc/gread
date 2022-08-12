@@ -127,7 +127,7 @@ proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
       if p.score.isNaN:
         # FIXME: optimization point
         let s =
-          when defined(greadFast):
+          if evo.isEqualWeight:
             evo.scoreRandomly(p)
           else:
             evo.score(p)
@@ -183,6 +183,8 @@ proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau; r
   evo.resetCache()
 
 proc tableau*(evo: Evolver): Tableau = evo.tableau
+
+proc isEqualWeight*(evo: Evolver): bool = evo.tableau.equalWeight
 
 proc fittest*[T, V](evo: Evolver[T, V]): Option[Program[T]] =
   if not evo.population.isNil:
@@ -423,7 +425,7 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
       p.core = evo.core
       # FIXME: optimization point
       let s =
-        when defined(greadFast):
+        if evo.isEqualWeight:
           evo.scoreRandomly(p)
         else:
           evo.score(p)

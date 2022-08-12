@@ -503,7 +503,7 @@ when compileOption"threads":
   proc noop(c: C): C {.cpsMagic.} = c
 
   proc legit(evo: Evolver; p: Program): bool =
-    when defined(greadFast):
+    if evo.isEqualWeight:
       if p.isValid:
         let sd = evo.population.rescale(p.scores.standardDeviation).float
         result = hoeffding(p.scores.n, sd.float) < defaultP

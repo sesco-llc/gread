@@ -34,7 +34,7 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
         p.core = evo.core
         # FIXME: optimization point
         let s =
-          when defined(greadFast):
+          if evo.isEqualWeight:
             # sample a single datapoint in order to check validity
             evo.scoreRandomly(p)
           else:

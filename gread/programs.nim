@@ -3,6 +3,7 @@ import std/hashes
 
 import pkg/adix/stat
 import pkg/adix/lptabz
+import pkg/arc
 
 #from pkg/frosty import frostyError, FreezeError, ThawError
 
@@ -52,8 +53,10 @@ proc `zombie=`*(p: Program; b: bool) =
   ## mark a program as invalid; idempotent
   if b:
     incl(p.flags, DeadCode)
-  elif p.zombie:
-    raise Defect.newException "the undead must never live again"
+  elif DeadCode in p.flags:
+    let rc = atomicRC(p)
+    raise Defect.newException:
+      "the undead must never live again; rc " & $rc
 
 func len*(p: Program): int =
   ## some objective measurement of the program; ast length

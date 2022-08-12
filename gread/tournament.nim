@@ -35,7 +35,7 @@ proc remover[T, V](evo: var Evolver[T, V];
   let s =
     # XXX: the problem here is that the score may well be -0.0 if the (few?)
     #      datapoints yield an impressive score
-    when defined(greadFast):
+    if evo.isEqualWeight:
       evo.scoreFromCache(c.program)
     else:
       evo.score(c.program)
@@ -47,7 +47,11 @@ proc remover[T, V](evo: var Evolver[T, V];
         NaN
     debug "rm ", i, " t-score ", c.score, " was ", c.program.score, " now ", score
   when true:
-    evo.population.scoreChanged(c.program, s, c.index)
+    if c.program.zombie:
+      # raise
+      discard
+    else:
+      evo.population.scoreChanged(c.program, s, c.index)
   else:
     qualityTrackIt(evo.population, c.program, c.program.score):
       it = s
@@ -56,8 +60,15 @@ proc remover[T, V](evo: var Evolver[T, V];
 proc discharge(evo: var Evolver; c: Competitor) =
   ## a modern remover
   when true:
-    scoreChanged(evo.population, c.program,
-                 evo.scoreFromCache(c.program), c.index)
+    if c.program.zombie:
+      # raise
+      discard
+    else:
+      let score = evo.scoreFromCache(c.program)
+      if c.program.zombie:
+        discard
+      else:
+        scoreChanged(evo.population, c.program, score, c.index)
   else:
     qualityTrackIt(evo.population, c.program, c.program.score):
       it = evo.quality evo.scoreFromCache(c.program)
@@ -92,15 +103,14 @@ proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
         # the defender
         result = victim
       else:
-        # we have an encumbent; see what's better when
-        when defined(greadFast):
-          profile "confident comparo":
-            let cmp =
+        let cmp =
+          # we have an encumbent; see what's better when
+          if evo.isEqualWeight:
+            profile "confident comparo":
               confidentComparison(evo, victim.program, result.program)
-        else:
-          # XXX: temporary hack?  needs to be profiled...
-          let (v, r) = (evo.score(victim.program), evo.score(result.program))
-          let cmp =
+          else:
+            # XXX: temporary hack?  needs to be profiled...
+            let (v, r) = (evo.score(victim.program), evo.score(result.program))
             if v.isNone:   -1
             elif r.isNone:  1
             else:           system.cmp(strength(get v), strength(get r))
@@ -239,10 +249,7 @@ proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
 
 template tournament*[T, V](evo: Evolver[T, V]; size: int;
                            order = Descending): Competitor[T] =
-  when true or defined(greadFast):
-    tournament3(evo, size, order)
-  else:
-    tournament2(evo, size, order)
+  tournament3(evo, size, order)
 
 iterator trim[T, V](evo: var Evolver[T, V]): Program[T] =
   ## emit the worst programs until the population is

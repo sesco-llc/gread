@@ -82,13 +82,14 @@ when isMainModule:
 
   # define the parameters for the evolvers
   var tab = defaultTableau
-  tab.useParsimony = false
-  tab.seedProgramSize = 200
-  tab.seedPopulation = 300
-  tab.maxPopulation = 300
+  tab.useParsimony = true
+  tab.equalWeight = true
+  tab.seedProgramSize = 400
+  tab.seedPopulation = 400
+  tab.maxPopulation = 400
   tab.tournamentSize = int(0.02 * tab.maxPopulation.float)
-  tab.sharingRate = 0.025
-  tab.maxGenerations = 50_000
+  tab.sharingRate = 0.1
+  tab.maxGenerations = 1_000_000
   tab.requireValid = true
 
   # the main loop monitors inventions
@@ -114,25 +115,30 @@ when isMainModule:
       if p.isNil:
         sleep 250
       else:
-        if p.isValid:
+        if p.isValid and not p.zombie:
           template pop: Population[Fennel] = evo.population
           p.score = strength(get evo.score(p))
-          evo.makeRoom()
-          evo.population.add p
-          when defined(greadFast):
-            maybeResetFittest(evo.population, p)
-          let best = evo.fittest
-          if best.isSome and best.get.hash == p.hash:
-            when false:
-              if FinestKnown in p.flags or p.score > goodEnough:
-                dumpPerformance(fnl, p, training, samples = 1)
-            else:
-              dumpScore(fnl, p)
-            if p.score > goodEnough:
-              echo "winner, winner, chicken dinner: ", p.score
-              echo "last generation: ", p.generation, " secs: ", (getTime() - et).inSeconds
-              quit 0
-        push(outputs, p)
+          while p.isValid:
+            evo.makeRoom()
+            if not p.isValid:
+              break
+            evo.population.add p
+            when defined(greadFast):
+              maybeResetFittest(evo.population, p)
+            let best = evo.fittest
+            if best.isSome and best.get.hash == p.hash:
+              when false:
+                if FinestKnown in p.flags or p.score > goodEnough:
+                  dumpPerformance(fnl, p, training, samples = 1)
+              else:
+                dumpScore(fnl, p)
+              if p.score > goodEnough:
+                echo "winner, winner, chicken dinner: ", p.score
+                echo "last generation: ", p.generation, " secs: ", (getTime() - et).inSeconds
+                quit 0
+            break
+        if p.isValid:
+          push(outputs, p)
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()
