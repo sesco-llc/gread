@@ -359,18 +359,21 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, LuaValue)];
     var deltas: seq[float]
     for index, value in training.pairs:
       let s = evaluate(fnl, p, value[0])
+      var sf, vf: float
       if s.isValid and s.kind == TNumber:
-        results.add s.float
-        ideals.add value[1].float
-        deltas.add abs(value[1].float - s.float)
+        sf = s.toFloat
+        vf = value[1].toFloat
+        results.add sf
+        ideals.add vf
+        deltas.add abs(vf - sf)
       else:
         break
       if 0 == index mod samples or index == training.high:
-        let delta = abs(value[1].float - s.float)
+        let delta = abs(vf - sf)
         if delta in [0.0, -0.0]:
-          checkpoint fmt"{float(value[1]):>7.2f}"
+          checkpoint fmt"{vf:>7.2f}"
         else:
-          checkpoint fmt"ideal: {float(value[1]):>7.2f} -> gp: {float(s):>7.2f}     -> {sum(deltas):>7.2f}    {index}"
+          checkpoint fmt"ideal: {vf:>7.2f} -> gp: {sf:>7.2f}     -> {sum(deltas):>7.2f}    {index}"
     if results.len > 0:
       checkpoint "stddev:", stddev(results),
                  "corr:", correlation(results, ideals).percent,
