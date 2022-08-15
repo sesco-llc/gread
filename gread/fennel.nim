@@ -286,8 +286,10 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
       vm.getGlobal "result"
       result = popStack vm
   except LuaError as e:
-    echo e.name, ": ", e.msg
-    raise
+    when greadSemanticErrorsAreFatal:
+      echo e.name, ": ", e.msg
+      writeStackTrace()
+      raise
   except Exception as e:
     echo e.name, ": ", e.msg
     writeStackTrace()
