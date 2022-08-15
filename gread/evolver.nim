@@ -263,12 +263,13 @@ proc scoreFromCache*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   if p.zombie: return none V
 
   if p.isNil:
-    raise
+    raise Defect.newException "program is nil"
 
   if p.hash == 0.Hash:
-    raise
+    raise Defect.newException "program has no hash"
 
   if p.hash notin evo.cache or p.hash notin evo.novel:
+    # no performance data available for the program;
     return none V
 
   let cache = addr evo.cache[p.hash]    # capture
@@ -311,7 +312,8 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
       result = evo.fitone(evo.platform, evo.dataset[index], p)
       demandValid result
       p.runtime.push (getTime() - began).inMilliseconds.float
-      evo.addScoreToCache(p, index, get result)
+      if result.isSome:
+        evo.addScoreToCache(p, index, get result)
 
 proc score*[T, V](evo: Evolver[T, V]; ss: ptr SymbolSet[T, V];
                   p: Program[T]): Option[V] {.deprecated: "use index".} =

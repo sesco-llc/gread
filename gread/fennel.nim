@@ -29,7 +29,7 @@ export lptabz
 export lunacy
 
 const
-  semanticErrorsAreFatal = true
+  greadSemanticErrorsAreFatal {.booldefine.} = false
   initialCacheSize = 32*1024
 
 type
@@ -281,9 +281,17 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   let fennel = """
     result = fennel.eval([==[$#]==], {compilerEnv=_G})
   """ % [ s ]
-  vm.checkLua vm.doString fennel.cstring:
-    vm.getGlobal "result"
-    result = popStack vm
+  try:
+    vm.checkLua vm.doString fennel.cstring:
+      vm.getGlobal "result"
+      result = popStack vm
+  except LuaError as e:
+    echo e.name, ": ", e.msg
+    raise
+  except Exception as e:
+    echo e.name, ": ", e.msg
+    writeStackTrace()
+    raise
 
 proc evaluate*(fnl: Fennel; p: FProg; locals: Locals): LuaValue =
   # prepare to run the vm
@@ -299,7 +307,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals): LuaValue =
     if not stack.isNil:
       result = stack.value
   except LuaError as e:
-    when semanticErrorsAreFatal:
+    when greadSemanticErrorsAreFatal:
       debugEcho $p
       debugEcho e.msg
       quit 1
