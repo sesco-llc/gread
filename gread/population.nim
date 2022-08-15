@@ -84,6 +84,7 @@ template learn(pop: Population; p: Program; pos: int) =
     pop.ken.validity.push 1.0
   else:
     pop.ken.validity.push 0.0
+  pop.ken.lengths.push p.len.float
   if p.core == pop.ken.core:
     pop.ken.ages.push float(int p.generation)
   else:
@@ -95,9 +96,10 @@ template forget(pop: Population; p: Program; pos: int) =
   if p.isValid:
     if p.score.isValid:
       pop.ken.scores.pop p.score
-      pop.ken.validity.pop 1.0
-    else:
-      pop.ken.validity.pop 0.0
+    pop.ken.validity.pop 1.0
+  else:
+    pop.ken.validity.pop 0.0
+  pop.ken.lengths.pop p.len.float
   if p.core == pop.ken.core:
     pop.ken.ages.pop float(int p.generation)
   else:
@@ -348,7 +350,7 @@ when populationCache:
 template qualityTrackIt*(pop: Population; p: Program; s: Score;
                          body: untyped): untyped =
   withInitialized pop:
-    if s.isValid:
+    if p.isValid and s.isValid:
       pop.ken.scores.pop s
     var it {.inject.}: Score = NaN
     body
@@ -371,10 +373,16 @@ proc scoreChanged*[V](pop: Population; p: Program; s: Option[V]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
   ## is used to update metrics, parsimony, and the `fittest` population member
   withInitialized pop:
-    if p.score.isValid:
-      pop.ken.scores.pop p.score
+    if p.isValid:
+      pop.ken.validity.pop 1.0
+      if p.score.isValid:
+        pop.ken.scores.pop p.score
+        assert pop.ken.scores.n >= 0
+    else:
+      pop.ken.validity.pop 0.0
     if s.isSome and s.get.isValid:
       p.score = strength(get s)
+      pop.ken.validity.push 1.0
       pop.ken.scores.push p.score
       p.zombie = false  # NOTE: trigger a defect if necessary
       when not defined(greadFast):
@@ -382,6 +390,7 @@ proc scoreChanged*[V](pop: Population; p: Program; s: Option[V]; index: int) =
     else:
       p.score = NaN
       p.zombie = true
+      pop.ken.validity.push 0.0
 
 proc core*(pop: Population): CoreSpec =
   withInitialized pop:
@@ -397,10 +406,11 @@ proc resetMetrics(pop: Population) =
     for p in pop.items:
       if p.isValid:
         pop.ken.validity.push 1.0
-        pop.ken.scores.push p.score
-        pop.ken.lengths.push p.len.float
+        if p.score.isValid:
+          pop.ken.scores.push p.score
       else:
         pop.ken.validity.push 0.0
+      pop.ken.lengths.push p.len.float
       pop.ken.caches.push p.cacheSize.float
     resetParsimony pop
 

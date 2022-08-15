@@ -39,19 +39,21 @@ proc remover[T, V](evo: var Evolver[T, V];
       evo.scoreFromCache(c.program)
     else:
       evo.score(c.program)
-  when false:
+  when true:
     let score =
       if s.isSome:
         get s
       else:
         NaN
     debug "rm ", i, " t-score ", c.score, " was ", c.program.score, " now ", score
-  when true:
+  when false:
     if c.program.zombie:
       # raise
       discard
     else:
       evo.population.scoreChanged(c.program, s, c.index)
+  elif true:
+    evo.population.scoreChanged(c.program, s, c.index)
   else:
     qualityTrackIt(evo.population, c.program, c.program.score):
       it = s
@@ -59,7 +61,7 @@ proc remover[T, V](evo: var Evolver[T, V];
 
 proc discharge(evo: var Evolver; c: Competitor) =
   ## a modern remover
-  when true:
+  when false:
     if c.program.zombie:
       # raise
       discard
@@ -69,6 +71,9 @@ proc discharge(evo: var Evolver; c: Competitor) =
         discard
       else:
         scoreChanged(evo.population, c.program, score, c.index)
+  elif true:
+    let score = evo.scoreFromCache(c.program)
+    scoreChanged(evo.population, c.program, score, c.index)
   else:
     qualityTrackIt(evo.population, c.program, c.program.score):
       it = evo.quality evo.scoreFromCache(c.program)
@@ -94,6 +99,8 @@ proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
   var seen: PackedSet[int]           # de-dupe fighters by index;
   # we're counting unique programs, not unique members!
   while seen.len < size:
+    if evo.population.metrics.scores.n <= 0:
+      raise
     var (i, p) = randomMember(evo.population, evo.rng)
     if not seen.containsOrIncl i:
       victim = (valid: p.isValid, score: Score NaN,
