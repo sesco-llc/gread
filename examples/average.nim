@@ -43,7 +43,7 @@ tab.seedPopulation = 200
 tab.maxPopulation = 200
 tab.tournamentSize = 10
 tab.maxGenerations = 30_000
-tab.requireValid = true
+tab.requireValid = false
 
 # define the different ways in which we evolve, and their weights
 let operators = {

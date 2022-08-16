@@ -15,7 +15,7 @@ import pkg/loony
 import pkg/adix/lptabz
 
 const
-  goodEnough = -0.00     # termination condition
+  goodEnough = -0.50     # termination condition
   statFrequency = 2000  # report after this many generations
   llsGrammar = """
     <start>        ::= <numexpr>
@@ -90,7 +90,7 @@ when isMainModule:
   tab.tournamentSize = int(0.02 * tab.maxPopulation.float)
   tab.sharingRate = 0.1
   tab.maxGenerations = 1_000_000
-  tab.requireValid = true
+  tab.requireValid = false
 
   # the main loop monitors inventions
   proc main(work: Work; inputs, outputs: LoonyQueue[FProg]) =
@@ -117,6 +117,8 @@ when isMainModule:
       else:
         if p.isValid and not p.zombie:
           template pop: Population[Fennel] = evo.population
+          # FIXME: this shouldn't be necessary
+          let p = clone p
           p.score = strength(get evo.score(p))
           while p.isValid:
             evo.makeRoom()

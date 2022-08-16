@@ -557,7 +557,9 @@ when compileOption"threads":
       # share any new winner
       if not evo.population.fittest.isNil:
         if fittest.isNil or fittest != evo.population.fittest:
-          fittest = evo.population.fittest
+          # NOTE: clone the fittest so that we don't have to
+          #       worry about the reference counter across threads
+          fittest = clone evo.population.fittest
           forceShare(args, fittest)
 
       for discovery in evo.generation():
