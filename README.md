@@ -112,7 +112,7 @@ a `Cluster`, and each such instance has a `Core` identifier which is a simple
 integer. `Evolvers` encompass unique populations of programs which may also
 have unique fitness functions, datasets, virtual machines, and so on. There may
 be multiple evolvers running on each thread but clusters generally only launch
-`countProcessors()` threads.
+`sysinfo.getNumTotalCores()` threads.
 
 Here's sample metrics output from the `lls` example:
 

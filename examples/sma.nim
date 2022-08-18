@@ -8,6 +8,7 @@ import std/math
 import gread
 import gread/fennel
 
+import pkg/sysinfo
 import pkg/balls
 import pkg/lunacy
 import pkg/loony
@@ -104,9 +105,10 @@ when isMainModule:
               maxGenerations: 500_000, seedProgramSize: 5,
               tournamentSize: 6, useParsimony: on)
 
+  let cores = max(1, getNumTotalCores())
   var args = initWork(tab, prims, operators, fitness, stats = statFrequency)
   var threads: seq[Thread[Work]]
-  newSeq(threads, countProcessors())
+  newSeq(threads, cores)
 
   checkpoint fmt"seeding {threads.len} threads..."
   for thread in threads.mitems:

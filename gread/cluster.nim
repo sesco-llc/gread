@@ -11,6 +11,7 @@ import std/deques
 
 import pkg/loony
 import pkg/cps
+import pkg/sysinfo
 
 import gread/spec
 import gread/programs
@@ -51,7 +52,7 @@ type
 
   CQ = LoonyQueue[C]
 
-let processors = max(1, countProcessors() div 2)
+let processors = max(1, getNumTotalCores())
 var
   threads: seq[Thread[CQ]]
   shelf: seq[CQ]

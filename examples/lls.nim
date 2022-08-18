@@ -9,6 +9,7 @@ import std/random
 import gread
 import gread/fennel except variance
 
+import pkg/sysinfo
 import pkg/cps
 import pkg/lunacy
 import pkg/loony
@@ -149,7 +150,7 @@ when isMainModule:
            dataset = dataset, fitone = fitone, fitmany = fitmany,
            stats = statFrequency)
 
-  let cores = max(countProcessors() div 2, 4)
+  let cores = max(1, getNumTotalCores())
   for core in 1..cores:
     args.rng = some initRand()
     clump.boot(whelp worker(args), args.core)
