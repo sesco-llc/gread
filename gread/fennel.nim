@@ -427,7 +427,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
               immigration rate: {(m.immigrants.float / m.size.float).percent}
           mapping failure rate: {evo.shortGenome.mean.percent}
                best generation: {m.bestGen}
-             total generations: {m.generation}
+             total generations: {m.generation} / {evo.tableau.maxGenerations}
         vm runs per generation: {Score(fnl.runs.float / m.generation.float)}
              invention recency: {m.staleness.percent} <= 100%
                generation time: {Score genTime.mean} ms
