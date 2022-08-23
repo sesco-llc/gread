@@ -2,6 +2,7 @@ import std/hashes
 import std/json
 import std/math
 import std/options
+import std/os
 import std/random
 import std/sequtils
 import std/strformat
@@ -578,6 +579,70 @@ when compileOption"threads":
       share(args, randomRemoval(evo.population, evo.rng))
 
     quit 0
+
+  proc scorer*(args: Work[Fennel, LuaValue]) {.cps: C.} =
+    ## a continuation that simply scores programs in the input
+    let fnl = newFennel(core = args.core)
+    var evo: Evolver[Fennel, LuaValue]
+    initEvolver(evo, fnl, args.tableau)
+    if args.rng.isSome:
+      evo.rng = get args.rng
+    evo.name = args.name
+    evo.strength = args.strength
+    evo.grammar = args.grammar
+    evo.operators = args.operators
+    evo.dataset = args.dataset
+    evo.core = fnl.core
+    evo.fitone = args.fitone
+    evo.fitmany = args.fitmany
+    # just trying to do a sorta-correct thing here...
+    if args.population.isNil:
+      evo.population = newPopulation[Fennel]()
+    else:
+      evo.population = args.population
+      evo.population.toggleParsimony(evo.tableau.useParsimony)
+
+    while true:
+      noop() # give other evolvers a chance
+
+      var transit = pop args.io.inputs
+      if transit.isNil:
+        # we're done
+        break
+
+      let s = evo.score(transit)
+      if s.isSome:
+        transit.score = evo.strength(get s)
+      else:
+        transit.score = NaN
+      transit.source = getThreadId()
+      transit.core = args.core
+      push(args.io.outputs, transit)
+
+  proc threadedScore*[T: Fennel, V: LuaValue](args: var Work[T, V]; pop: Population[T]): Population[T] =
+    ## score programs in the population using multiple threads
+    let clump = newCluster[T, V]()
+    clump.redress args
+
+    for core in 1..processors:
+      args.rng = some initRand()
+      args.population = newPopulation[T](pop.len)
+      clump.boot(whelp scorer(args), args.core)
+      clump.redress args
+
+    let (inputs, outputs) = clump.programQueues()
+    for p in pop.items:
+      push(inputs, p)
+
+    result = newPopulation[T](pop.len)
+    for n in 1..<pop.len:
+      while true:
+        let p = pop outputs
+        if p.isNil:
+          sleep 5
+        else:
+          result.add p
+          break
 
 proc parseToken*[T: Fennel](s: string): FennelNodeKind =
   case s

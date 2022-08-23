@@ -53,7 +53,7 @@ type
 
   CQ = LoonyQueue[C]
 
-let processors = max(1, getNumTotalCores())
+let processors* = max(1, getNumTotalCores())
 var
   threads: seq[Thread[CQ]]
   shelf: seq[CQ]
