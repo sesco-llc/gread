@@ -513,6 +513,7 @@ when compileOption"threads":
     if args.rng.isSome:
       evo.rng = get args.rng
     evo.name = args.name
+    evo.strength = strength
     evo.operators = args.operators
     evo.dataset = args.dataset
     evo.core = lua.core

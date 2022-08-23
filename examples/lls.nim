@@ -101,6 +101,7 @@ when isMainModule:
     monitor.maxPopulation = 10
     var evo: Evolver[Fennel, LuaValue]
     initEvolver(evo, fnl, monitor)
+    evo.strength = strength
     evo.grammar = gram
     evo.operators = operators
     evo.dataset = training
@@ -120,7 +121,7 @@ when isMainModule:
           template pop: Population[Fennel] = evo.population
           # FIXME: this shouldn't be necessary
           let p = clone p
-          p.score = strength(get evo.score(p))
+          p.score = evo.strength(get evo.score(p))
           while p.isValid:
             evo.makeRoom()
             if not p.isValid:
@@ -148,7 +149,7 @@ when isMainModule:
   var args = clump.initWork()
   initWork(args, tab, grammar = gram, operators = operators,
            dataset = dataset, fitone = fitone, fitmany = fitmany,
-           stats = statFrequency)
+           strength = strength, stats = statFrequency)
 
   let cores = max(1, getNumTotalCores())
   for core in 1..cores:

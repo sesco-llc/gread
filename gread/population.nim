@@ -369,7 +369,7 @@ template qualityTrackIt*(pop: Population; p: Program; s: Option[Score];
   qualityTrackIt(pop, p, score):
     body
 
-proc scoreChanged*[V](pop: Population; p: Program; s: Option[V]; index: int) =
+proc scoreChanged*(pop: Population; p: Program; s: Option[float]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
   ## is used to update metrics, parsimony, and the `fittest` population member
   withInitialized pop:
@@ -381,7 +381,7 @@ proc scoreChanged*[V](pop: Population; p: Program; s: Option[V]; index: int) =
     else:
       pop.ken.validity.pop 0.0
     if s.isSome and s.get.isValid:
-      p.score = strength(get s)
+      p.score = get s
       pop.ken.validity.push 1.0
       pop.ken.scores.push p.score
       p.zombie = false  # NOTE: trigger a defect if necessary

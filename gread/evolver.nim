@@ -37,11 +37,15 @@ type
   Operator*[T, V] = proc(evo: var Evolver[T, V]): seq[Program[T]] {.nimcall.}
   OperatorWeight*[T, V] = tuple[operator: Operator[T, V]; weight: float64]
 
+  Strength*[V] = proc(value: V): float ##
+  ## a function converts program results to a float for sorting purposes
+
   Evolver*[T, V] = object
     platform: T
     rng*: Rand                      # we essentially need to expose mutability
     name*: string                   # for reporting purposes
     grammar: Grammar
+    strength*: Strength[V]
     fitone: FitOne[T, V]
     fitmany: FitMany[T, V]
     dataset: seq[SymbolSet[T, V]]
@@ -120,7 +124,6 @@ proc `operators=`*[T, V](evo: var Evolver[T, V];
   initAliasMethod(evo.operators, weighted)
 
 proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
-  mixin strength
   evo.population = population
   if not evo.population.isNil:
     for p in evo.population.items():
@@ -133,7 +136,7 @@ proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
             evo.score(p)
         p.score =
           if s.isSome:
-            strength(get s)
+            evo.strength(get s)
           else:
             NaN
     if evo.tableau.useParsimony:
@@ -238,7 +241,6 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
                            score: V) =
   ## store score using dataset[index] (symbol set)
   demandValid score
-  mixin strength
   var ps = evo.novel.mgetOrPut(p.hash, initPackedSet[int]())
   if not evo.novel[p.hash].containsOrIncl(index):
     inc evo.cacheCounter
@@ -256,7 +258,7 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
     except KeyError:
       initCache(evo, p, index, score)
     assert evo.cache[p.hash].len <= evo.dataset.len
-    p.push score.strength
+    p.push evo.strength(score)
 
 proc scoreFromCache*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   ## compute a new score for the program using prior evaluations
@@ -296,7 +298,6 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
   ## a stopwatch over `fitone()` and updates the program's runtime
   ## statistics.
   mixin isValid
-  mixin strength
   if index notin 0..evo.dataset.high:
     raise AssertionDefect.newException: "received bogus index"
   if evo.fitone.isNil:
@@ -337,7 +338,6 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
                   p: Program[T]): Option[V] =
   ## score a program against a subset of symbol sets from the evolver
   mixin isValid
-  mixin strength
   if evo.fitone.isNil:
     raise ValueError.newException "evolver needs fitone assigned"
   elif evo.fitmany.isNil:
@@ -370,7 +370,6 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
 proc score*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   ## score the program against all available symbol sets
   mixin isValid
-  mixin strength
   evo.score(addr evo.indexes, p)
 
 proc scoreRandomly*[T, V](evo: var Evolver[T, V];
@@ -380,6 +379,10 @@ proc scoreRandomly*[T, V](evo: var Evolver[T, V];
     raise ValueError.newException "evolver lacks a dataset"
   else:
     evo.score(evo.rng.rand evo.dataset.high, p)
+
+proc `strength=`*[T, V](evo: var Evolver[T, V]; strength: Strength[V]) =
+  ## assign a new strength function to the evolver
+  evo.strength = strength
 
 proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
   ## assign a new fitness function to the evolver
@@ -413,7 +416,6 @@ proc randomSymbols*[T, V](evo: Evolver[T, V]): SymbolSet[T, V] =
 
 proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
   ## create a new (random) population using the given evolver's parameters
-  mixin strength
   mixin isValid
   result = newPopulation[T](evo.tableau.seedPopulation, core = evo.core)
   result.toggleParsimony(evo.tableau.useParsimony)
@@ -433,7 +435,7 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
           evo.score(p)
       p.score =
         if s.isSome:
-          strength(get s)
+          evo.strength(get s)
         else:
           NaN
       if not evo.tableau.requireValid or p.isValid:
@@ -501,11 +503,11 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
 
         debug "pre-scaled: ", get a1, " and ", get b1
         when popscore:
-          let sa = evo.population.score(get a1, a.len, get b1)
-          let sb = evo.population.score(get b1, b.len, get a1)
+          let sa = evo.strength evo.population.score(get a1, a.len, get b1)
+          let sb = evo.strength evo.population.score(get b1, b.len, get a1)
         else:
-          let sa = get a1
-          let sb = get b1
+          let sa = evo.strength get a1
+          let sb = evo.strength get b1
         # XXX: when parsimony is on, it can change the sign of scores 🙄
         let d = abs(sa.float - sb.float)  # just wing it for now
         debug "    scores: ", sa, " and ", sb
@@ -537,5 +539,5 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
                  evo.population.score(get b1, b.len, get a1))
   else:
     # FIXME: better()?
-    result = cmp(strength(get a1), strength(get b1))
+    result = cmp(evo.strength(get a1), evo.strength(get b1))
   debug "returning cmp; ", a1.get, " vs ", b1.get, " = ", result

@@ -46,6 +46,7 @@ type
     targets*: Option[seq[V]]
     fitone*: FitOne[T, V]
     fitmany*: FitMany[T, V]
+    strength*: Strength[V]                 ## compute a metric for sorting
     io*: IO[T]                             ## how we send/receive genes
     neg: ProgramQueue[T]                   ## receives invalid programs
     cluster: Cluster[T, V]
@@ -96,7 +97,7 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
                      operators: openArray[OperatorWeight[T, V]] = @[];
                      dataset: seq[SymbolSet[T, V]] = @[];
                      fitone: FitOne[T, V] = nil; fitmany: FitMany[T, V] = nil;
-                     population: Population[T] = nil;
+                     population: Population[T] = nil; strength: Strength[V] = nil;
                      targets = none seq[V]; rng = none Rand;
                      core = none int; stats = 1000; name = "") =
   ## initialize a work object for passing setup instructions to worker threads;
@@ -104,6 +105,7 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
   work.tableau = tab
   work.grammar = grammar
   work.name = name
+  work.strength = strength
   work.dataset = dataset
   work.operators = @operators
   work.stats = stats

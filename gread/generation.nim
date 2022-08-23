@@ -19,7 +19,6 @@ proc makeRoom*[T, V](evo: var Evolver[T, V]) =
 
 iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
   ## try to create novel program(s) from better existing programs
-  mixin strength
 
   # inform the pop that we're in a new generation
   let gen = nextGeneration evo.population
@@ -41,7 +40,7 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
             # sample all datapoints in order to develop useful score
             evo.score(p)
         if s.isSome:
-          p.score = strength(get s)
+          p.score = evo.strength(get s)
         else:
           p.zombie = true
 

@@ -1,11 +1,12 @@
-import std/json
-import std/times
-import std/strformat
-import std/sequtils
-import std/math
 import std/hashes
+import std/json
+import std/math
 import std/options
+import std/random
+import std/sequtils
+import std/strformat
 import std/strutils
+import std/times
 
 import pkg/lunacy except Integer
 import pkg/adix/lptabz
@@ -23,6 +24,8 @@ import gread/maths except variance
 import gread/data
 import gread/evolver
 import gread/grammar
+import gread/tableau
+import gread/decompile
 
 export stat
 export lptabz
@@ -524,13 +527,13 @@ when compileOption"threads":
       result = evo.cacheSize(p) == evo.dataset.len
 
   proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
-    mixin strength
     let fnl = newFennel(core = args.core)
     var evo: Evolver[Fennel, LuaValue]
     initEvolver(evo, fnl, args.tableau)
     if args.rng.isSome:
       evo.rng = get args.rng
     evo.name = args.name
+    evo.strength = strength
     evo.grammar = args.grammar
     evo.operators = args.operators
     evo.dataset = args.dataset
@@ -549,7 +552,8 @@ when compileOption"threads":
     while evo.population.generations.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
-      search(args, evo.population)   # fresh meat from other threads
+      if evo.core.isSome and evo.core.get.int != 0:
+        search(args, evo.population)   # fresh meat from other threads
 
       let stale = randomMember(evo.population, evo.rng)
       share(args, stale.program)
@@ -601,3 +605,33 @@ proc parseFennelToken*(s: string): int16 =
 proc initFennelGrammar*(gram: var Grammar; syntax: string) =
   mixin initGrammar
   initGrammar(gram, parseFennelToken, syntax)
+
+proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Grammar;
+                                         source: string; rng: Rand = randState()): Evolver[T, G] =
+  let codeAsCharacters = source.toSeq
+
+  proc strength(score: LuaValue): float =
+    -jaccard(toSeq $score, codeAsCharacters)
+
+  proc fitone(d: T; data: SymbolSet[T, G]; p: Program[T]): Option[G] =
+    some ($p).toLuaValue
+
+  proc fitmany(d: T; iter: iterator(): (ptr SymbolSet[T, G], ptr G);
+               p: Program[T]): Option[G] =
+    for symbols, s in iter():
+      return some ($p).toLuaValue
+
+  var evo: Evolver[T, G]
+  initEvolver(evo, d, tableau, rng)
+  evo.operators = {
+    geCrossover[T, G]:     2.0,
+    geMutation[T, G]:      1.0,
+    randomCrossover[T, G]: 1.0,
+  }
+  evo.strength = strength
+  evo.grammar = gram
+  evo.fitone = fitone
+  evo.fitmany = fitmany
+  evo.dataset = @[initSymbolSet[T, G]([("source", source.toLuaValue)])]
+  evo.population = evo.randomPop()
+  result = evo

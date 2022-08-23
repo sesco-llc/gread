@@ -39,21 +39,20 @@ proc remover[T, V](evo: var Evolver[T, V];
       evo.scoreFromCache(c.program)
     else:
       evo.score(c.program)
-  when true:
-    let score =
-      if s.isSome:
-        get s
-      else:
-        NaN
-    debug "rm ", i, " t-score ", c.score, " was ", c.program.score, " now ", score
+  let score =
+    if s.isSome:
+      some evo.strength(get s)
+    else:
+      none float
+  #debug "rm ", i, " t-score ", c.score, " was ", c.program.score, " now ", score
   when false:
     if c.program.zombie:
       # raise
       discard
     else:
-      evo.population.scoreChanged(c.program, s, c.index)
+      evo.population.scoreChanged(c.program, score, c.index)
   elif true:
-    evo.population.scoreChanged(c.program, s, c.index)
+    evo.population.scoreChanged(c.program, score, c.index)
   else:
     qualityTrackIt(evo.population, c.program, c.program.score):
       it = s
@@ -66,13 +65,23 @@ proc discharge(evo: var Evolver; c: Competitor) =
       # raise
       discard
     else:
-      let score = evo.scoreFromCache(c.program)
+      let s = evo.scoreFromCache(c.program)
+      let score =
+        if s.isSome:
+          some evo.strength(get s)
+        else:
+          none float
       if c.program.zombie:
         discard
       else:
         scoreChanged(evo.population, c.program, score, c.index)
   elif true:
-    let score = evo.scoreFromCache(c.program)
+    let s = evo.scoreFromCache(c.program)
+    let score =
+      if s.isSome:
+        some evo.strength(get s)
+      else:
+        none float
     scoreChanged(evo.population, c.program, score, c.index)
   else:
     qualityTrackIt(evo.population, c.program, c.program.score):
@@ -83,7 +92,6 @@ proc discharge(evo: var Evolver; c: Competitor) =
 proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
                        order = Descending): Competitor[T] =
   ## v3 baby
-  mixin strength
   if evo.population.len < 1:
     raise ValueError.newException:
       "cannot run a tournament with empty population"
@@ -120,7 +128,7 @@ proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
             let (v, r) = (evo.score(victim.program), evo.score(result.program))
             if v.isNone:   -1
             elif r.isNone:  1
-            else:           system.cmp(strength(get v), strength(get r))
+            else:           system.cmp(evo.strength(get v), evo.strength(get r))
         if cmp == -1 and order == Ascending:
           discharge(evo, result)
           result = victim
@@ -144,7 +152,6 @@ proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
 proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
                         order = Descending): Competitor[T] =
   ## find the fittest or least fit of a subset of the population
-  mixin strength
   if evo.population.len < 1:
     raise ValueError.newException:
       "cannot run a tournament with empty population"
@@ -224,7 +231,7 @@ proc tournament2*[T, V](evo: var Evolver[T, V]; size: int;
           debug "victim ", i, " was ", victims[i].score, " now ", get s
           # adjust the score according to population parsimony
           victims[i].score =
-            evo.population.score(strength(get s), victims[i].len)
+            evo.population.score(evo.strength(get s), victims[i].len)
           victims[i].valid = victims[i].score.isValid
           debug "victim ", i, " ", victims[i].program
           inc i

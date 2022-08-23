@@ -53,7 +53,7 @@ proc sum[T](t: CountTable[T]): int =
   for value in t.values:
     result.inc value
 
-proc hamming[T](x1, x2: seq[T]; normalize = false): float =
+proc hamming*[T](x1, x2: seq[T]; normalize = false): float =
   let cols = x1.len
   var total: int
   for k in 0..<cols:
@@ -84,46 +84,9 @@ proc bag*[T](a, b: T): int =
   let two = b.toCountTable
   result = max(sum(one - two), sum(two - one))
 
-proc isValid*(g: G): bool =
-  g.len > 0
-
-proc decompiler*[T](d: var T; tableau: Tableau; gram: Grammar;
-                    source: string; rng: Rand = randState()): Evolver[T, G] =
-  let codeAsCharacters = source.toSeq
-
-  proc strength(score: G): float =
-    # FIXME: pending #39; and switch to ast comparo
-    let bagged = bag(score, codeAsCharacters)
-    if bagged == 0:
-      let jacked = jaccard(score, codeAsCharacters)
-      result = -jacked.float
-    else:
-      result = -bagged.float
-
-  proc fitone(d: T; data: SymbolSet[T, G]; p: Program[T]): Option[G] =
-    result = some $p
-
-  proc fitmany(d: T; iter: iterator(): (ptr SymbolSet[T, G], ptr G);
-               p: Program[T]): Option[G] =
-    for symbols, s in iter():
-      return some $p
-
-  var evo: Evolver[T, G]
-  initEvolver(evo, d, tableau, rng)
-  evo.operators = {
-    geCrossover[T, string]:     200.0,
-    geMutation[T, string]:      100.0,
-    randomCrossover[T, string]:   1.0,
-  }
-  evo.grammar = gram
-  evo.fitone = fitone
-  evo.fitmany = fitmany
-  evo.dataset = @[initSymbolSet[T, G]([("source", source)])]
-  evo.population = evo.randomPop()
-  result = evo
-
 proc decompiler*[T](d: var T; gram: Grammar; source: string;
                     rng: Rand = randState()): auto =
+  mixin decompiler
   var tableau = defaultTableau
   tableau.maxPopulation = 10
   decompiler(d, defaultTableau, gram, source, rng = rng)
