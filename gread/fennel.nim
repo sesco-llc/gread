@@ -239,6 +239,8 @@ proc render[T](a: Ast[T]; n: AstNode[T]; i = 0): string =
   elif n.isStringLit:
     escapeJson(a.strings[LitId n.operand], result)
     result
+  elif fnk(n.kind) == fennelBoolean:
+    $(bool a.numbers[LitId n.operand])
   elif fnk(n.kind) in fennelTokenKinds:
     strRepr fnk(n.kind)
   elif n.isNumberLit:
@@ -251,19 +253,29 @@ proc render*(a: Ast[Fennel]): string =
   ## render fennel ast in a form that can be compiled
   var i = 0
   var s = newSeqOfCap[int](a.len)
+  var t = newSeqOfCap[int](a.len)
   template maybeAddSpace {.dirty.} =
-    if result.len > 0 and result[^1] notin {'('}:
+    if result.len > 0 and result[^1] notin {'(', '['}:
       result.add " "
   template closeParens {.dirty.} =
     while s.len > 0 and i >= s[^1]:
       result.add ")"
       discard pop s
+  template closeBracks {.dirty.} =
+    while t.len > 0 and i >= t[^1]:
+      result.add "]"
+      discard pop t
   while i <= a.high:
     closeParens()
+    closeBracks()  # FIXME
     maybeAddSpace()
     case a[i].kind
     of fennelProgram:
       inc i                            # program is merely a semantic
+    of fennelSequentialTable:
+      result.add "["
+      t.add i+sizeOfSubtree(a, i)      # pop when you get past index+size
+      inc i
     of fennelList:
       result.add "("
       s.add i+sizeOfSubtree(a, i)      # pop when you get past index+size
@@ -274,7 +286,13 @@ proc render*(a: Ast[Fennel]): string =
     else:
       result.add a.render(a[i], i)     # rendering an individual node
       inc i
-  closeParens()
+  while t.len > 0 or s.len > 0:
+    if s.len > 0 and t.len == 0 or s[^1] < t[^1]:
+      closeParens()
+      continue
+    if t.len > 0 and s.len == 0 or t[^1] < s[^1]:
+      closeBracks()
+      continue
 
 proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   ## compile and evaluate the program as fennel; the result of
@@ -485,7 +503,7 @@ proc toAst[T: Fennel](node: TsFennelNode; s: string): Ast[T] =
   case node.kind
   of fennelSymbol:
     result = result.append Terminal(kind: Symbol, name: s[node])
-  of fennelList, fennelMultiSymbol, fennelProgram:
+  of fennelList, fennelMultiSymbol, fennelProgram, fennelSequentialTable:
     result = result.append Terminal(kind: Token, token: node.kind)
     for item in node.items:
       # create each child and add them to the parent
@@ -674,17 +692,23 @@ proc initFennelGrammar*(gram: var Grammar; syntax: string) =
 
 proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Grammar;
                                          source: string; rng: Rand = randState()): Evolver[T, G] =
+  let program = newFennelProgram(source)
+  if $program != source:
+    raise Defect.newException fmt"code `{source}` parsed as `{program}`"
+  #let codeAsCharacters = toSeq(freeze program.ast)
   let codeAsCharacters = source.toSeq
 
   proc strength(score: LuaValue): float =
     -jaccard(toSeq $score, codeAsCharacters)
 
   proc fitter(d: T; data: SymbolSet[T, G]; p: Program[T]): Option[G] =
+    #result = some (freeze p.ast).toLuaValue
     result = some ($p).toLuaValue
 
   proc fitthem(d: T; iter: iterator(): (ptr SymbolSet[T, G], ptr G);
                p: Program[T]): Option[G] =
     for symbols, s in iter():
+      #return some (freeze p.ast).toLuaValue
       return some ($p).toLuaValue
 
   var evo: Evolver[T, G]
