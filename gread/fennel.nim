@@ -15,6 +15,7 @@ import pkg/balls
 import pkg/cps
 import pkg/frosty/streams as brrr
 import pkg/htsparse/fennel/fennel_core_only as parsefen
+import pkg/loony
 
 import gread/spec
 import gread/ast
@@ -613,16 +614,18 @@ proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Gramm
   proc strength(score: LuaValue): float =
     -jaccard(toSeq $score, codeAsCharacters)
 
-  proc fitone(d: T; data: SymbolSet[T, G]; p: Program[T]): Option[G] =
-    some ($p).toLuaValue
+  proc fitter(d: T; data: SymbolSet[T, G]; p: Program[T]): Option[G] =
+    result = some ($p).toLuaValue
 
-  proc fitmany(d: T; iter: iterator(): (ptr SymbolSet[T, G], ptr G);
+  proc fitthem(d: T; iter: iterator(): (ptr SymbolSet[T, G], ptr G);
                p: Program[T]): Option[G] =
     for symbols, s in iter():
       return some ($p).toLuaValue
 
   var evo: Evolver[T, G]
-  initEvolver(evo, d, tableau, rng)
+  var tab = tableau
+  tab.useParsimony = false
+  initEvolver(evo, d, tab, rng)
   evo.operators = {
     geCrossover[T, G]:     2.0,
     geMutation[T, G]:      1.0,
@@ -630,8 +633,8 @@ proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Gramm
   }
   evo.strength = strength
   evo.grammar = gram
-  evo.fitone = fitone
-  evo.fitmany = fitmany
+  evo.fitone = fitter
+  evo.fitmany = fitthem
   evo.dataset = @[initSymbolSet[T, G]([("source", source.toLuaValue)])]
   evo.population = evo.randomPop()
   result = evo
