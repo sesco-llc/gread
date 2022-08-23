@@ -533,7 +533,7 @@ when compileOption"threads":
     if args.rng.isSome:
       evo.rng = get args.rng
     evo.name = args.name
-    evo.strength = strength
+    evo.strength = args.strength
     evo.grammar = args.grammar
     evo.operators = args.operators
     evo.dataset = args.dataset
