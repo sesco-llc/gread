@@ -298,6 +298,10 @@ type
     index: int
     program: Program[T]
 
+proc `[]`*[T](pop: Population[T]; index: int): Program[T] =
+  ## retrieve a program via (unstable?) index
+  pop.programs[index]
+
 proc randomMember*[T](pop: Population[T]; rng: var Rand): IndexedProgram[T] =
   ## return a random member of the population
   withPopulated pop:
