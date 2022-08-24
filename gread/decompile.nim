@@ -71,7 +71,7 @@ proc hamming*[T](x1, x2: seq[T]; normalize = false): float =
 
 proc jaccard*[T](x1, x2: seq[T]; normalize = false): float =
   var total_min, total_max: int
-  for col in 0..x1.high:
+  for col in 0..max(x1.high, x2.high):
     total_min += min(x1{col}, x2{col})
     total_max += max(x1{col}, x2{col})
   result =
