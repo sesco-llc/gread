@@ -53,25 +53,27 @@ proc sum[T](t: CountTable[T]): int =
   for value in t.values:
     result.inc value
 
+proc `{}`(x: openArray[Ordinal|enum]; index: int): int =
+  if index > x.high:
+    0
+  else:
+    ord(x[index])
+
 proc hamming*[T](x1, x2: seq[T]; normalize = false): float =
-  let cols = x1.len
   var total: int
-  for k in 0..<cols:
-    total += (x1[k] != x2[k]).ord
+  for k in 0..x1.high:
+    total += (x1{k} != x2{k}).ord
   result =
     if normalize:
-      total.float / cols.float
+      total.float / x1.len.float
     else:
       total.float
 
 proc jaccard*[T](x1, x2: seq[T]; normalize = false): float =
-  let cols = x1.len
-  var
-    total_min: int
-    total_max: int
-  for k in 0..<cols:
-    total_min += min(x1[k], x2[k]).ord
-    total_max += max(x1[k], x2[k]).ord
+  var total_min, total_max: int
+  for col in 0..x1.high:
+    total_min += min(x1{col}, x2{col})
+    total_max += max(x1{col}, x2{col})
   result =
     if total_max == 0:
       0.0

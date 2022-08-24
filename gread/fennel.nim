@@ -252,47 +252,40 @@ proc render[T](a: Ast[T]; n: AstNode[T]; i = 0): string =
 proc render*(a: Ast[Fennel]): string =
   ## render fennel ast in a form that can be compiled
   var i = 0
-  var s = newSeqOfCap[int](a.len)
-  var t = newSeqOfCap[int](a.len)
-  template maybeAddSpace {.dirty.} =
-    if result.len > 0 and result[^1] notin {'(', '['}:
-      result.add " "
-  template closeParens {.dirty.} =
-    while s.len > 0 and i >= s[^1]:
-      result.add ")"
-      discard pop s
-  template closeBracks {.dirty.} =
-    while t.len > 0 and i >= t[^1]:
-      result.add "]"
-      discard pop t
+  var s = newSeqOfCap[tuple[index: int, ending: string]](a.len)
+  template stripSpace {.dirty.} =
+    if result.len > 0 and result[^1] in {' '}:
+      setLen(result, result.high)
+  template ensureSpace {.dirty.} =
+    if result.len > 0 and result[^1] notin {' '}:
+      result.add ' '
+  template opener(x, y: string) {.dirty.} =
+    ensureSpace()
+    result.add x
+    s.add (i+sizeOfSubtree(a, i), y)
+    inc i
+  template closer() {.dirty.} =
+    while s.len > 0 and s[^1].index <= i:
+      ensureSpace()
+      result.add (pop s).ending
   while i <= a.high:
-    closeParens()
-    closeBracks()  # FIXME
-    maybeAddSpace()
     case a[i].kind
     of fennelProgram:
       inc i                            # program is merely a semantic
     of fennelSequentialTable:
-      result.add "["
-      t.add i+sizeOfSubtree(a, i)      # pop when you get past index+size
-      inc i
+      opener("[", "]")
     of fennelList:
-      result.add "("
-      s.add i+sizeOfSubtree(a, i)      # pop when you get past index+size
-      inc i
+      opener("(", ")")
     elif a[i].isParent:
+      ensureSpace()
       result.add a.render(a[i], i)     # probably just a multi.symbol
       inc(i, sizeOfSubtree(a, i))      # skip the parent's subtree
     else:
+      ensureSpace()
       result.add a.render(a[i], i)     # rendering an individual node
       inc i
-  while t.len > 0 or s.len > 0:
-    if s.len > 0 and t.len == 0 or s[^1] < t[^1]:
-      closeParens()
-      continue
-    if t.len > 0 and s.len == 0 or t[^1] < s[^1]:
-      closeBracks()
-      continue
+    closer()
+  stripSpace()
 
 proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   ## compile and evaluate the program as fennel; the result of

@@ -13,7 +13,7 @@ import gread/fennel
 
 const
   #expectedMapping = "(if (> 2.0 b ) 2.0 (- 0.0 a ) )"
-  expectedMapping = "(if (or (not= 0.0 2.0 ) (not= 1.0 1.0 ) ) 0.0 0.5 )"
+  expectedMapping = "( if ( or ( not= 0.0 2.0 ) ( not= 1.0 1.0 ) ) 0.0 0.5 )"
   badSeed = 47059
   fennelGrammar = """
     <start>        ::= <expr>
@@ -46,14 +46,14 @@ suite "basic fennel stuff":
     const program = "(/ math.pi math.pi)"
     p = newFennelProgram program
     checkpoint $p
-    check $p == "(/ math.pi math.pi)"
+    check $p == "( / math.pi math.pi )"
 
   block:
     ## parse a fennel program
     const program = "(+ 1   2.0  )"
     p = newFennelProgram program
     checkpoint $p
-    check $p == "(+ 1.0 2.0)"
+    check $p == "( + 1.0 2.0 )"
 
   block:
     ## run a fennel program
@@ -72,10 +72,10 @@ suite "basic fennel stuff":
 
   block:
     ## run a fennel program with inputs
-    const program = "(+ a b)"
+    const program = "( + a b )"
     p = newFennelProgram program
     checkpoint $p
-    check $p == "(+ a b)"
+    check $p == program
     # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
     var locals = initLocals:
       {
