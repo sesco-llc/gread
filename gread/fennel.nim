@@ -646,7 +646,7 @@ when compileOption"threads":
       push(inputs, p)
 
     result = newPopulation[T](pop.len)
-    for n in 1..<pop.len:
+    for n in 1..pop.len:
       while true:
         let p = pop outputs
         if p.isNil:
