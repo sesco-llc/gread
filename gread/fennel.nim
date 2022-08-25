@@ -565,7 +565,7 @@ when compileOption"threads":
     while evo.population.generations.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
-      if evo.core.isSome and evo.core.get.int != 0:
+      if true or evo.core.isSome and evo.core.get.int != 0:
         search(args, evo.population)   # fresh meat from other threads
 
       let stale = randomMember(evo.population, evo.rng)
