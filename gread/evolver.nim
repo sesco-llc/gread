@@ -440,6 +440,8 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
           NaN
       if not evo.tableau.requireValid or p.isValid:
         result.add p
+        when defined(greadEchoRandomPop):
+          echo result.len, " ", $p
     except ShortGenome:
       discard
       #echo "short genome on core ", evo.core, "; pop size ", result.len
