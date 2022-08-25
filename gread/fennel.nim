@@ -688,6 +688,7 @@ proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Gramm
   let program = newFennelProgram(source)
   if $program != source:
     raise Defect.newException fmt"code `{source}` parsed as `{program}`"
+  #let codeAsCharacters = toSeq(repr program.ast)
   #let codeAsCharacters = toSeq(freeze program.ast)
   let codeAsCharacters = source.toSeq
 
@@ -695,12 +696,14 @@ proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Gramm
     -jaccard(toSeq $score, codeAsCharacters)
 
   proc fitter(d: T; data: SymbolSet[T, G]; p: Program[T]): Option[G] =
+    #result = some (repr p.ast).toLuaValue
     #result = some (freeze p.ast).toLuaValue
     result = some ($p).toLuaValue
 
   proc fitthem(d: T; iter: iterator(): (ptr SymbolSet[T, G], ptr G);
                p: Program[T]): Option[G] =
     for symbols, s in iter():
+      #return some (repr p.ast).toLuaValue
       #return some (freeze p.ast).toLuaValue
       return some ($p).toLuaValue
 
