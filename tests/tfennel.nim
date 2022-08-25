@@ -176,8 +176,8 @@ suite "basic fennel stuff":
 
     var et = getTime()
     var tab = defaultTableau
-    tab.maxPopulation = 100
-    tab.tournamentSize = 3
+    tab.maxPopulation = 400
+    tab.tournamentSize = 4
     tab.seedPopulation = tab.maxPopulation
     var evo = decompiler[Fennel, LuaValue](fnl, tab, gram, expectedMapping, rng = rng)
     block decompilation:
