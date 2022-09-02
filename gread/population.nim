@@ -203,6 +203,11 @@ proc score*(pop: Population; p: Program): Score =
   else:
     Score NaN
 
+template maybeReportFittest(pop: Population; p: Program) =
+  when defined(greadReportFittestChanges):
+    if not p.isNil:
+      echo fmt"fittest in {pop.ken.core} score {p.score} from {p.generation}"
+
 proc maybeResetFittest*[T](pop: Population[T]; p: Program[T]) =
   ## reset the fittest pointer if the argument is actually superior
   withInitialized pop:
@@ -214,7 +219,9 @@ proc maybeResetFittest*[T](pop: Population[T]; p: Program[T]) =
           # the fittest is not a function of parsimony
           if pop.fittest >= p:
             break
+        maybeReportFittest(pop, pop.fittest)
         pop.fittest = p
+        maybeReportFittest(pop, pop.fittest)
         p.flags.incl FinestKnown
 
 template addImpl[T](pop: Population[T]; p: Program[T]) =
