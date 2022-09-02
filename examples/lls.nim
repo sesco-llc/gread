@@ -86,9 +86,9 @@ when isMainModule:
   tab.useParsimony = true
   tab.equalWeight = true
   tab.seedProgramSize = 400
-  tab.seedPopulation = 400
-  tab.maxPopulation = 400
-  tab.tournamentSize = int(0.01 * tab.maxPopulation.float)
+  tab.seedPopulation = 200
+  tab.maxPopulation = 200
+  tab.tournamentSize = int(0.03 * tab.maxPopulation.float)
   tab.sharingRate = 0.1
   tab.maxGenerations = 1_000_000
   tab.requireValid = false
