@@ -33,6 +33,7 @@ type
     scores*: MovingStat[float64]
     ages*: MovingStat[float32]
     immigrants*: int
+    inventions*: int
     parsimony*: float
     validity*: MovingStat[float32]
     caches*: MovingStat[float32]
@@ -89,6 +90,8 @@ template learn(pop: Population; p: Program; pos: int) =
     pop.ken.ages.push float(int p.generation)
   else:
     inc pop.ken.immigrants
+  if Cached notin p.flags:
+    inc pop.ken.inventions
 
 template forget(pop: Population; p: Program; pos: int) =
   when populationCache:
@@ -104,6 +107,8 @@ template forget(pop: Population; p: Program; pos: int) =
     pop.ken.ages.pop float(int p.generation)
   else:
     dec pop.ken.immigrants
+  if Cached notin p.flags:
+    dec pop.ken.inventions
   # don't remove the reference to the fittest individual
   when false:
     if not pop.fittest.isNil:

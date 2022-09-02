@@ -441,6 +441,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
            semantic error rate: {fnl.errors.mean.percent} >= 0%
              foreign influence: {m.usurper}
               immigration rate: {(m.immigrants.float / m.size.float).percent}
+          novel invention rate: {(m.inventions.float / m.size.float).percent}
           mapping failure rate: {evo.shortGenome.mean.percent}
                best generation: {m.bestGen}
              total generations: {m.generation} / {evo.tableau.maxGenerations}
