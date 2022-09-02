@@ -107,8 +107,6 @@ proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
   var seen: PackedSet[int]           # de-dupe fighters by index;
   # we're counting unique programs, not unique members!
   while seen.len < size:
-    if evo.population.metrics.scores.n <= 0:
-      raise
     var (i, p) = randomMember(evo.population, evo.rng)
     if not seen.containsOrIncl i:
       victim = (valid: p.isValid, score: Score NaN,
