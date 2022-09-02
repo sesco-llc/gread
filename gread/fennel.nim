@@ -524,6 +524,9 @@ proc newFennelProgram*(s: string): Program[Fennel] =
     result = newProgram toAst[Fennel](tree, s)
 
 when compileOption"threads":
+  const hasSuru = compiles do: import suru
+  when hasSuru:
+    import suru
   import gread/cluster
   import gread/generation
 
@@ -631,6 +634,14 @@ when compileOption"threads":
       transit.core = args.core
       push(args.io.outputs, transit)
 
+  template maybeProgressBar(iter: typed; body: untyped): untyped =
+    when hasSuru:
+      for it in suru(toSeq iter):
+        body
+    else:
+      for it in iter:
+        body
+
   proc threadedScore*[T: Fennel, V: LuaValue](args: var Work[T, V]; pop: Population[T]): Population[T] =
     ## score programs in the population using multiple threads
     let clump = newCluster[T, V]()
@@ -647,7 +658,7 @@ when compileOption"threads":
       push(inputs, p)
 
     result = newPopulation[T](pop.len)
-    for n in 1..pop.len:
+    maybeProgressBar(1..pop.len):
       while true:
         let p = pop outputs
         if p.isNil:
