@@ -258,6 +258,7 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
     except KeyError:
       initCache(evo, p, index, score)
     assert evo.cache[p.hash].len <= evo.dataset.len
+    assert not evo.strength.isNil, "strength() unassigned to evolver"
     p.push evo.strength(score)
 
 proc scoreFromCache*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
