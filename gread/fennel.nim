@@ -546,9 +546,12 @@ when compileOption"threads":
   proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
     let fnl = newFennel(core = args.core)
     var evo: Evolver[Fennel, LuaValue]
-    initEvolver(evo, fnl, args.tableau)
-    if args.rng.isSome:
-      evo.rng = get args.rng
+    let rng =
+      if args.rng.isSome:
+        get args.rng
+      else:
+        initRand()
+    initEvolver(evo, fnl, args.tableau, rng = rng)
     evo.name = args.name
     evo.strength = args.strength
     evo.grammar = args.grammar
