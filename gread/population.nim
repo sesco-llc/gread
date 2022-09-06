@@ -246,12 +246,12 @@ proc add*[T](pop: Population[T]; p: Program[T]) =
     elif pop.isNil:
       raise Defect.newException "nil pop"
     else:
-      when populationCache:
-        if not pop.cache.containsOrIncl p.hash:
-          addImpl(pop, p)
-          when not defined(greadFast):
-            maybeResetFittest(pop, p)
-      else:
+      template optimizeAway: bool =
+        when populationCache:
+          pop.cache.containsOrIncl(p.hash)
+        else:
+          false
+      if not optimizeAway():
         addImpl(pop, p)
         when not defined(greadFast):
           maybeResetFittest(pop, p)
@@ -357,11 +357,15 @@ func generations*(pop: Population): Generation =
   withInitialized pop:
     pop.ken.generation
 
-when populationCache:
-  proc contains*(pop: Population; p: Program): bool =
-    ## true if the `pop` contains Program `p`
-    withInitialized pop:
+proc contains*[T](pop: Population[T]; p: Program[T]): bool =
+  ## true if the `pop` contains Program `p`
+  withInitialized pop:
+    when populationCache:
       p.hash in pop.cache
+    else:
+      for q in pop.programs.items:
+        if p == q:
+          return true
 
 template qualityTrackIt*(pop: Population; p: Program; s: Score;
                          body: untyped): untyped =
