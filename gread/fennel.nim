@@ -568,7 +568,8 @@ when compileOption"threads":
     evo.population.toggleParsimony(evo.tableau.useParsimony)
 
     var evoTime = getTime()
-    var fittest: Program[Fennel]
+    # fittest -> fitter due to nim bug
+    var fitter: Program[Fennel]
     while evo.population.generations.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
@@ -580,11 +581,11 @@ when compileOption"threads":
 
       # share any new winner
       if not evo.population.fittest.isNil:
-        if fittest.isNil or fittest != evo.population.fittest:
+        if fitter.isNil or fitter != evo.population.fittest:
           # NOTE: clone the fittest so that we don't have to
           #       worry about the reference counter across threads
-          fittest = clone evo.population.fittest
-          forceShare(args, fittest)
+          fitter = clone evo.population.fittest
+          forceShare(args, fitter)
 
       for discovery in evo.generation():
         discard
@@ -645,23 +646,22 @@ when compileOption"threads":
       for it in iter:
         body
 
-  proc threadedScore*[T: Fennel, V: LuaValue](args: var Work[T, V]; pop: Population[T]): Population[T] =
+  proc threadedScore*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]): Population[T] =
     ## score programs in the population using multiple threads
     let clump = newCluster[T, V]()
     clump.redress args
 
     for core in 1..processors:
       args.rng = some initRand()
-      args.population = newPopulation[T](pop.len)
       clump.boot(whelp scorer(args), args.core)
       clump.redress args
 
     let (inputs, outputs) = clump.programQueues()
-    for p in pop.items:
+    for p in population.items:
       push(inputs, p)
 
-    result = newPopulation[T](pop.len)
-    maybeProgressBar(1..pop.len):
+    result = newPopulation[T](population.len)
+    maybeProgressBar(1..population.len):
       while true:
         let p = pop outputs
         if p.isNil:

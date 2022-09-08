@@ -93,29 +93,29 @@ template learn(pop: Population; p: Program; pos: int) =
   if Cached notin p.flags:
     inc pop.ken.inventions
 
-template forget(pop: Population; p: Program; pos: int) =
+template forget(population: Population; program: Program; pos: int) =
   when populationCache:
-    pop.cache.excl p.hash
-  if p.isValid:
-    if p.score.isValid:
-      pop.ken.scores.pop p.score
-    pop.ken.validity.pop 1.0
+    population.cache.excl program.hash
+  if program.isValid:
+    if program.score.isValid:
+      population.ken.scores.pop program.score
+    population.ken.validity.pop 1.0
   else:
-    pop.ken.validity.pop 0.0
-  pop.ken.lengths.pop p.len.float
-  if p.core == pop.ken.core:
-    pop.ken.ages.pop float(int p.generation)
+    population.ken.validity.pop 0.0
+  population.ken.lengths.pop program.len.float
+  if program.core == population.ken.core:
+    population.ken.ages.pop float(int program.generation)
   else:
-    dec pop.ken.immigrants
-  if Cached notin p.flags:
-    dec pop.ken.inventions
+    dec population.ken.immigrants
+  if Cached notin program.flags:
+    dec population.ken.inventions
   # don't remove the reference to the fittest individual
   when false:
-    if not pop.fittest.isNil:
+    if not population.fittest.isNil:
       # FIXME: ehhh this is wrong in the event there are dupes in the pop
       #        (we could check populationCache, but should we even do this?)
-      if p.hash == pop.fittest.hash:
-        pop.fittest = nil
+      if program.hash == population.fittest.hash:
+        population.fittest = nil
 
 template withInitialized*(pop: Population; logic: untyped): untyped =
   ## execute the body only when the population is initialized
