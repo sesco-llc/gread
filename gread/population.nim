@@ -206,7 +206,7 @@ proc score*(pop: Population; p: Program): Score =
 template maybeReportFittest(pop: Population; p: Program) =
   when defined(greadReportFittestChanges):
     if not p.isNil:
-      echo fmt"fittest in {pop.ken.core} score {p.score} from {p.generation}"
+      echo fmt"fittest in {pop.ken.core} score {p.score} from {p.core}/{p.generation}"
 
 proc maybeResetFittest*[T](pop: Population[T]; p: Program[T]) =
   ## reset the fittest pointer if the argument is actually superior
