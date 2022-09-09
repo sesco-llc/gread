@@ -45,6 +45,7 @@ type
     nans*: FennelStat
     errors*: FennelStat
     runtime*: FennelStat
+    aslua: LPTab[string, string]
 
   FennelStat* = MovingStat[float32]
 
@@ -151,6 +152,7 @@ const
 proc newFennel*(core = none int): Fennel =
   ## reset a Fennel instance and prepare it for running programs
   result = Fennel(vm: newState(), core: core)
+  init result.aslua
   clearStats result
 
   # setup the lua vm with the fennel compiler and any shims
@@ -287,6 +289,54 @@ proc render*(a: Ast[Fennel]): string =
     closer()
   stripSpace()
 
+proc compileFennel(vm: PState; source: string): string =
+  vm.pushGlobal("result", term false)
+  let fennel = """
+    result = fennel.compileString([==[$#]==], {compilerEnv=_G})
+  """ % [ source ]
+  try:
+    vm.checkLua vm.doString fennel.cstring:
+      vm.getGlobal "result"
+      result = vm.popStack.value.strung
+      #echo result
+  except LuaError as e:
+    when greadSemanticErrorsAreFatal:
+      echo e.name, ": ", e.msg
+      writeStackTrace()
+      raise
+  except Exception as e:
+    echo e.name, ": ", e.msg
+    writeStackTrace()
+    raise
+
+proc toLua(fnl: Fennel; p: FProg): string =
+  let source = $p
+  if source in fnl.aslua:
+    result = fnl.aslua[source]
+  else:
+    result = compileFennel(fnl.vm, source)
+    fnl.aslua[source] = result
+
+proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
+  ## compile and evaluate the program as fennel; the result of
+  ## the expression is assigned to the variable `result`.
+  for point in locals.items:
+    discard vm.push point.value
+    vm.setGlobal point.name.cstring
+  try:
+    vm.checkLua loadString(vm, s.cstring):
+      vm.checkLua pcall(vm, 0, MultRet, 0):
+        result = popStack vm
+  except LuaError as e:
+    when greadSemanticErrorsAreFatal:
+      echo e.name, ": ", e.msg
+      writeStackTrace()
+      raise
+  except Exception as e:
+    echo e.name, ": ", e.msg
+    writeStackTrace()
+    raise
+
 proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   ## compile and evaluate the program as fennel; the result of
   ## the expression is assigned to the variable `result`.
@@ -318,7 +368,10 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals): LuaValue =
   try:
     # pass the program and the training inputs
     let began = getTime()
-    let stack = evaluate(fnl.vm, $p, locals)
+    when defined(greadNoFennelCache):
+      let stack = evaluate(fnl.vm, $p, locals)
+    else:
+      let stack = evaluateLua(fnl.vm, toLua(fnl, p), locals)
     fnl.runtime.push (getTime() - began).inMilliseconds.float
     fnl.errors.push 0.0
     # score a resultant value if one was produced
