@@ -129,6 +129,7 @@ suite "simulation":
     ## created a random population of programs
     checkpoint "creating", tab.seedPopulation, "random programs..."
     initEvolver(evo, fnl, tab)
+    evo.strength = strength
     evo.grammar = gram
     evo.operators = operators
     evo.dataset = training
