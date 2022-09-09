@@ -26,9 +26,10 @@ proc percent*(f: float): string =
 
 proc isValid*(s: Score): bool =
   ## the score is a value we can get useful comparisons from
+  const negativeInf = -Inf
   if s.isNaN:
     false
-  elif s.float in [-Inf, Inf]:
+  elif s.float == Inf or s.float == negativeInf:
     false
   else:
     true
