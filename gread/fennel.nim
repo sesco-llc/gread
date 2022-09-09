@@ -45,7 +45,7 @@ type
     nans*: FennelStat
     errors*: FennelStat
     runtime*: FennelStat
-    aslua: LPTab[string, string]
+    aslua: LPTab[Hash, string]
 
   FennelStat* = MovingStat[float32]
 
@@ -310,12 +310,11 @@ proc compileFennel(vm: PState; source: string): string =
     raise
 
 proc toLua(fnl: Fennel; p: FProg): string =
-  let source = $p
-  if source in fnl.aslua:
-    result = fnl.aslua[source]
+  if p.hash in fnl.aslua:
+    result = fnl.aslua[p.hash]
   else:
-    result = compileFennel(fnl.vm, source)
-    fnl.aslua[source] = result
+    result = compileFennel(fnl.vm, $p)
+    fnl.aslua[p.hash] = result
 
 proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
   ## compile and evaluate the program as fennel; the result of
@@ -477,7 +476,8 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
                core and thread: {m.core}/{threaded} -- {evo.name}
                   dataset size: {evo.dataset.len}
           virtual machine runs: {fnl.runs} (never reset)
-            average vm runtime: {fnl.runtime.mean:>6.2f} ms
+         lua compilation cache: {fnl.aslua.len}
+            average vm runtime: {fnl.runtime.mean:>8.4f} ms
          total population size: {m.size}
           validity rate in pop: {m.validity.mean.percent} <= 100%
             average age in pop: {age}
