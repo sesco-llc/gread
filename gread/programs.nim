@@ -28,7 +28,7 @@ type
     runtime*: MovingStat[float32]  ## tracks the runtime for this program
     source*: int              ## usually the threadId where we were invented
     generation*: Generation   ## the generation number in which we arrived
-    hash*: Hash               ## pre-generated hash for the program's ast
+    hash: Hash                ## pre-generated hash for the program's ast
     score*: Score             ## the score of this program when last evaluated
     flags*: set[ProgramFlag]  ## flag enums associated with the program
     ast*: Ast[T]              ## the ast of the program itself
@@ -144,6 +144,10 @@ proc cacheSize*(p: Program): int {.deprecated.} =
   ## the size of a program's score cache
   when programCache:
     result = p.cache.len
+
+func hash*(p: Program): Hash {.inline.} =
+  ## hash() symbol for LPTab purposes
+  p.hash
 
 when false:
   proc serialize*[S, T](output: var S; input: ProgramObj[T]) =
