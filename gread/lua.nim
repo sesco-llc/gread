@@ -32,7 +32,6 @@ export lunacy
 
 const
   semanticErrorsAreFatal = false
-  initialCacheSize = 32*1024
 
 type
   Lua* = ref object

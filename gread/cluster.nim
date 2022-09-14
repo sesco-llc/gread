@@ -22,13 +22,19 @@ import gread/evolver
 import gread/grammar
 
 type
+  EvalResult*[T, V] = ref object
+    program*: Program[T]
+    results*: seq[Option[V]]
+
   ProgramQueue*[T] = LoonyQueue[Program[T]]
+  EvaluationQueue*[T, V] = LoonyQueue[EvalResult[T, V]]
   IO[T] = tuple[inputs, outputs: ProgramQueue[T]]
   Cluster*[T, V] = ref object
     name: string
     cores: seq[CoreId]
     pq: IO[T]                      ## program gene transfer
     negs: seq[ProgramQueue[T]]     ## thread-local invalid program caches
+    results: EvaluationQueue[T, V] ## send/receive result sets
     nextId: CoreId                 ## the value of the next core identity
 
   Worker*[T, V] = proc(w: Work[T, V]) {.thread.}
@@ -49,6 +55,7 @@ type
     strength*: Strength[V]                 ## compute a metric for sorting
     io*: IO[T]                             ## how we send/receive genes
     neg: ProgramQueue[T]                   ## receives invalid programs
+    results*: EvaluationQueue[T, V]        ## maps programs to result sets
     cluster: Cluster[T, V]
 
   CQ = LoonyQueue[C]
@@ -178,6 +185,7 @@ proc redress*[T, V](cluster: Cluster[T, V]; work: var Work[T, V]) =
   cluster.negs.add newLoonyQueue[Program[T]]()
   work.neg = cluster.negs[^1]
   work.io = cluster.programQueues()
+  work.results = cluster.results
   work.core = cluster.nextCore
   work.cluster = cluster
 
@@ -203,6 +211,7 @@ proc newCluster*[T, V](name = ""): Cluster[T, V] =
   ## create a new cluster
   result = Cluster[T, V](name: name)
   result.pq = (newLoonyQueue[Program[T]](), newLoonyQueue[Program[T]]())
+  result.results = newLoonyQueue[EvalResult[T, V]]()
 
 proc name*(cluster: Cluster): string =
   if cluster.name == "":
