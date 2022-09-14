@@ -16,8 +16,8 @@ import pkg/loony
 import pkg/adix/lptabz
 
 const
-  goodEnough = -0.50     # termination condition
-  statFrequency = 2000  # report after this many generations
+  goodEnough = -0.10     # termination condition
+  statFrequency = 5000  # report after this many generations
   llsGrammar = """
     <start>        ::= <numexpr>
     <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
