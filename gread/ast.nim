@@ -143,6 +143,9 @@ proc hash*(a: Terminal): Hash =
   h = h !& hash(a.kind)
   result = !$h
 
+proc `<`*(a, b: Terminal): bool =
+  a.kind < b.kind or a.hash < b.hash
+
 proc `==`*(a, b: Terminal): bool =
   a.kind == b.kind and a.hash == b.hash
 
