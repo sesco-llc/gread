@@ -73,11 +73,21 @@ proc choose*[T](am: AliasMethod[T]): T =
     else:
       am.alias[i]
 
-proc choose*[T](rng: var Rand; am: AliasMethod[T]): T =
+proc choose*[T](am: AliasMethod[T]; rng: var Rand): T =
   ## weighted random choice from the list of inputs
   let i = rng.rand(am.prob.high)
   `[]`(am.data):
     if rng.rand(1.0) < am.prob[i]:
+      i
+    else:
+      am.alias[i]
+
+proc choose*[T](am: AliasMethod[T]; number: uint8 | uint16 | uint32): T =
+  ## deterministic weighted choice from the list of inputs
+  let i = number.int mod am.prob.high
+  let j = number.float * (1.0 / high(int64).float)
+  `[]`(am.data):
+    if j < am.prob[i]:
       i
     else:
       am.alias[i]

@@ -198,7 +198,7 @@ proc randomOperator*[T, V](evo: var Evolver[T, V]): Operator[T, V] =
   if evo.operators.len == 0:
     raise ValueError.newException "evolver needs operators assigned"
   else:
-    choose(evo.rng, evo.operators)
+    choose(evo.operators, evo.rng)
 
 proc hasSampled(evo: Evolver; p: Program; index: int): bool =
   ## true if the program has been sampled with the symbol set at `index`
@@ -317,8 +317,8 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
       if result.isSome:
         evo.addScoreToCache(p, index, get result)
 
-proc score*[T, V](evo: Evolver[T, V]; ss: ptr SymbolSet[T, V];
-                  p: Program[T]): Option[V] {.deprecated: "use index".} =
+proc score[T, V](evo: Evolver[T, V]; ss: ptr SymbolSet[T, V];
+                 p: Program[T]): Option[V] {.deprecated: "use index".} =
   ## score the program against a single symbol set; if the program cache
   ## is enabled via its `programCache` constant, then we might simply
   ## fetch the score from there. otherwise, we'll run the evolver's
