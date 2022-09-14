@@ -14,7 +14,10 @@ import gread/genotype
 
 export ShortGenome
 
+import std/locks
+
 type
+  HeatMap = LPTab[string, int]
   OrderedProductions = LPTabz[string, Production, int8, 0]
   ComponentKind* = enum ckToken, ckRule, ckTerminal
   Component* = object
@@ -29,14 +32,42 @@ type
       term: Terminal
 
   Production* = seq[Component]
+  WeightedProductions = LPTabz[string, AliasMethod[Production], int8, 0]
 
   GrammarObj = object
     s: Component
     p: OrderedProductions
+    #w: WeightedProductions
     t: HashSet[Terminal]
-    #n: HashSet[Function[T]]
     h: MD5Digest
+    when defined(greadGrammarHeatMap):
+      m: HeatMap
+      mlock: Lock
   Grammar* = ptr GrammarObj
+
+template withHeatMap(gram: Grammar; body: untyped): untyped =
+  when compiles(gram.mlock):
+    withLock gram.mlock:
+      body
+
+proc cmp(a, b: Component): int =
+  result = system.cmp(a.kind, b.kind)
+  if result == 0:
+    case a.kind
+    of ckTerminal:
+      result = system.cmp(a.term, b.term)
+    of ckToken:
+      result = system.cmp(a.token, b.token)
+      if result == 0:
+        result = system.cmp(a.text, b.text)
+    of ckRule:
+      result = system.cmp(a.name, b.name)
+
+proc `<`(a, b: Component): bool =
+  cmp(a, b) == -1
+
+proc `==`(a, b: Component): bool =
+  cmp(a, b) == 0
 
 proc hash*(gram: Grammar): Hash =
   hash gram.h
@@ -121,6 +152,8 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
       # if it's a symbol in the ast, treat it as a non-terminal name
       if result.ast[chose].isSymbol:
         let name = result.ast.name(chose)       # resolve the nt name
+        withHeatMap gram:
+          inc gram.m[name]
         toSeq gram.productions(name)            # RHS production choices
       else:
         raise Defect.newException "bug.  bad indices in nts queue"
@@ -176,19 +209,19 @@ proc toTerminal(s: string): Terminal =
 proc bnf(s: string): seq[Component] =
   ## parse bnf to a sequence of components (production rules)
   var list: Production
-  var lists: seq[Production]
+  var prods: seq[Production]
   var emits: seq[Component]
   let p = peg "start":
     EOL        <- "\n" | "\r\n"
     s          <- *" "
     start      <- *rule * s * !1
     rule       <- s * "<" * >rule_name * ">" * s * "::=" * s * expression * s * EOL:
-      for list in lists.items:
+      for list in prods.items:
         emits.add Component(kind: ckRule, name: $1, rule: list)
-      setLen(lists, 0)
+      setLen(prods, 0)
     expression <- list * s * *("|" * s * list)
     list       <- *(term * s):
-      lists.add list
+      prods.add list
       setLen(list, 0)
     term       <- >literal | >token | >("<" * rule_name * ">"):
       let s = $1
@@ -240,6 +273,14 @@ proc initGrammar*(gram: var Grammar) =
   if gram.isNil:
     raise ValueError.newException "unable to create grammar"
   init gram.p
+  #init gram.w
+  withHeatMap gram:
+    init gram.m
+
+proc `$`*(gram: Grammar): string =
+  withHeatMap gram:
+    for key, value in gram.m.pairs:
+      result &= "$# -> $#\n" % [ key, $value ]
 
 proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
                   syntax: string) =
@@ -263,6 +304,8 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
           inc nonterminals
         else:
           raise ValueError.newException "unexpected rule definition"
+    withHeatMap gram:
+      gram.m[r.name] = 0
     gram.p.add(r.name, r.rule)
   echo "nonterminal references: ", nonterminals
   echo "       total terminals: ", gram.t.card
