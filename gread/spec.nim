@@ -58,7 +58,7 @@ template debug*(args: varargs[untyped]): untyped =
 when defined(greadProfile):
   import std/times
   import std/macros
-  macro profile*(s: string; logic: untyped): untyped =
+  macro profile*(s: string; logic: typed): untyped =
     let readTime = newCall bindSym"getTime"
     let readThread =
       when compileOption"threads":
@@ -68,7 +68,9 @@ when defined(greadProfile):
     let clock = nskLet.genSym"clock"
     result = newStmtList()
     result.add newLetStmt(clock, readTime)
-    result.add logic
+    var value = nskLet.genSym"value"
+    if getType(logic).strVal != "void":
+      result.add newLetStmt(value, logic)
     when compileOption"threads":
       result.add newCall(bindSym"debugEcho", readThread, newLit" ",
                          s, newLit" ", newCall(bindSym"inMilliseconds",
@@ -77,6 +79,10 @@ when defined(greadProfile):
       result.add newCall(bindSym"debugEcho", s, newLit" ",
                          newCall(bindSym"inMilliseconds",
                                newCall(bindSym"-", readTime, clock)))
+    if getType(logic).strVal != "void":
+      result.add newStmtList(value)
+    #else:
+    #  result.add nnkDiscardStmt.newTree(newStmtList(value))
 else:
   template profile*(s: string; logic: untyped): untyped = logic
 
