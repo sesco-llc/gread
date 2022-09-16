@@ -336,8 +336,8 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
   template genTime: LuaStat = evo.generationTime
   let m = pop.metrics
   let threaded = when compileOption"threads": $getThreadId() else: "-"
-  if not pop.fittest.isNil:
-    lua.dumpScore pop.fittest
+  if not evo.fittest.isNone:
+    lua.dumpScore get(evo.fittest)
 
   var dumb = m.lengths.variance.int  # work around nim bug
   # program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}

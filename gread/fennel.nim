@@ -465,8 +465,8 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
   template genTime: FennelStat = evo.generationTime
   let m = pop.metrics
   let threaded = when compileOption"threads": $getThreadId() else: "-"
-  if not pop.fittest.isNil:
-    fnl.dumpScore pop.fittest
+  if evo.fittest.isSome:
+    fnl.dumpScore get(evo.fittest)
 
   var dumb = m.lengths.variance.int  # work around nim bug
   # program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
@@ -620,24 +620,23 @@ when compileOption"threads":
     evo.population.toggleParsimony(evo.tableau.useParsimony)
 
     var evoTime = getTime()
-    # fittest -> fitter due to nim bug
-    var fitter: Program[Fennel]
+    # fittest -> finest due to nim bug
+    var finest: Option[Program[Fennel]]
     while evo.population.generations.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
-      if true or evo.core.isSome and evo.core.get.int != 0:
-        search(args, evo.population)   # fresh meat from other threads
+      search(args, evo.population)   # fresh meat from other threads
 
       let stale = randomMember(evo.population, evo.rng)
       share(args, stale.program)
 
       # share any new winner
-      if not evo.population.fittest.isNil:
-        if fitter.isNil or fitter != evo.population.fittest:
-          # NOTE: clone the fittest so that we don't have to
+      if evo.fittest.isSome:
+        if finest.isNone or finest != evo.fittest:
+          # NOTE: clone the finest so that we don't have to
           #       worry about the reference counter across threads
-          fitter = clone evo.population.fittest
-          forceShare(args, fitter)
+          finest = some: clone get(evo.fittest)
+          forceShare(args, get finest)
 
       for discovery in evo.generation():
         discard

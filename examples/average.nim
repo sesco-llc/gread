@@ -155,8 +155,8 @@ suite "simulation":
         break
       for discovery in evo.generation():
         discard
-      let p = pop.fittest
-      if not p.isNil:
+      if evo.fittest.isSome:
+        let p = get evo.fittest
         if evo.cacheSize(p) == training.len:
           if not seen.containsOrIncl(p.hash):
             let s = p.score
@@ -179,5 +179,6 @@ suite "simulation":
 
   block:
     ## performance of best program
-    dumpPerformance pop.fittest
+    if evo.fittest.isSome:
+      dumpPerformance get(evo.fittest)
     checkpoint "last generation: ", lastGeneration
