@@ -116,17 +116,25 @@ proc tournament3*[T, V](evo: var Evolver[T, V]; size: int;
         # the defender
         result = victim
       else:
-        let cmp =
-          # we have an encumbent; see what's better when
-          if evo.isEqualWeight:
-            profile "confident comparo":
-              confidentComparison(evo, victim.program, result.program)
+        var cmp: int
+        # we have an encumbent; see what's better when
+        if evo.isEqualWeight:
+          cmp = confidentComparison(evo, victim.program, result.program)
+        else:
+          # XXX: temporary hack?  needs to be profiled...
+          let v = evo.score(victim.program)
+          if v.isNone:
+            # choose the encumbent
+            cmp = -1
           else:
-            # XXX: temporary hack?  needs to be profiled...
-            let (v, r) = (evo.score(victim.program), evo.score(result.program))
-            if v.isNone:   -1
-            elif r.isNone:  1
-            else:           system.cmp(evo.strength(get v), evo.strength(get r))
+            # score the encumbent
+            let r = evo.score(result.program)
+            if r.isNone:
+              # choose the victim
+              cmp = 1
+            else:
+              # choose the weaker
+              cmp = system.cmp(evo.strength(get v), evo.strength(get r))
         if cmp == -1 and order == Ascending:
           discharge(evo, result)
           result = victim
