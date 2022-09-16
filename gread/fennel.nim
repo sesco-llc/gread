@@ -643,9 +643,10 @@ when compileOption"threads":
       for discovery in evo.generation():
         discard
 
-      if evo.population.generations.int mod args.stats == 0:
-        dumpStats(evo, evoTime)
-        clearStats evo
+      if args.stats > 0:
+        if evo.population.generations.int mod args.stats == 0:
+          dumpStats(evo, evoTime)
+          clearStats evo
 
     while evo.population.len > 0:
       share(args, randomRemoval(evo.population, evo.rng))
