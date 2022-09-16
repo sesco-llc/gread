@@ -427,7 +427,7 @@ proc core*(pop: Population): CoreSpec =
   withInitialized pop:
     pop.ken.core
 
-proc resetMetrics(pop: Population) =
+proc resetMetrics*(pop: Population) =
   ## reset validity, score, and parsimony metrics in the population; O(n)
   withInitialized pop:
     clear pop.ken.validity

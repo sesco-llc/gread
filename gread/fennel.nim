@@ -618,6 +618,7 @@ when compileOption"threads":
         evo.randomPop()
       else:
         args.population
+    evo.population.resetMetrics()
     evo.population.toggleParsimony(evo.tableau.useParsimony)
 
     var evoTime = getTime()
