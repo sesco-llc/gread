@@ -401,11 +401,14 @@ proc scoreChanged*(pop: Population; p: Program; s: Option[float]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
   ## is used to update metrics, parsimony, and the `fittest` population member
   withInitialized pop:
+    if p notin pop:
+      raise Defect.newException "attempt to change score of program not in pop"
     if p.isValid:
       pop.ken.validity.pop 1.0
       if p.score.isValid:
+        if pop.ken.scores.n == 0:
+          raise Defect.newException "fewer than zero scores?"
         pop.ken.scores.pop p.score
-        assert pop.ken.scores.n >= 0
     else:
       pop.ken.validity.pop 0.0
     if s.isSome and s.get.isValid:
