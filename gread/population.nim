@@ -71,8 +71,7 @@ proc resetParsimony*(pop: Population) =
   ## recompute and set the parsimony for the population,
   ## if parsimony is enabled for the population
   if pop.usesParsimony:
-    profile "reset parsimony":
-      pop.ken.parsimony = parsimony pop
+    pop.ken.parsimony = parsimony pop
 
 template learn(pop: Population; p: Program; pos: int) =
   when populationCache:
@@ -326,8 +325,17 @@ proc del*[T](pop: Population[T]; index: int) =
     pop.forget(pop.programs[index], index)
     del(pop.programs, index)
 
+proc pop*[T](population: Population[T]): Program[T] =
+  ## remove and return a member of the population;
+  ## this does not reset population metrics
+  withPopulated population:
+    let index = population.programs.high
+    result = population.programs[index]
+    del(population, index)
+
 proc randomRemoval*[T](pop: Population[T]; rng: var Rand): Program[T] =
-  ## remove a random member of the population
+  ## remove and return a random member of the population;
+  ## this does not reset population metrics
   withPopulated pop:
     let query = pop.randomMember(rng)
     result = query.program
