@@ -22,6 +22,7 @@ const
     <start>        ::= <numexpr>
     <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
     <numexpr>      ::= <value>
+    <numexpr>      ::= <value>
     <numbop>       ::= "+" | "*" | "-" | "/"
     <value>        ::= "1.0" | "0.5" | "0.1" | "2.0"
     <value>        ::= "x"
