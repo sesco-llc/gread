@@ -20,7 +20,7 @@ randomize()
 const
   goodEnough = -0.00         ## quit when you reach this score
   dataInaccurate = false     ## use faulty data
-  statFrequency = 2000       ## how often to output statistics
+  statFrequency = 10000      ## how often to output statistics
 
   # define the grammar for our programs; note the balancing
   averageGrammar = """

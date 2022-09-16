@@ -16,7 +16,6 @@ import pkg/balls
 import pkg/cps
 import pkg/frosty/streams as brrr
 import pkg/htsparse/fennel/fennel_core_only as parsefen
-import pkg/loony
 
 import gread/spec
 import gread/ast
@@ -576,6 +575,8 @@ proc newFennelProgram*(s: string): Program[Fennel] =
     result = newProgram toAst[Fennel](tree, s)
 
 when compileOption"threads":
+  import pkg/loony
+
   const hasSuru = compiles do: import suru
   when hasSuru:
     import suru

@@ -3,7 +3,9 @@ import std/hashes
 
 import pkg/adix/stat
 import pkg/adix/lptabz
-import pkg/arc
+
+when compileOption"threads":
+  import pkg/arc
 
 #from pkg/frosty import frostyError, FreezeError, ThawError
 
@@ -54,9 +56,12 @@ proc `zombie=`*(p: Program; b: bool) =
   if b:
     incl(p.flags, DeadCode)
   elif DeadCode in p.flags:
-    let rc = atomicRC(p)
     raise Defect.newException:
-      "the undead must never live again; rc " & $rc
+      when compileOption"threads":
+        let rc = atomicRC(p)
+        "the undead must never live again; rc " & $rc
+      else:
+        "the undead must never live again"
 
 func len*(p: Program): int =
   ## some objective measurement of the program; ast length

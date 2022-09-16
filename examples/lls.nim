@@ -1,10 +1,16 @@
-import std/times
-import std/packedsets
+when not defined(greadFast):
+  {.error: "needs --define:greadFast".}
+when not compileOption"threads":
+  {.error: "needs --threads:on".}
+
+import std/hashes
 import std/options
 import std/os
 import std/osproc
-import std/hashes
+import std/packedsets
 import std/random
+import std/sets
+import std/times
 
 import gread
 import gread/fennel except variance
@@ -35,8 +41,8 @@ initFennelGrammar(gram, llsGrammar)
 let operators = {
   geCrossover[Fennel, LuaValue]:        1.0,
   geMutation[Fennel, LuaValue]:         1.0,
-  subtreeXover[Fennel, LuaValue]:       1.0,
-  randomSubtreeXover[Fennel, LuaValue]: 1.0,
+  #subtreeXover[Fennel, LuaValue]:       1.0,
+  #randomSubtreeXover[Fennel, LuaValue]: 1.0,
   randomCrossover[Fennel, LuaValue]:    1.0,
 }
 
@@ -87,8 +93,8 @@ when isMainModule:
   tab.useParsimony = true
   tab.equalWeight = true
   tab.seedProgramSize = 400
-  tab.seedPopulation = 200
-  tab.maxPopulation = 200
+  tab.seedPopulation = 400
+  tab.maxPopulation = 400
   tab.tournamentSize = int(0.03 * tab.maxPopulation.float)
   tab.sharingRate = 0.1
   tab.maxGenerations = 1_000_000
@@ -111,6 +117,7 @@ when isMainModule:
     evo.population =
       newPopulation[Fennel](monitor.maxPopulation, core = evo.core)
 
+    var seen: HashSet[Hash]
     let et = getTime()
     #var seen: PackedSet[Hash]
     while true:
@@ -118,8 +125,7 @@ when isMainModule:
       if p.isNil:
         sleep 250
       else:
-        if p.isValid and not p.zombie:
-          template pop: Population[Fennel] = evo.population
+        if p.isValid and not p.zombie and not seen.containsOrIncl(p.hash):
           # FIXME: this shouldn't be necessary
           let p = clone p
           p.score = evo.strength(get evo.score(p))
@@ -132,11 +138,7 @@ when isMainModule:
               maybeResetFittest(evo.population, p)
             let best = evo.fittest
             if best.isSome and best.get.hash == p.hash:
-              when false:
-                if FinestKnown in p.flags or p.score > goodEnough:
-                  dumpPerformance(fnl, p, training, samples = 1)
-              else:
-                dumpScore(fnl, p)
+              dumpScore(fnl, p)
               if p.score > goodEnough:
                 echo "winner, winner, chicken dinner: ", p.score
                 echo "last generation: ", p.generation, " secs: ", (getTime() - et).inSeconds
