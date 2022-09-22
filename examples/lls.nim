@@ -56,11 +56,6 @@ for (x, y) in data.items:
   dataset.add:
     initLocals [("x", x.toLuaValue), ("y", y.toLuaValue)]
 
-# preparing a map between inputs and ideal output for reporting reasons
-var training: seq[(Locals, LuaValue)]
-for locals in dataset.items:
-  training.add (locals, locals["y"].value)
-
 proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[LuaValue] =
   ## given a datapoint, run the program and return the residual
   let s = evaluate(fnl, p, locals)
@@ -111,7 +106,7 @@ when isMainModule:
     evo.strength = strength
     evo.grammar = gram
     evo.operators = operators
-    evo.dataset = training
+    evo.dataset = dataset
     evo.fitone = fitone
     evo.fitmany = fitmany
     evo.population =

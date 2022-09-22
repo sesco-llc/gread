@@ -52,6 +52,23 @@ type
     when populationCache:
       cache: PackedSet[Hash]
 
+  PopLike[T] = concept c
+    c[int] is Program[T]
+    (c[int] < c[int]) is bool
+    c.len is int
+    for v in c:
+      v is Program[T]
+
+iterator items*[T](q: HeapQueue[T]): T =
+  ## helper for heapqueue-based populations
+  for i in 0..<q.len:
+    yield q[i]
+
+# make sure we aren't breaking concepts 🙄
+assert HeapQueue[Program[int]] is PopLike[int]
+assert seq[Program[int]] is PopLike[int]
+assert array[5, Program[int]] is PopLike[int]
+
 proc parsimony*(pop: Population): float
 
 proc toggleParsimony*(pop: Population; value = on) =
@@ -80,7 +97,7 @@ template learn(pop: Population; p: Program; pos: int) =
     if p.score.isValid:
       pop.ken.scores.push p.score
     else:
-      raise
+      raise Defect.newException "program is valid, score isn't"
     pop.ken.validity.push 1.0
   else:
     pop.ken.validity.push 0.0
@@ -108,13 +125,6 @@ template forget(population: Population; program: Program; pos: int) =
     dec population.ken.immigrants
   if Cached notin program.flags:
     dec population.ken.inventions
-  # don't remove the reference to the fittest individual
-  when false:
-    if not population.fittest.isNil:
-      # FIXME: ehhh this is wrong in the event there are dupes in the pop
-      #        (we could check populationCache, but should we even do this?)
-      if program.hash == population.fittest.hash:
-        population.fittest = nil
 
 template withInitialized*(pop: Population; logic: untyped): untyped =
   ## execute the body only when the population is initialized
@@ -141,14 +151,14 @@ func len*[T](p: Population[T]): int =
   ## the number of programs in the population
   p.programs.len
 
-func best*(pop: Population): Score =
+func best*(pop: Population): Score {.deprecated.} =
   ## the score of the fittest program in the population, or NaN
   if not pop.fittest.isNil:
     if pop.fittest.score.isValid:
       return pop.fittest.score
   return NaN.Score
 
-func fittest*[T](pop: Population[T]): Program[T] =
+func fittest*[T](pop: Population[T]): Program[T] {.deprecated.} =
   ## the fittest member of the population
   withInitialized pop:
     pop.fittest
@@ -216,26 +226,26 @@ proc maybeResetFittest*[T](pop: Population[T]; p: Program[T]) =
           if pop.fittest.hash == p.hash:
             break
           # the fittest is not a function of parsimony
-          if pop.fittest >= p:
+          if p <= pop.fittest:
             break
         maybeReportFittest(pop, pop.fittest)
         pop.fittest = p
         maybeReportFittest(pop, pop.fittest)
         p.flags.incl FinestKnown
 
-template addImpl[T](pop: Population[T]; p: Program[T]) =
-  pop.programs.add p
-  learn(pop, p, pop.programs.high)
+template addImpl[T](population: Population[T]; p: Program[T]) =
+  population.programs.add p
+  learn(population, p, population.programs.high)
 
-proc introduce*[T](pop: Population[T]; p: Program[T]) =
+proc introduce*[T](population: Population[T]; p: Program[T]) =
   ## introduce a foreign program to the local pop without
   ## setting it as the fittest individual, etc.
-  withInitialized pop:
+  withInitialized population:
     when populationCache:
-      if not pop.cache.containsOrIncl p.hash:
-        addImpl(pop, p)
+      if not population.cache.containsOrIncl p.hash:
+        addImpl(population, p)
     else:
-      addImpl(pop, p)
+      addImpl(population, p)
 
 proc add*[T](pop: Population[T]; p: Program[T]) =
   ## add a new program to the population
@@ -258,7 +268,7 @@ proc add*[T](pop: Population[T]; p: Program[T]) =
 type
   TopPop[T] = tuple[score: Score, program: Program[T]]
 
-iterator top*[T](pop: Population[T]; n: int): TopPop[T] =
+iterator top*[T](pop: Population[T]; n: int): TopPop[T] {.deprecated.} =
   ## iterate through the best performers, low-to-high
   withInitialized pop:
     var queue: HeapQueue[TopPop[T]]
@@ -278,7 +288,7 @@ iterator top*[T](pop: Population[T]; n: int): TopPop[T] =
     while queue.len > 0:
       yield queue.pop()
 
-proc first*[T](pop: Population[T]): Program[T] =
+proc first*[T](pop: Population[T]): Program[T] {.deprecated.} =
   ## return the fittest individual in the population
   withPopulated pop:
     if pop.fittest.isNil:
@@ -365,16 +375,6 @@ func generations*(pop: Population): Generation =
   withInitialized pop:
     pop.ken.generation
 
-proc contains*[T](pop: Population[T]; p: Program[T]): bool =
-  ## true if the `pop` contains Program `p`
-  withInitialized pop:
-    when populationCache:
-      p.hash in pop.cache
-    else:
-      for q in pop.programs.items:
-        if p == q:
-          return true
-
 template qualityTrackIt*(pop: Population; p: Program; s: Score;
                          body: untyped): untyped =
   withInitialized pop:
@@ -401,8 +401,6 @@ proc scoreChanged*(pop: Population; p: Program; s: Option[float]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
   ## is used to update metrics, parsimony, and the `fittest` population member
   withInitialized pop:
-    if p notin pop:
-      raise Defect.newException "attempt to change score of program not in pop"
     if p.isValid:
       pop.ken.validity.pop 1.0
       if p.score.isValid:

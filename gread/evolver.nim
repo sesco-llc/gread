@@ -1,3 +1,6 @@
+import std/algorithm
+import std/hashes
+import std/math
 import std/options
 import std/packedsets
 import std/random
@@ -49,15 +52,13 @@ type
     fitone: FitOne[T, V]
     fitmany: FitMany[T, V]
     dataset: seq[SymbolSet[T, V]]
-    targets: Option[seq[V]]
-    balance: AliasMethod[int]
     core: CoreSpec
     tableau: Tableau
     population: Population[T]
     operators: AliasMethod[Operator[T, V]]
     gentime: MovingStat[float32]
     shorties: MovingStat[float32]
-    novel: LPTab[Hash, PackedSet[int]]  # NOTE: literally un-novel 🙄
+    unnovel: LPTab[Hash, PackedSet[int]]
     cache: LPTab[Hash, seq[V]]
     cacheCounter: int
     indexes: PackedSet[int]
@@ -79,7 +80,7 @@ proc cacheSize*[T, V](evo: Evolver[T, V]; p: Program[T]): int =
   ## the number of cached scores measured for the program
   result =
     try:
-      evo.novel[p.hash].len
+      evo.unnovel[p.hash].len
     except KeyError:
       0
   assert result <= evo.dataset.len
@@ -92,7 +93,7 @@ proc del*(evo: var Evolver; p: Program) =
   except KeyError:
     discard
   try:
-    del(evo.novel, p.hash)
+    del(evo.unnovel, p.hash)
   except KeyError:
     discard
 
@@ -154,7 +155,7 @@ proc grammar*[T, V](evo: Evolver[T, V]): Grammar =
 proc resetCache*(evo: var Evolver) =
   ## clear the cache of previously-evaluated symbol sets, per each program
   init(evo.cache, initialSize = evo.tableau.maxPopulation)
-  init(evo.novel, initialSize = evo.tableau.maxPopulation)
+  init(evo.unnovel, initialSize = evo.tableau.maxPopulation)
   clear evo.indexes
   for n in evo.dataset.low .. evo.dataset.high:
     evo.indexes.incl n
@@ -165,20 +166,11 @@ proc `dataset=`*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]]) =
   # a complete reset of the dataset clears the program cache
   evo.resetCache()
 
-proc `dataset=`*[T, V](evo: var Evolver[T, V];
-                       dataset: seq[(SymbolSet[T, V], V)]) =
-  ## assign a series of possible inputs, and their expected outputs
-  evo.dataset = mapIt(dataset, it[0])
-  evo.targets = some mapIt(dataset, it[1])
-
 proc dataset*[T, V](evo: Evolver[T, V]): lent seq[SymbolSet[T, V]] =
   if evo.dataset.high >= 0:
     result = evo.dataset
   else:
     raise ValueError.newException "evolver lacks a dataset"
-
-proc `targets=`*[T, V](evo: var Evolver[T, V]; targets: seq[V]) =
-  evo.targets = some targets
 
 proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau; rng: Rand = randState()) =
   ## perform initial setup of the Evolver, binding platform and tableau
@@ -203,22 +195,22 @@ proc randomOperator*[T, V](evo: var Evolver[T, V]): Operator[T, V] =
 proc hasSampled(evo: Evolver; p: Program; index: int): bool =
   ## true if the program has been sampled with the symbol set at `index`
   try:
-    result = index in evo.novel[p.hash]
+    result = index in evo.unnovel[p.hash]
   except KeyError:
     result = false
 
 iterator sampleSets(evo: var Evolver; a, b: Program): PackedSet[int] =
   ## produce unordered sets of symbol set indices we should test
   var x, y: PackedSet[int]
-  x = evo.novel.mgetOrPut(a.hash, x)
-  y = evo.novel.mgetOrPut(b.hash, y)
+  x = evo.unnovel.mgetOrPut(a.hash, x)
+  y = evo.unnovel.mgetOrPut(b.hash, y)
   # first, make the comparisons more similar;
   # this has the side-effect of running only the missing samples, first
   yield symmetricDifference(x, y)
 
   # refresh our values because we trust no one
-  x = evo.novel[a.hash]
-  y = evo.novel[b.hash]
+  x = evo.unnovel[a.hash]
+  y = evo.unnovel[b.hash]
 
   # next, make them both more precise with novel samples
   yield evo.indexes - (x + y)
@@ -241,8 +233,8 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
                            score: V) =
   ## store score using dataset[index] (symbol set)
   demandValid score
-  var ps = evo.novel.mgetOrPut(p.hash, initPackedSet[int]())
-  if not evo.novel[p.hash].containsOrIncl(index):
+  var ps = evo.unnovel.mgetOrPut(p.hash, initPackedSet[int]())
+  if not evo.unnovel[p.hash].containsOrIncl(index):
     inc evo.cacheCounter
     try:
       # omit it for now
@@ -271,17 +263,17 @@ proc scoreFromCache*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   if p.hash == 0.Hash:
     raise Defect.newException "program has no hash"
 
-  if p.hash notin evo.cache or p.hash notin evo.novel:
+  if p.hash notin evo.cache or p.hash notin evo.unnovel:
     # no performance data available for the program;
     return none V
 
   let cache = addr evo.cache[p.hash]    # capture
-  let novel = addr evo.novel[p.hash]    # capture
+  let unnovel = addr evo.unnovel[p.hash]    # capture
   let data = addr evo.dataset           # speed
 
   # setting up an iterator over populated cache entries
   iterator iter(): (ptr SymbolSet[T, V], ptr V) =
-    for index in novel[].items:
+    for index in unnovel[].items:
       yield (addr data[][index], addr cache[][index])
 
   # pass the iterator to fitmany() and check the result
@@ -465,8 +457,8 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
   elif not a.isValid: return 0
 
   var x, y: PackedSet[int]
-  x = evo.novel.mgetOrPut(a.hash, x)
-  y = evo.novel.mgetOrPut(b.hash, y)
+  x = evo.unnovel.mgetOrPut(a.hash, x)
+  y = evo.unnovel.mgetOrPut(b.hash, y)
 
   var sampled = x * y
 
@@ -529,10 +521,10 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
         # sample the index for any program that hasn't done so yet
         if ha > p and not evo.hasSampled(a, i):
           resample(a, i, -1)
-          a1 = evo.score(addr evo.novel[a.hash], a)
+          a1 = evo.score(addr evo.unnovel[a.hash], a)
         if hb > p and not evo.hasSampled(b, i):
           resample(b, i, 1)
-          b1 = evo.score(addr evo.novel[b.hash], b)
+          b1 = evo.score(addr evo.unnovel[b.hash], b)
 
   guard()  # ensure the programs score safely
 
@@ -544,3 +536,140 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
     # FIXME: better()?
     result = cmp(evo.strength(get a1), evo.strength(get b1))
   debug "returning cmp; ", a1.get, " vs ", b1.get, " = ", result
+
+proc remover[T, V](evo: var Evolver[T, V];
+                   competitors: var seq[Competitor[T]]; i: int) =
+  ## used to update the population with a score change prior to removal
+  let c = competitors[i]
+  # FIXME: optimization point
+  let s =
+    # XXX: the problem here is that the score may well be -0.0 if the (few?)
+    #      datapoints yield an impressive score
+    if evo.isEqualWeight:
+      evo.scoreFromCache(c.program)
+    else:
+      evo.score(c.program)
+  let score =
+    if s.isSome:
+      some evo.strength(get s)
+    else:
+      none float
+  #debug "rm ", i, " t-score ", c.score, " was ", c.program.score, " now ", score
+  when false:
+    if c.program.zombie:
+      # raise
+      discard
+    else:
+      evo.population.scoreChanged(c.program, score, c.index)
+  elif true:
+    evo.population.scoreChanged(c.program, score, c.index)
+  else:
+    qualityTrackIt(evo.population, c.program, c.program.score):
+      it = s
+  del(competitors, i)
+
+proc discharge(evo: var Evolver; c: Competitor) =
+  ## a modern remover
+  when false:
+    if c.program.zombie:
+      # raise
+      discard
+    else:
+      let s = evo.scoreFromCache(c.program)
+      let score =
+        if s.isSome:
+          some evo.strength(get s)
+        else:
+          none float
+      if c.program.zombie:
+        discard
+      else:
+        scoreChanged(evo.population, c.program, score, c.index)
+  elif true:
+    let s = evo.scoreFromCache(c.program)
+    let score =
+      if s.isSome:
+        some evo.strength(get s)
+      else:
+        none float
+    scoreChanged(evo.population, c.program, score, c.index)
+  else:
+    qualityTrackIt(evo.population, c.program, c.program.score):
+      it = evo.quality evo.scoreFromCache(c.program)
+  if evo.cacheSize(c.program) == evo.dataset.len:
+    maybeResetFittest(evo.population, c.program)
+
+proc tournament*[T, V](evo: var Evolver[T, V]; size: int;
+                       order = Descending): Competitor[T] =
+  ## v3 baby
+  if evo.population.len < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with empty population"
+  if size < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with less than one competitor"
+
+  # figure out the size of the tourney
+  let size = max(1, min(evo.population.len, size))
+
+  # the winner of each bout fights again
+  var victim: Competitor[T]
+  var seen: PackedSet[int]           # de-dupe fighters by index;
+  # we're counting unique programs, not unique members!
+  while seen.len < size:
+    var (i, p) = randomMember(evo.population, evo.rng)
+    if not seen.containsOrIncl i:
+      victim = (valid: p.isValid, score: Score NaN,
+                len: p.len, index: i, program: p)
+      if result.program.isNil:
+        # it's our first time through the loop, so we'll establish
+        # the defender
+        result = victim
+      else:
+        var cmp: int
+        # we have an encumbent; see what's better when
+        if evo.isEqualWeight:
+          cmp = confidentComparison(evo, victim.program, result.program)
+        else:
+          # XXX: temporary hack?  needs to be profiled...
+          let v = evo.score(victim.program)
+          if v.isNone:
+            # choose the encumbent
+            cmp = -1
+          else:
+            # score the encumbent
+            let r = evo.score(result.program)
+            if r.isNone:
+              # choose the victim
+              cmp = 1
+            else:
+              # choose the weaker
+              cmp = system.cmp(evo.strength(get v), evo.strength(get r))
+        if cmp == -1 and order == Ascending:
+          discharge(evo, result)
+          result = victim
+        elif cmp == 1 and order == Descending:
+          discharge(evo, result)
+          result = victim
+        else:
+          discharge(evo, victim)
+
+  # reset the score of the winner only if necessary
+  discharge(evo, result)
+  result.valid = result.program.isValid
+  result.score = result.program.score
+
+  debug ""
+  debug "tournament result: ", result
+  debug "actual score of winner: ", result.program.score
+  debug "order ", order
+  think result
+
+iterator trim*[T, V](evo: var Evolver[T, V]): Program[T] =
+  ## emit the worst programs until the population is
+  ## within the maximum defined by the tableau
+  while evo.population.len > evo.tableau.maxPopulation:
+    let loser = tournament(evo, evo.population.len, order = Ascending)
+    del(evo, loser.program)
+    del(evo.population, loser.index)
+    yield loser.program

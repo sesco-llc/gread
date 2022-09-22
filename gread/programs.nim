@@ -87,7 +87,7 @@ proc `<`*[T](a, b: Program[T]): bool =
   a.score < b.score
 
 proc `==`*[T](a, b: Program[T]): bool =
-  ## some objective measurement of two programs; score
+  ## two programs are equal only if they express identical code
   # this silliness works around a nim bug with our
   # `==`() leaking into system/arc's reference counting
   if a.isNil != b.isNil:
@@ -95,11 +95,11 @@ proc `==`*[T](a, b: Program[T]): bool =
   elif a.isNil:
     true
   else:
-    a.score == b.score
+    a.hash == b.hash
 
 proc `<=`*[T](a, b: Program[T]): bool =
   ## some objective measurement of two programs; score
-  a.score < b.score or a.score == b.score
+  a.score <= b.score
 
 proc newProgram*[T](a: Ast[T]): Program[T] =
   ## instantiate a new program from the given ast
