@@ -404,6 +404,8 @@ proc hash*(a: Ast): Hash =
   for n in a.nodes.items:
     h = h !& hash(n.kind)
     h = h !& hash(n.operand)
+  h = h !& hash(a.numbers)
+  h = h !& hash(a.strings)
   result = !$h
 
 proc `$`*(t: Terminal): string =
