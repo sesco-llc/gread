@@ -140,7 +140,7 @@ proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
             evo.strength(get s)
           else:
             NaN
-    if evo.tableau.useParsimony:
+    if UseParsimony in evo.tableau:
       evo.population.toggleParsimony(on)
 
 proc population*[T, V](evo: Evolver[T, V]): Population[T] =
@@ -179,7 +179,7 @@ proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau; r
 
 proc tableau*(evo: Evolver): Tableau = evo.tableau
 
-proc isEqualWeight*(evo: Evolver): bool = evo.tableau.equalWeight
+template isEqualWeight*(evo: Evolver): bool = EqualWeight in evo.tableau
 
 proc fittest*[T, V](evo: Evolver[T, V]): Option[Program[T]] =
   if not evo.population.isNil:
@@ -411,14 +411,12 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
   ## create a new (random) population using the given evolver's parameters
   mixin isValid
   result = newPopulation[T](evo.tableau.seedPopulation, core = evo.core)
-  result.toggleParsimony(evo.tableau.useParsimony)
+  result.toggleParsimony(UseParsimony in evo.tableau)
   while result.len < evo.tableau.seedPopulation:
     try:
-      let p =
-        if not evo.grammar.isNil:
-          randProgram[T](evo.rng, evo.grammar, evo.tableau.seedProgramSize)
-        else:
-          raise ValueError.newException "need grammar"
+      if evo.grammar.isNil:
+        raise ValueError.newException "need grammar"
+      let p = randProgram[T](evo.rng, evo.grammar, evo.tableau.seedProgramSize)
       p.core = evo.core
       # FIXME: optimization point
       let s =
@@ -431,7 +429,7 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
           evo.strength(get s)
         else:
           NaN
-      if not evo.tableau.requireValid or p.isValid:
+      if RequireValid notin evo.tableau or p.isValid:
         result.add p
         when defined(greadEchoRandomPop):
           echo result.len, " ", $p
@@ -487,8 +485,6 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
       debug "b1 is none"
       return 1
 
-  const popscore = false
-
   block done:
     # we'll likely loop on two sample sets; the first is differing samples,
     # the second reflects symbol sets new to both programs
@@ -497,12 +493,8 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
         guard()  # ensure the programs score safely
 
         debug "pre-scaled: ", get a1, " and ", get b1
-        when popscore:
-          let sa = evo.strength evo.population.score(get a1, a.len, get b1)
-          let sb = evo.strength evo.population.score(get b1, b.len, get a1)
-        else:
-          let sa = evo.strength get a1
-          let sb = evo.strength get b1
+        let sa = evo.strength(get a1)
+        let sb = evo.strength(get b1)
         # XXX: when parsimony is on, it can change the sign of scores 🙄
         let d = abs(sa.float - sb.float)  # just wing it for now
         debug "    scores: ", sa, " and ", sb
@@ -529,12 +521,8 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
   guard()  # ensure the programs score safely
 
   # order is unlikely to change; compare these scores
-  when popscore:
-    result = cmp(evo.population.score(get a1, a.len, get b1),
-                 evo.population.score(get b1, b.len, get a1))
-  else:
-    # FIXME: better()?
-    result = cmp(evo.strength(get a1), evo.strength(get b1))
+  # FIXME: better()?
+  result = cmp(evo.strength(get a1), evo.strength(get b1))
   debug "returning cmp; ", a1.get, " vs ", b1.get, " = ", result
 
 proc remover[T, V](evo: var Evolver[T, V];
@@ -555,47 +543,20 @@ proc remover[T, V](evo: var Evolver[T, V];
     else:
       none float
   #debug "rm ", i, " t-score ", c.score, " was ", c.program.score, " now ", score
-  when false:
-    if c.program.zombie:
-      # raise
-      discard
-    else:
-      evo.population.scoreChanged(c.program, score, c.index)
-  elif true:
-    evo.population.scoreChanged(c.program, score, c.index)
-  else:
-    qualityTrackIt(evo.population, c.program, c.program.score):
-      it = s
+  # update the population's metrics, etc.
+  evo.population.scoreChanged(c.program, score, c.index)
   del(competitors, i)
 
 proc discharge(evo: var Evolver; c: Competitor) =
   ## a modern remover
-  when false:
-    if c.program.zombie:
-      # raise
-      discard
+  let s = evo.scoreFromCache(c.program)
+  let score =
+    if s.isSome:
+      some evo.strength(get s)
     else:
-      let s = evo.scoreFromCache(c.program)
-      let score =
-        if s.isSome:
-          some evo.strength(get s)
-        else:
-          none float
-      if c.program.zombie:
-        discard
-      else:
-        scoreChanged(evo.population, c.program, score, c.index)
-  elif true:
-    let s = evo.scoreFromCache(c.program)
-    let score =
-      if s.isSome:
-        some evo.strength(get s)
-      else:
-        none float
-    scoreChanged(evo.population, c.program, score, c.index)
-  else:
-    qualityTrackIt(evo.population, c.program, c.program.score):
-      it = evo.quality evo.scoreFromCache(c.program)
+      none float
+  # update the population's metrics, etc.
+  scoreChanged(evo.population, c.program, score, c.index)
   if evo.cacheSize(c.program) == evo.dataset.len:
     maybeResetFittest(evo.population, c.program)
 

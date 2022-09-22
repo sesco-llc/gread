@@ -592,17 +592,6 @@ when compileOption"threads":
 
   proc noop(c: C): C {.cpsMagic.} = c
 
-  proc legit(evo: Evolver; p: Program): bool =
-    if evo.isEqualWeight:
-      if p.isValid:
-        let sd = evo.population.rescale(p.scores.standardDeviation).float
-        result = hoeffding(p.scores.n, sd.float) < defaultP
-        #if result:
-        #  echo "legit: ", p.scores.n, " orig ", p.score, " sd ", sd, " defaultP ", defaultP, " hoeffding ", hoeffding(p.scores.n, sd.float)
-      result = result or evo.cacheSize(p) == evo.dataset.len
-    else:
-      result = evo.cacheSize(p) == evo.dataset.len
-
   proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
     let fnl = newFennel(core = args.core)
     var evo: Evolver[Fennel, LuaValue]
@@ -856,7 +845,7 @@ proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Gramm
 
   var evo: Evolver[T, G]
   var tab = tableau
-  tab.useParsimony = false
+  tab.flags.excl UseParsimony
   initEvolver(evo, d, tab, rng)
   evo.operators = {
     geCrossover[T, G]:     2.0,

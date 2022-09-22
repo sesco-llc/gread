@@ -6,7 +6,6 @@ when not compileOption"threads":
 import std/hashes
 import std/options
 import std/os
-import std/osproc
 import std/packedsets
 import std/random
 import std/sets
@@ -85,15 +84,13 @@ when isMainModule:
 
   # define the parameters for the evolvers
   var tab = defaultTableau
-  tab.useParsimony = true
-  tab.equalWeight = true
+  tab.flags = {UseParsimony, EqualWeight}
   tab.seedProgramSize = 400
   tab.seedPopulation = 400
   tab.maxPopulation = 400
   tab.tournamentSize = int(0.03 * tab.maxPopulation.float)
   tab.sharingRate = 0.1
   tab.maxGenerations = 1_000_000
-  tab.requireValid = false
 
   # the main loop monitors inventions
   proc main(work: Work; inputs, outputs: LoonyQueue[FProg]) =

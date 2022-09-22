@@ -52,12 +52,14 @@ type
     when populationCache:
       cache: PackedSet[Hash]
 
-  PopLike[T] = concept c
+  PopLike*[T] = concept c
     c[int] is Program[T]
     (c[int] < c[int]) is bool
     c.len is int
     for v in c:
       v is Program[T]
+
+  LegacyPop[T] = PopLike[T] or Population[T]
 
 iterator items*[T](q: HeapQueue[T]): T =
   ## helper for heapqueue-based populations
@@ -163,19 +165,12 @@ func fittest*[T](pop: Population[T]): Program[T] {.deprecated.} =
   withInitialized pop:
     pop.fittest
 
-proc rescale*(pop: Population; score: Score; outlier: Score): Score =
-  ## rescale a given score according to the distribution of the population;
-  ## the outlier score may not be recorded in the population...
+proc rescale(pop: Population; score: Score): Score =
+  ## rescale a given score according to the distribution of the population
   result =
     Score:
-      sgn(score).float * abs(score.float /
-           min(score.float,
-               min(outlier.float,
-                   pop.ken.scores.min.float)))
-
-proc rescale*(pop: Population; score: Score): Score =
-  ## rescale a given score according to the distribution of the population
-  result = rescale(pop, score, score)
+      sgn(score).float *
+        abs(score.float / min(score.float, pop.ken.scores.min.float))
 
 proc penalizeSize(pop: Population; score: Score; length: int): Score =
   ## apply some pressure on program size
@@ -190,27 +185,20 @@ proc penalizeSize(pop: Population; score: Score; length: int): Score =
         s += pop.ken.parsimony * length.float
     result = Score s
 
-proc score*(pop: Population; score: Score; length: int;
-            outlier: Score): Score =
-  ## adjust the score according to the population's parsimony and a length
-  if score.isValid:
-    penalizeSize(pop, score, length)
-  else:
-    Score NaN
+when false:
+  proc score*(pop: Population; score: Score; length: int): Score {.deprecated.} =
+    ## adjust the score according to the population's parsimony and a length
+    if score.isValid:
+      penalizeSize(pop, score, length)
+    else:
+      Score NaN
 
-proc score*(pop: Population; score: Score; length: int): Score =
-  ## adjust the score according to the population's parsimony and a length
-  if score.isValid:
-    penalizeSize(pop, score, length)
-  else:
-    Score NaN
-
-proc score*(pop: Population; p: Program): Score =
-  ## retrieve the parsimonious Score for Program `p`
-  if p.isValid:
-    penalizeSize(pop, p.score, p.len)
-  else:
-    Score NaN
+  proc score*(pop: Population; p: Program): Score {.deprecated.} =
+    ## retrieve the parsimonious Score for Program `p`
+    if p.isValid:
+      penalizeSize(pop, p.score, p.len)
+    else:
+      Score NaN
 
 template maybeReportFittest(pop: Population; p: Program) =
   when defined(greadReportFittestChanges):
@@ -303,7 +291,7 @@ iterator items*[T](pop: Population[T]): Program[T] =
     for p in pop.programs.items:
       yield p
 
-iterator mitems*[T](pop: Population[T]): var Program[T] =
+iterator mitems*[T](pop: Population[T]): var Program[T] {.deprecated.} =
   withInitialized pop:
     for p in pop.programs.mitems:
       yield p
@@ -360,7 +348,7 @@ proc parsimony*(pop: Population): float =
     var lengths = newSeqOfCap[float](pop.ken.scores.n)
     for i, p in pop.pairs:
       if p.isValid:
-        scores.add pop.rescale(p.score)
+        scores.add rescale(pop, p.score)
         lengths.add p.len.float
     result = covariance(lengths, scores) / variance(lengths)
 
@@ -421,7 +409,7 @@ proc scoreChanged*(pop: Population; p: Program; s: Option[float]; index: int) =
       p.zombie = true
       pop.ken.validity.push 0.0
 
-proc core*(pop: Population): CoreSpec =
+proc core*(pop: Population): CoreSpec {.deprecated.} =
   withInitialized pop:
     pop.ken.core
 

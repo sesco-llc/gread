@@ -3,7 +3,6 @@ when not compileOption"threads":
 
 import std/sequtils
 import std/options
-import std/osproc
 import std/random
 import std/os
 import std/strformat

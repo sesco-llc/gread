@@ -1,15 +1,13 @@
-import std/strutils
-import std/tables
 import std/hashes
-import std/sequtils
-import std/random
 import std/json
 import std/options
+import std/random
+import std/sequtils
+import std/tables
 
 import gread/ast
 import gread/grammar
 import gread/genotype
-import gread/evolver
 import gread/programs
 import gread/tableau
 import gread/data
