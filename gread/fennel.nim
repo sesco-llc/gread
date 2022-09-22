@@ -470,6 +470,13 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
   var dumb = m.lengths.variance.int  # work around nim bug
   # program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
   let age = int(m.generation.int.float - m.ages.mean)
+  when false:
+    if m.generation.int == 0:
+      raise ValueError.newException "no generations yet"
+    if evo.tableau.maxGenerations == 0:
+      raise ValueError.newException "no generation limit"
+    if m.size == 0:
+      raise ValueError.newException "empty population"
   checkpoint fmt"""
                core and thread: {m.core}/{threaded} -- {evo.name}
                   dataset size: {evo.dataset.len}
