@@ -1,11 +1,11 @@
 type
-  TableauFlags* = enum
+  TableauFlag* = enum
     UseParsimony           ## whether to attempt to use parsimony
     RequireValid           ## the population ignores invalid additions
     EqualWeight            ## each data point is equally impactful to result
 
   Tableau* = object
-    flags*: set[TableauFlags]  ## optional toggles
+    flags*: set[TableauFlag]  ## optional toggles
     maxGenerations*: int   ## recommend termination after N generations
     maxPopulation*: int    ## evict via tournament due to over-crowding
     seedPopulation*: int   ## initial size of the population
@@ -20,7 +20,7 @@ const
             sharingRate: 3.0, tournamentSize: 10,
             flags: {UseParsimony, RequireValid})
 
-func contains*(tab: Tableau; flag: TableauFlags): bool =
+func contains*(tab: Tableau; flag: TableauFlag): bool =
   flag in tab.flags
 
 func useParsimony*(tab: Tableau): bool {.deprecated: "use flags".} =
@@ -31,3 +31,21 @@ func requireValid*(tab: Tableau): bool {.deprecated: "use flags".} =
 
 func equalWeight*(tab: Tableau): bool {.deprecated: "use flags".} =
   EqualWeight in tab.flags
+
+func `+=`*(tab: var Tableau; value: set[TableauFlag]) =
+  tab.flags = tab.flags + value
+
+func `-=`*(tab: var Tableau; value: set[TableauFlag]) =
+  tab.flags = tab.flags - value
+
+func toggle*(tab: var Tableau; flag: TableauFlag) =
+  if flag in tab.flags:
+    tab.flags.excl flag
+  else:
+    tab.flags.incl flag
+
+func toggle*(tab: var Tableau; flag: TableauFlag; included: bool) =
+  if included:
+    tab.flags.incl flag
+  else:
+    tab.flags.excl flag
