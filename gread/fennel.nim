@@ -615,7 +615,7 @@ when compileOption"threads":
       else:
         args.population
     evo.population.resetMetrics()
-    evo.population.toggleParsimony(evo.tableau.useParsimony)
+    evo.population.toggleParsimony(UseParsimony in evo.tableau)
 
     var evoTime = getTime()
     # fittest -> finest due to nim bug
@@ -669,7 +669,7 @@ when compileOption"threads":
       evo.population = newPopulation[Fennel]()
     else:
       evo.population = args.population
-      evo.population.toggleParsimony(evo.tableau.useParsimony)
+      evo.population.toggleParsimony(UseParsimony in evo.tableau)
 
     while true:
       noop() # give other evolvers a chance
@@ -716,7 +716,7 @@ when compileOption"threads":
       evo.population = newPopulation[Fennel]()
     else:
       evo.population = args.population
-      evo.population.toggleParsimony(evo.tableau.useParsimony)
+      evo.population.toggleParsimony(UseParsimony in evo.tableau)
 
     while true:
       noop() # give other evolvers a chance

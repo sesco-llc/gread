@@ -72,25 +72,22 @@ assert seq[Program[int]] is PopLike[int]
 assert array[5, Program[int]] is PopLike[int]
 
 proc parsimony*(pop: Population): float
+proc parsimony*(pop: Population; ken: PopMetrics): float
 
 proc toggleParsimony*(pop: Population; value = on) =
   ## turn parsimony `on` or `off`; when switching parsimony on,
   ## this will recompute and set the parsimony for the population
   pop.ken.parsimony =
     if value:
-      parsimony pop
+      parsimony(pop, pop.ken)
     else:
       NaN
 
-func usesParsimony*(pop: Population): bool =
-  ## true if the population uses parsimony in its score() routines
-  not pop.ken.parsimony.isNaN
-
-proc resetParsimony*(pop: Population) =
+proc resetParsimony*(pop: Population) {.deprecated.} =
   ## recompute and set the parsimony for the population,
   ## if parsimony is enabled for the population
-  if pop.usesParsimony:
-    pop.ken.parsimony = parsimony pop
+  if not pop.ken.parsimony.isNaN:
+    pop.ken.parsimony = parsimony(pop, pop.ken)
 
 template learn(pop: Population; p: Program; pos: int) =
   when populationCache:
@@ -165,40 +162,44 @@ func fittest*[T](pop: Population[T]): Program[T] {.deprecated.} =
   withInitialized pop:
     pop.fittest
 
-proc rescale(pop: Population; score: Score): Score =
+proc rescale(ken: PopMetrics; score: Score): Score =
   ## rescale a given score according to the distribution of the population
   result =
     Score:
       sgn(score).float *
-        abs(score.float / min(score.float, pop.ken.scores.min.float))
+        abs(score.float / min(score.float, ken.scores.min.float))
 
-proc penalizeSize(pop: Population; score: Score; length: int): Score =
+proc penalizeSize(ken: PopMetrics; score: Score; length: int): Score =
   ## apply some pressure on program size
-  withInitialized pop:
-    var s = rescale(pop, score).float
-    if pop.usesParsimony:
-      if pop.ken.parsimony < 0.0:  # length appears to be hurting scores
-        # reduce the score of longer programs
-        s += pop.ken.parsimony * length.float
-      else:                        # length appears to be helping scores
-        # raise the score of longer programs
-        s += pop.ken.parsimony * length.float
+  if ken.parsimony.isNaN:
+    result = score
+  else:
+    var s = rescale(ken, score).float
+    if ken.parsimony < 0.0:  # length appears to be hurting scores
+      # reduce the score of longer programs
+      s += ken.parsimony * length.float
+    else:                        # length appears to be helping scores
+      # raise the score of longer programs
+      s += ken.parsimony * length.float
     result = Score s
 
-when false:
-  proc score*(pop: Population; score: Score; length: int): Score {.deprecated.} =
-    ## adjust the score according to the population's parsimony and a length
-    if score.isValid:
-      penalizeSize(pop, score, length)
-    else:
-      Score NaN
+proc score*(ken: PopMetrics; score: Score; length: int): Score =
+  ## adjust the score according to the population's parsimony and a length
+  if ken.parsimony.isNaN:
+    score
+  elif score.isValid:
+    penalizeSize(ken, score, length)
+  else:
+    Score NaN
 
-  proc score*(pop: Population; p: Program): Score {.deprecated.} =
-    ## retrieve the parsimonious Score for Program `p`
-    if p.isValid:
-      penalizeSize(pop, p.score, p.len)
-    else:
-      Score NaN
+proc score*(ken: PopMetrics; p: Program): Score =
+  ## retrieve the parsimonious Score for Program `p`
+  if ken.parsimony.isNaN:
+    p.score
+  elif p.isValid:
+    penalizeSize(ken, p.score, p.len)
+  else:
+    Score NaN
 
 template maybeReportFittest(pop: Population; p: Program) =
   when defined(greadReportFittestChanges):
@@ -253,39 +254,6 @@ proc add*[T](pop: Population[T]; p: Program[T]) =
         when not defined(greadFast):
           maybeResetFittest(pop, p)
 
-type
-  TopPop[T] = tuple[score: Score, program: Program[T]]
-
-iterator top*[T](pop: Population[T]; n: int): TopPop[T] {.deprecated.} =
-  ## iterate through the best performers, low-to-high
-  withInitialized pop:
-    var queue: HeapQueue[TopPop[T]]
-    var valid = false
-    for i in 0..<pop.programs.len:
-      var p = pop.programs[i]
-      if p.isValid or not valid:
-        valid = valid or p.score.isValid
-        # handling missing scores
-        queue.push (score: p.score, program: p)
-      # discard invalid stuff if we have valid scores in the queue
-      while valid and queue.len > 0 and not queue[0].score.isValid:
-        discard queue.pop()
-      # discard excess queue members
-      while queue.len > n:
-        discard queue.pop()
-    while queue.len > 0:
-      yield queue.pop()
-
-proc first*[T](pop: Population[T]): Program[T] {.deprecated.} =
-  ## return the fittest individual in the population
-  withPopulated pop:
-    if pop.fittest.isNil:
-      # i guess
-      for program in pop.top(1):
-        return program
-    else:
-      return pop.fittest
-
 iterator items*[T](pop: Population[T]): Program[T] =
   withInitialized pop:
     for p in pop.programs.items:
@@ -339,18 +307,23 @@ proc randomRemoval*[T](pop: Population[T]; rng: var Rand): Program[T] =
     result = query.program
     del(pop, query.index)
 
-proc parsimony*(pop: Population): float =
+proc parsimony*(pop: Population; ken: PopMetrics): float =
   ## compute parsimony for members of the population with valid scores
   withInitialized pop:
-    if pop.ken.scores.n == 0:
+    if ken.scores.n == 0:
       return defaultParsimony
-    var scores = newSeqOfCap[float](pop.ken.scores.n)
-    var lengths = newSeqOfCap[float](pop.ken.scores.n)
+    var scores = newSeqOfCap[float](ken.scores.n)
+    var lengths = newSeqOfCap[float](ken.scores.n)
     for i, p in pop.pairs:
       if p.isValid:
-        scores.add rescale(pop, p.score)
+        scores.add rescale(ken, p.score)
         lengths.add p.len.float
     result = covariance(lengths, scores) / variance(lengths)
+
+proc parsimony*(pop: Population): float {.deprecated.} =
+  ## compute parsimony for members of the population with valid scores
+  withInitialized pop:
+    result = parsimony(pop, pop.ken)
 
 proc nextGeneration*(pop: Population): Generation =
   ## inform the population that we're entering a new generation

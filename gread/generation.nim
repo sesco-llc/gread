@@ -8,10 +8,12 @@ import gread/ast
 import gread/programs
 import gread/data
 import gread/evolver
+import gread/tableau
 
-proc makeRoom*[T, V](evo: var Evolver[T, V]) =
+proc makeRoom*[T, V](evo: var Evolver[T, V]; space = 1) =
+  ## create some space in the population whatfer adding a new program
   template size: int = evo.tableau.tournamentSize
-  while evo.population.len > evo.tableau.maxPopulation-1:
+  while evo.population.len > evo.tableau.maxPopulation-space:
     let loser = tournament(evo, size, order = Ascending)
     del(evo, loser.program)            # warn evolver to clear cache
     del(evo.population, loser.index)   # rm program from population
@@ -43,7 +45,7 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
         else:
           p.zombie = true
 
-        if not evo.tableau.requireValid or p.isValid:
+        if RequireValid notin evo.tableau or p.isValid:
           inc discoveries   # we have something worth adding
           evo.makeRoom()
           evo.population.add p
