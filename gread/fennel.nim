@@ -631,10 +631,10 @@ when compileOption"threads":
       # share any new winner
       if evo.fittest.isSome:
         if finest.isNone or finest != evo.fittest:
+          finest = evo.fittest
           # NOTE: clone the finest so that we don't have to
           #       worry about the reference counter across threads
-          finest = some: clone get(evo.fittest)
-          forceShare(args, get finest)
+          forceShare(args, clone get(finest))
 
       for discovery in evo.generation():
         discard
