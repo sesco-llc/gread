@@ -420,3 +420,16 @@ proc metrics*(pop: Population): PopMetrics =
     else:
       result.staleness = NaN
       result.usurper = pop.fittest.core
+
+proc clone*[T](population: Population[T]; core = none CoreId): Population[T] =
+  ## create a copy of the population
+  result = newPopulation[T](size = population.programs.len, core = core)
+  for program in population.items:
+    let cloned = clone program
+    result.programs.add cloned
+    if not population.fittest.isNil:
+      if program.hash == population.fittest.hash:
+        result.fittest = cloned
+      when populationCache:
+        result.cache.incl cloned.hash
+  result.resetMetrics()
