@@ -325,38 +325,24 @@ proc parsimony*(pop: Population): float {.deprecated.} =
   withInitialized pop:
     result = parsimony(pop, pop.ken)
 
-proc nextGeneration*(pop: Population): Generation =
+proc nextGeneration*(ken: var PopMetrics): Generation =
+  ## inform the population that we're entering a new generation
+  inc ken.generation
+  result = ken.generation
+
+proc nextGeneration*(pop: Population): Generation {.deprecated.} =
   ## inform the population that we're entering a new generation
   withInitialized pop:
-    inc pop.ken.generation
-    result = pop.ken.generation
+    result = nextGeneration pop.ken
 
-func generations*(pop: Population): Generation =
+func generations*(ken: PopMetrics): Generation =
+  ## return the population's Generation
+  ken.generation
+
+func generations*(pop: Population): Generation {.deprecated.} =
   ## return the population's Generation
   withInitialized pop:
-    pop.ken.generation
-
-template qualityTrackIt*(pop: Population; p: Program; s: Score;
-                         body: untyped): untyped =
-  withInitialized pop:
-    if p.isValid and s.isValid:
-      pop.ken.scores.pop s
-    var it {.inject.}: Score = NaN
-    body
-    if it.isValid:
-      pop.ken.scores.push it
-      when not defined(greadFast):
-        maybeResetFittest(pop, p)
-
-template qualityTrackIt*(pop: Population; p: Program; s: Option[Score];
-                         body: untyped): untyped =
-  let score: Score =
-    if s.isSome:
-      get s
-    else:
-      NaN
-  qualityTrackIt(pop, p, score):
-    body
+    result = generations pop.ken
 
 proc scoreChanged*(pop: Population; p: Program; s: Option[float]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
