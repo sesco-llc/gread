@@ -69,7 +69,9 @@ when defined(greadProfile):
     result = newStmtList()
     result.add newLetStmt(clock, readTime)
     var value = nskLet.genSym"value"
-    if getType(logic).strVal != "void":
+    if getType(logic).strVal == "void":
+      result.add logic
+    else:
       result.add newLetStmt(value, logic)
     when compileOption"threads":
       result.add newCall(bindSym"debugEcho", readThread, newLit" ",
