@@ -144,7 +144,10 @@ proc hash*(a: Terminal): Hash =
   result = !$h
 
 proc `<`*(a, b: Terminal): bool =
-  a.kind < b.kind or a.hash < b.hash
+  if a.kind == b.kind:
+    a.hash < b.hash
+  else:
+    a.kind < b.kind
 
 proc `==`*(a, b: Terminal): bool =
   a.kind == b.kind and a.hash == b.hash
