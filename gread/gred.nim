@@ -124,3 +124,6 @@ iterator trim*[T, V](r: var Redis; evo: var Evolver[T, V]; domain: string): Prog
   for loser in evo.trim():
     clear(r, loser, domain)
     yield loser
+
+proc memoryGraphSize*[T](thing: T): int =
+  freeze(thing).len
