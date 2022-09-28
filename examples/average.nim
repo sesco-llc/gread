@@ -1,11 +1,12 @@
-import std/packedsets
-import std/json
-import std/hashes
-import std/times
-import std/random
-import std/options
-import std/math
 import std/algorithm
+import std/hashes
+import std/json
+import std/math
+import std/options
+import std/packedsets
+import std/random
+import std/sequtils
+import std/times
 
 import gread
 import gread/fennel
@@ -37,13 +38,13 @@ initFennelGrammar(gram, averageGrammar)
 
 # no point in slowing down this simple example
 var tab = defaultTableau
-tab.useParsimony = true
+tab += {UseParsimony}
+tab -= {RequireValid}
 tab.seedProgramSize = 50
-tab.seedPopulation = 200
-tab.maxPopulation = 200
-tab.tournamentSize = 10
-tab.maxGenerations = 30_000
-tab.requireValid = false
+tab.seedPopulation = 400
+tab.maxPopulation = 400
+tab.tournamentSize = 12
+tab.maxGenerations = 1_000_000
 
 # define the different ways in which we evolve, and their weights
 let operators = {
@@ -87,14 +88,15 @@ else:
   ]
 
 # convert the json into lua values;
-var training: seq[(Locals, LuaValue)]
+var training: seq[Locals]
 for (js, ideal) in inputData.items:
   var paired: seq[(string, LuaValue)]
   for name, value in js.pairs:
     paired.add (name, value.toLuaValue)
   paired.add ("ideal", ideal.toLuaValue)
   var locals = initLocals paired
-  training.add (locals, ideal.toLuaValue)
+  training.add:
+    initLocals paired
 
 proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[LuaValue] =
   ## convenience capture
@@ -146,11 +148,11 @@ suite "simulation":
 
   et = getTime()
   var best = NaN
-  var lastGeneration: Generation
+  var lastGeneration: int
   block:
     ## ran until we can average two numbers
     var seen: PackedSet[Hash]
-    while pop.generations < tab.maxGenerations:
+    while evo.generations < tab.maxGenerations:
       if best >= goodEnough:
         break
       for discovery in evo.generation():
@@ -164,14 +166,17 @@ suite "simulation":
               best = s
               dumpPerformance p
 
-      if pop.generations mod statFrequency == 0:
+      if evo.generations mod statFrequency == 0:
         dumpStats()
-    lastGeneration = pop.generations
+    lastGeneration = evo.generations
 
   block:
     ## showed the top-10 programs
-    for score, p in pop.top(10):
-      fnl.dumpScore p
+    const N = 10
+    var programs = toSeq pop.items
+    sort programs
+    for i in 1..N:
+      fnl.dumpScore programs[^(N-i+1)]
 
   block:
     ## dumped some statistics
