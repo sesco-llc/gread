@@ -89,7 +89,7 @@ when isMainModule:
   tab.seedPopulation = 400
   tab.maxPopulation = 400
   tab.tournamentSize = int(0.03 * tab.maxPopulation.float)
-  tab.sharingRate = 0.1
+  tab.sharingRate = 0.15
   tab.maxGenerations = 1_000_000
 
   # the main loop monitors inventions
@@ -120,7 +120,7 @@ when isMainModule:
         if p.isValid and not p.zombie and not seen.containsOrIncl(p.hash):
           # FIXME: this shouldn't be necessary
           let p = clone p
-          p.score = evo.strength(get evo.score(p))
+          p.score = strength(evo)(get evo.score(p))
           while p.isValid:
             evo.makeRoom()
             if not p.isValid:
@@ -144,7 +144,7 @@ when isMainModule:
   var args = clump.initWork()
   initWork(args, tab, grammar = gram, operators = operators,
            dataset = dataset, fitone = fitone, fitmany = fitmany,
-           strength = strength, stats = statFrequency)
+           strength = fennel.strength, stats = statFrequency)
 
   let cores = max(1, getNumTotalCores())
   for core in 1..cores:
