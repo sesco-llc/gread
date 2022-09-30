@@ -480,8 +480,8 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
 
   var dumb = m.lengths.variance.int  # work around nim bug
   # program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
-  let age = int(m.generation.int.float - m.ages.mean)
   m.generation = evo.generation
+  let age = int(m.generation.int.float - m.ages.mean)
   let totalTime = getTime() - evoTime
   let totalMs = totalTime.inMilliseconds.float
   when false:
