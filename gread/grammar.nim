@@ -8,6 +8,7 @@ import std/strutils
 import pkg/adix/lptabz
 import pkg/npeg
 
+import gread/spec
 import gread/aliasmethod
 import gread/ast
 import gread/genotype
@@ -17,7 +18,7 @@ export ShortGenome
 import std/locks
 
 type
-  HeatMap = LPTab[string, int]
+  HeatMap = GreadTable[string, int]
   OrderedProductions = LPTabz[string, Production, int8, 0]
   ComponentKind* = enum ckToken, ckRule, ckTerminal
   Component* = object
@@ -40,6 +41,8 @@ type
     #w: WeightedProductions
     t: HashSet[Terminal]
     h: MD5Digest
+    strings: BiTable[string]
+    numbers: BiTable[BiggestInt]
     when defined(greadGrammarHeatMap):
       m: HeatMap
       mlock: Lock
@@ -92,11 +95,13 @@ iterator pairs*(gram: Grammar): (string, Production) =
   for key, value in gram.p.pairs:
     yield (key, value)
 
-proc toAst[T](prod: Production): Ast[T] =
+proc toAst[T](gram: Grammar; prod: Production): Ast[T] =
   ## map a production to matching ast
   mixin emptyNode
   mixin terminalNode
   result.nodes = newSeqOfCap[AstNode[T]](prod.len)
+  result.strings = gram.strings
+  result.numbers = gram.numbers
   for component in prod.items:
     result.nodes.add:
       case component.kind
@@ -161,7 +166,7 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
     # content points to the production index from the `chose`n options
     let content = codon.int mod options.len     # choose content index
     let rule = options[content]                 # select the content production
-    let rhs = toAst[T](rule)                    # convert rule to nodes
+    let rhs = toAst[T](gram, rule)              # convert rule to nodes
     doAssert rule.len == rhs.len, "not yet supported"
 
     # we can now perform the substitution in the ast at the `chose`n index
@@ -275,7 +280,7 @@ proc initGrammar*(gram: var Grammar) =
   init gram.p
   #init gram.w
   withHeatMap gram:
-    init gram.m
+    initGreadTable gram.m
 
 proc `$`*(gram: Grammar): string =
   withHeatMap gram:
@@ -289,16 +294,39 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
   gram.h = toMD5(syntax)
   var rules = bnf(syntax)
   var nonterminals = 0
+  template learnString(s: string) =
+    discard gram.strings.getOrIncl s
+  template learnNumber(n: SomeInteger) =
+    discard gram.numbers.getOrIncl n
   for r in rules.mitems:
+    learnString r.name
     for c in r.rule.mitems:
       case c.kind
       of ckToken:
         c.token = parseToken(c.text)
+        learnString c.text
+        learnNumber c.token
       of ckTerminal:
         if c.term.kind == Token:
           c.term.token = parseToken(c.term.text)
+          learnString c.term.text
+          learnNumber c.term.token
         else:
           gram.t.incl c.term
+          case c.term.kind
+          of Integer:
+            learnNumber c.term.intVal.BiggestInt
+          of Boolean:
+            learnNumber c.term.boolVal.BiggestInt
+          of Float:
+            learnNumber cast[BiggestInt](c.term.floatVal)
+          of String:
+            learnString c.term.strVal
+          of Symbol:
+            learnString c.term.name
+          else:
+            discard
+
       of ckRule:
         if c.isReferential:
           inc nonterminals
@@ -307,5 +335,11 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
     withHeatMap gram:
       gram.m[r.name] = 0
     gram.p.add(r.name, r.rule)
-  echo "nonterminal references: ", nonterminals
-  echo "       total terminals: ", gram.t.card
+    # shrink them
+    gram.strings = clone gram.strings
+    gram.numbers = clone gram.numbers
+  when true:
+    echo "nonterminal references: ", nonterminals
+    echo "       total terminals: ", gram.t.card
+    echo "               strings: ", gram.strings
+    echo "               numbers: ", gram.numbers

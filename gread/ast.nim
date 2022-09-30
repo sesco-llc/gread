@@ -80,15 +80,15 @@ proc `$`*[T](a: Ast[T]): string =
     result.add ": "
     result.add $n
     if n.isSymbol:
-      result.add " (" & a.strings[LitId n.operand] & ")"
+      result.add " (" & a.learnString(n) & ")"
     elif n.isStringLit:
       var s: string
-      escapeJson(a.strings[LitId n.operand], s)
+      escapeJson(a.learnString(n), s)
       result.add " (" & s & ")"
     elif n.isNumberLit:
-      result.add " (" & $a.numbers[LitId n.operand] & ")"
+      result.add " (" & $a.learnNumber(n) & ")"
     elif not n.isParent and n.operand > 0:  # NOTE: assume token
-      result.add " (" & a.strings[LitId n.operand] & ")"
+      result.add " (" & a.learnString(n) & ")"
   result.add "]"
 
 template audit*[T](a: Ast[T]; logic: untyped) =
@@ -261,6 +261,36 @@ template copyAst[T](a, b: typed; size: int) =
     copyMem(addr a, unsafeAddr b, nodeSize*size)
 
 when false:
+  proc learnString*(a: var Ast; s: string): LitId =
+    try:
+      result = a.strings[s]
+    except KeyError:
+      echo "missing string: ", s
+      raise
+  proc learnNumber*(a: var Ast; n: SomeOrdinal): LitId =
+    try:
+      result = a.numbers[cast[BiggestInt](n.int64)]
+    except KeyError:
+      echo "missing number: ", n.int64
+      raise
+else:
+  template learnString*(a: var Ast; s: string): LitId =
+    a.strings.getOrIncl s
+  template learnNumber*(a: var Ast; n: SomeOrdinal): LitId =
+    a.numbers.getOrIncl cast[BiggestInt](n.int64)
+template learnNumber*(a: var Ast; n: SomeFloat): LitId =
+  a.learnNumber(cast[BiggestInt](n.float64))
+
+template stringOp*(a: Ast; op: int32 | LitId): string =
+  a.strings[LitId op]
+template numberOp*(a: Ast; op: int32 | LitId): BiggestInt =
+  a.numbers[LitId op]
+template stringOp*(a: Ast; node: AstNode): string =
+  stringOp(a, node.operand)
+template numberOp*(a: Ast; node: AstNode): BiggestInt =
+  numberOp(a, node.operand)
+
+when false:
   proc mergeLiterals[T](a: var Ast[T]; b: Ast[T]) =
     ## we currently just use resetLiterals subsequent to insertion
     mixin isSymbol
@@ -269,11 +299,11 @@ when false:
     mixin isParent
     for node in b.nodes.items:
       if node.isSymbol or node.isStringLit:
-        a.strings.getOrIncl b.strings[LitId node.operand]
+        discard a.learnString b.stringOp(node)
       elif node.isNumberLit:
-        a.numbers.getOrIncl b.numbers[LitId node.operand]
+        discard a.learnNumber b.numberOp(node)
       elif not node.isParent and node.operand != 0:  # NOTE: assume it's a token
-        a.strings.getOrIncl b.strings[LitId node.operand]
+        discard a.learnString b.stringOp(node)
 
 proc resetLiterals[T](a: var Ast[T]; index: int; b: Ast[T]) =
   ## fixup the operands for nodes that use string/number storage
@@ -286,11 +316,11 @@ proc resetLiterals[T](a: var Ast[T]; index: int; b: Ast[T]) =
       break
     template node: AstNode[T] = a.nodes[i]
     if node.isSymbol or node.isStringLit:
-      node.operand = a.strings.getOrIncl b.strings[LitId node.operand]
+      node.operand = a.learnString b.stringOp(node)
     elif node.isNumberLit:
-      node.operand = a.numbers.getOrIncl b.numbers[LitId node.operand]
+      node.operand = a.learnNumber b.numberOp(node)
     elif not node.isParent and node.operand != 0:  # NOTE: assume it's a token
-      node.operand = a.strings.getOrIncl b.strings[LitId node.operand]
+      node.operand = a.learnString b.stringOp(node)
 
 proc delete*[T](a: Ast[T]; index: int): Ast[T] =
   ## remove the node, and any of its children, at the given index
@@ -435,13 +465,13 @@ proc tokenNode*[T](a: var Ast[T]; token: int16; text = ""): AstNode[T] =
     if text == "":
       LitId 0
     else:
-      a.strings.getOrIncl(text)
+      a.learnString(text)
   AstNode[T](kind: token, operand: int32 op)
 
 proc name*[T](a: Ast[T]; index: int): string =
   ## convenience to fetch the name of a symbol at the given index
   mixin isSymbol
   if a[index].isSymbol:
-    result = a.strings[LitId a[index].operand]
+    result = stringOp(a, a[index])
   else:
     raise Defect.newException "node is not a symbol"
