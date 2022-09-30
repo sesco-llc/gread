@@ -37,6 +37,10 @@ proc mustRehash(length, counter: int): bool {.inline.} =
   assert length > counter
   result = (length * 2 < counter * 3) or (length - counter < 4)
 
+proc clone*[T](t: BiTable[T]): BiTable[T] =
+  ## returns a shrunken table
+  BiTable[T](keys: t.keys, vals: t.vals)
+
 when false:
   #[
 
@@ -47,18 +51,18 @@ when false:
     let idx = idToIdx(x)
     result = idx >= 0 and idx <= t.vals.high
 
-  proc `[]`[T](t: BiTable[T]; v: T): LitId =
-    let origH = hash(v)
-    var h = origH and maxHash(t)
-    if t.keys.len != 0:
-      while true:
-        let litId = t.keys[h]
-        if not isFilled(litId):
-          break
-        if t.vals[idToIdx t.keys[h]] == v:
-          return litId
-        h = nextTry(h, maxHash(t))
-    raise KeyError.newException "key not found"
+proc `[]`*[T](t: BiTable[T]; v: T): LitId =
+  let origH = hash(v)
+  var h = origH and maxHash(t)
+  if t.keys.len != 0:
+    while true:
+      let litId = t.keys[h]
+      if not isFilled(litId):
+        break
+      if t.vals[idToIdx t.keys[h]] == v:
+        return litId
+      h = nextTry(h, maxHash(t))
+  raise KeyError.newException "key not found"
 
 proc enlarge[T](t: var BiTable[T]) =
   var n: seq[LitId]
