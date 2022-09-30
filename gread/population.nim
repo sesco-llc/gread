@@ -195,33 +195,6 @@ proc score*(ken: PopMetrics; p: Program): Score =
   else:
     Score NaN
 
-when defined(greadReportFittestChanges):
-  import std/strformat
-  proc maybeReportFittest(pop: Population; p: Program) =
-    if not p.isNil:
-      echo fmt"fittest in {pop.ken.core} score {p.score} from {p.core}/{p.generation} hash {p.hash}"
-      #echo fmt"fittest in {pop.ken.core} {p}"
-else:
-  template maybeReportFittest(pop: Population; p: Program) = discard
-
-proc maybeResetFittest[T](pop: Population[T]; p: Program[T]) =
-  ## reset the fittest pointer if the argument is actually superior
-  withInitialized pop:
-    if p.isValid:
-      block:
-        if not pop.fittest.isNil:
-          if pop.fittest.hash == p.hash:
-            break
-          # the fittest is not a function of parsimony
-          if p < pop.fittest:
-            break
-          if p == pop.fittest:
-            break
-        maybeReportFittest(pop, pop.fittest)
-        pop.fittest = p
-        maybeReportFittest(pop, pop.fittest)
-        p.flags.incl FinestKnown
-
 template addImpl[T](population: Population[T]; p: Program[T]) =
   population.programs.add p
   learn(population, p, population.programs.high)
