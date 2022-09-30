@@ -48,7 +48,7 @@ type
     rng*: Rand                      # we essentially need to expose mutability
     name*: string                   # for reporting purposes
     grammar: Grammar
-    strength*: Strength[V]
+    strength: Strength[V]
     fitone: FitOne[T, V]
     fitmany: FitMany[T, V]
     dataset: seq[SymbolSet[T, V]]
@@ -58,10 +58,21 @@ type
     operators: AliasMethod[Operator[T, V]]
     gentime: MovingStat[float32]
     shorties: MovingStat[float32]
-    unnovel: LPTab[Hash, PackedSet[int]]
-    cache: LPTab[Hash, seq[V]]
+    cache: GreadTable[Hash, seq[V]]
     cacheCounter: int
     indexes: PackedSet[int]
+    generations: Generation
+    fittest: Option[Program[T]]
+    unnovel: GreadTable[Hash, PackedSet[int]]
+
+proc nextGeneration*(evo: var Evolver): Generation =
+  ## inform the evolver of a new generation
+  inc evo.generations
+  result = Generation evo.generations
+
+proc generation*(evo: Evolver): Generation =
+  ## return the current generation
+  Generation evo.generations
 
 proc platform*[T, V](evo: Evolver[T, V]): T =
   ## recover the platform of an evolver
@@ -85,7 +96,7 @@ proc cacheSize*[T, V](evo: Evolver[T, V]; p: Program[T]): int =
       0
   assert result <= evo.dataset.len
 
-proc del*(evo: var Evolver; p: Program) =
+proc del*[T, V](evo: var Evolver[T, V]; p: Program[T]) =
   ## remove a program from the evolver; currently used to drop cache entries
   dec(evo.cacheCounter, evo.cacheSize(p))
   try:
@@ -128,7 +139,7 @@ proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
   evo.population = population
   if not evo.population.isNil:
     for p in evo.population.items():
-      if p.score.isNaN:
+      if not p.score.isValid:
         # FIXME: optimization point
         let s =
           if evo.isEqualWeight:
@@ -154,11 +165,11 @@ proc grammar*[T, V](evo: Evolver[T, V]): Grammar =
 
 proc resetCache*(evo: var Evolver) =
   ## clear the cache of previously-evaluated symbol sets, per each program
-  init(evo.cache, initialSize = evo.tableau.maxPopulation)
-  init(evo.unnovel, initialSize = evo.tableau.maxPopulation)
+  initGreadTable(evo.cache, evo.tableau.maxPopulation)
+  initGreadTable(evo.unnovel, evo.tableau.maxPopulation)
   clear evo.indexes
-  for n in evo.dataset.low .. evo.dataset.high:
-    evo.indexes.incl n
+  for index in evo.dataset.low .. evo.dataset.high:
+    evo.indexes.incl index
 
 proc `dataset=`*[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]]) =
   ## assign a series of possible inputs
@@ -181,11 +192,6 @@ proc tableau*(evo: Evolver): Tableau = evo.tableau
 
 template isEqualWeight*(evo: Evolver): bool = EqualWeight in evo.tableau
 
-proc fittest*[T, V](evo: Evolver[T, V]): Option[Program[T]] =
-  if not evo.population.isNil:
-    if not evo.population.fittest.isNil:
-      result = some evo.population.fittest
-
 proc randomOperator*[T, V](evo: var Evolver[T, V]): Operator[T, V] =
   if evo.operators.len == 0:
     raise ValueError.newException "evolver needs operators assigned"
@@ -204,13 +210,19 @@ iterator sampleSets(evo: var Evolver; a, b: Program): PackedSet[int] =
   var x, y: PackedSet[int]
   x = evo.unnovel.mgetOrPut(a.hash, x)
   y = evo.unnovel.mgetOrPut(b.hash, y)
+
+  when evo.unnovel is LPTabz:
+    # refresh our values because LPTab be like that
+    x = evo.unnovel[a.hash]
+    y = evo.unnovel[b.hash]
+  when not defined(release):
+    {.warning: "doAssert".}
+    doAssert x == evo.unnovel[a.hash]
+    doAssert y == evo.unnovel[a.hash]
+
   # first, make the comparisons more similar;
   # this has the side-effect of running only the missing samples, first
   yield symmetricDifference(x, y)
-
-  # refresh our values because we trust no one
-  x = evo.unnovel[a.hash]
-  y = evo.unnovel[b.hash]
 
   # next, make them both more precise with novel samples
   yield evo.indexes - (x + y)
@@ -224,7 +236,7 @@ proc getScoreFromCache[T, V](evo: var Evolver[T, V]; p: Program;
   except KeyError:
     result = nil
 
-proc initCache[T, V](evo: var Evolver[T, V]; p: Program; index: int; score: V) =
+template initCache[T, V](evo: var Evolver[T, V]; p: Program[T]; index: int; score: V) =
   var s = newSeq[V](evo.dataset.len)
   s[index] = score
   evo.cache[p.hash] = s
@@ -233,25 +245,20 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
                            score: V) =
   ## store score using dataset[index] (symbol set)
   demandValid score
-  var ps = evo.unnovel.mgetOrPut(p.hash, initPackedSet[int]())
+  if p.hash notin evo.unnovel:
+    evo.unnovel[p.hash] = initPackedSet[int]()
   if not evo.unnovel[p.hash].containsOrIncl(index):
     inc evo.cacheCounter
     try:
-      # omit it for now
-      when false:
-        var s: seq[V]
-        s = evo.cache[p.hash]
-        if index > s.high:
-          # need to check the performance on these
-          #setLen(s, max(s.len, index + 1))
-          raise Defect.newException "disallowed at the moment"
-        s[index] = score
       evo.cache[p.hash][index] = score
     except KeyError:
       initCache(evo, p, index, score)
     assert evo.cache[p.hash].len <= evo.dataset.len
     assert not evo.strength.isNil, "strength() unassigned to evolver"
     p.push evo.strength(score)
+    when not defined(release):
+      {.warning: "doassert".}
+      doAssert index in evo.unnovel[p.hash]
 
 proc scoreFromCache*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   ## compute a new score for the program using prior evaluations
@@ -303,7 +310,8 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
       result = some v[]
     else:
       let began = getTime()
-      result = evo.fitone(evo.platform, evo.dataset[index], p)
+      memoryAudit "perform fitone itself":
+        result = evo.fitone(evo.platform, evo.dataset[index], p)
       demandValid result
       p.runtime.push (getTime() - began).inMilliseconds.float
       if result.isSome:
@@ -338,12 +346,21 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
   elif p.zombie:
     result = none V
   else:
+    {.warning: "fix".}
+    let complete = false and card(indices[]) == len(evo.dataset)
+    let cache: ptr seq[V] =
+      if complete:
+        addr evo.cache[p.hash]
+      else:
+        nil
     let e = addr evo
     # the iterator evaluates each symbol set in the dataset
     iterator iter(): (ptr SymbolSet[T, V], ptr V) =
       for index in indices[].items:
         var v: ptr V
-        if e[].hasSampled(p, index):
+        if complete:
+          v = addr cache[][index]
+        elif e[].hasSampled(p, index):
           v = e[].getScoreFromCache(p, index)
         else:
           let s = e[].score(index, p)
@@ -372,10 +389,6 @@ proc scoreRandomly*[T, V](evo: var Evolver[T, V];
     raise ValueError.newException "evolver lacks a dataset"
   else:
     evo.score(evo.rng.rand evo.dataset.high, p)
-
-proc `strength=`*[T, V](evo: var Evolver[T, V]; strength: Strength[V]) =
-  ## assign a new strength function to the evolver
-  evo.strength = strength
 
 proc `fitone=`*[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V]) =
   ## assign a new fitness function to the evolver
@@ -457,6 +470,9 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
   var x, y: PackedSet[int]
   x = evo.unnovel.mgetOrPut(a.hash, x)
   y = evo.unnovel.mgetOrPut(b.hash, y)
+  when not defined(release):
+    doAssert x == evo.unnovel[a.hash]
+    doAssert y == evo.unnovel[b.hash]
 
   var sampled = x * y
 
@@ -525,27 +541,23 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
   result = cmp(evo.strength(get a1), evo.strength(get b1))
   debug "returning cmp; ", a1.get, " vs ", b1.get, " = ", result
 
-proc remover[T, V](evo: var Evolver[T, V];
-                   competitors: var seq[Competitor[T]]; i: int) =
-  ## used to update the population with a score change prior to removal
-  let c = competitors[i]
-  # FIXME: optimization point
-  let s =
-    # XXX: the problem here is that the score may well be -0.0 if the (few?)
-    #      datapoints yield an impressive score
-    if evo.isEqualWeight:
-      evo.scoreFromCache(c.program)
-    else:
-      evo.score(c.program)
-  let score =
-    if s.isSome:
-      some evo.strength(get s)
-    else:
-      none float
-  #debug "rm ", i, " t-score ", c.score, " was ", c.program.score, " now ", score
-  # update the population's metrics, etc.
-  evo.population.scoreChanged(c.program, score, c.index)
-  del(competitors, i)
+when defined(greadReportFittestChanges):
+  import std/strformat
+  proc maybeReportFittest(evo: Evolver; p: Program) =
+    if not p.isNil:
+      echo fmt"fittest in {evo.core} score {p.score} from {p.core}/{p.generation} hash {p.hash}"
+else:
+  template maybeReportFittest(evo: Evolver; p: Program) = discard
+
+proc maybeResetFittest*(evo: var Evolver; program: Program) =
+  ## maybe reset the fittest program metric
+  if program.score.isValid:
+    if evo.cacheSize(program) == evo.dataset.len:
+      if evo.fittest.isNone or get(evo.fittest) < program:
+        if evo.fittest.isSome:
+          maybeReportFittest(evo, get(evo.fittest))
+        evo.fittest = some program
+        maybeReportFittest(evo, program)
 
 proc discharge(evo: var Evolver; c: Competitor) =
   ## a modern remover
@@ -557,8 +569,6 @@ proc discharge(evo: var Evolver; c: Competitor) =
       none float
   # update the population's metrics, etc.
   scoreChanged(evo.population, c.program, score, c.index)
-  if evo.cacheSize(c.program) == evo.dataset.len:
-    maybeResetFittest(evo.population, c.program)
 
 proc tournament*[T, V](evo: var Evolver[T, V]; size: int;
                        order = Descending): Competitor[T] =
@@ -634,3 +644,17 @@ iterator trim*[T, V](evo: var Evolver[T, V]): Program[T] =
     del(evo, loser.program)
     del(evo.population, loser.index)
     yield loser.program
+
+proc `strength=`*[T, V](evo: var Evolver[T, V]; strong: Strength[V]) =
+  ## assign a new strength function to the evolver
+  evo.strength = strong
+
+proc strength*[T, V](evo: Evolver[T, V]): Strength[V] =
+  ## the currently configured strength function for a single result value
+  if evo.strength.isNil:
+    raise ValueError.newException "evolver needs strength assigned"
+  else:
+    evo.strength
+
+proc fittest*[T, V](evo: Evolver[T, V]): Option[Program[T]] =
+  result = evo.fittest

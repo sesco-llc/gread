@@ -10,6 +10,9 @@ type
 
   Genes = uint8 or uint16 or uint32 or uint64  ## optional types of genes
 
+const
+  EmptyGenome* = Genome""
+
 proc `$`*(pc: PC): string {.borrow.}
 proc `==`*(a, b: PC): bool {.borrow.}
 proc inc(pc: var PC; n: int32) {.borrow.}

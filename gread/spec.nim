@@ -1,8 +1,38 @@
-import std/options
 import std/math
+import std/options
 import std/strutils
+import std/tables
 
 import pkg/cps
+
+when compileOption"threads":
+  when not defined(useMalloc):
+    {.warning: "--define:useMalloc or suffer slow allocator performance".}
+
+when defined(greadSlowTable):
+  import std/tables
+  export tables
+  type GreadTable*[K, V] = Table[K, V]
+  func initGreadTable*[K, V](table: var GreadTable[K, V]; initialSize = defaultInitialSize) =
+    table = initTable[K, V](initialSize=initialSize)
+else:
+  import pkg/adix/lptabz
+  export lptabz
+  type GreadTable*[K, V] = LPTabz[K, V, void, 0]
+  proc initGreadTable*[K, V](table: var GreadTable[K, V]; initialSize = defaultInitialSize) =
+    table.init(initialSize=initialSize)
+    table.clear()
+
+when defined(greadLargeCache):
+  type GreadCache*[K, V] = GreadTable[K, V]
+  proc initGreadCache*(cache: var GreadCache; initialSize = defaultInitialSize) =
+    initGreadTable(cache, initialSize=initialSize)
+else:
+  import pkg/lrucache
+  export lrucache
+  type GreadCache*[K, V] = LruCache[K, V]
+  func initGreadCache*[K, V](cache: var GreadCache[K, V]; initialSize = defaultInitialSize) =
+    cache = newLruCache[K, V](initialSize)
 
 type
   Score* = distinct float
@@ -19,7 +49,9 @@ proc `-`*(a, b: Score): Score {.borrow.}
 proc `*`*(a, b: Score): Score {.borrow.}
 proc `/`*(a, b: Score): Score {.borrow.}
 proc `$`*(s: Score): string =
-  float(s).formatFloat(format = ffDecimal, precision = 4)
+  "s" & float(s).formatFloat(format = ffDecimal, precision = 4)
+proc ff*(s: float): string =
+  float(s).formatFloat(format = ffDecimal, precision = 6)
 
 proc percent*(f: float): string =
   (f * 100.0).formatFloat(format = ffDecimal, precision = 2) & "%"
@@ -34,7 +66,9 @@ proc isValid*(s: Score): bool =
   else:
     true
 
-proc `$`*(g: Generation): string {.borrow.}
+proc `$`*(g: Generation): string = "g" & $int(g)
+proc `<`*(a, b: Generation): bool {.borrow.}
+proc `==`*(a, b: Generation): bool {.borrow.}
 proc inc*(g: var Generation; n: int = 1) {.borrow.}
 proc `mod`*(a: Generation; b: int): int = a.int.mod b
 converter toInt*(g: Generation): int = g.int
@@ -106,3 +140,29 @@ else:
     mixin isValid
     if s.isSome:
       demandValid(get s)
+
+when defined(greadMemoryAudit):
+  when not defined(useMalloc):
+    {.error: "the memory audit requires --define:useMalloc".}
+  else:
+    var auditor*: GreadTable[string, int]
+    initGreadTable auditor
+    template memoryAudit*(stage: string; logic: untyped): untyped =
+      var mem = -getOccupiedMem()
+      try:
+        logic
+      finally:
+        let total = getOccupiedMem()
+        mem += total
+        when GreadTable is LPTabz:
+          mgetOrDefault(auditor, stage, 0).inc(mem)
+        else:
+          auditor[stage] = getOrDefault(auditor, stage, 0) + mem
+        if mem != 0:
+          when compileOption"threads":
+            echo $getThreadId(), " ", total, " ", stage, " memory cost ", mem, " now ", auditor[stage]
+          else:
+            echo " (no thread)", " ", total, " ", stage, " memory cost ", mem, " now ", auditor[stage]
+          echo $auditor
+else:
+  template memoryAudit*(stage: string; logic: untyped): untyped = logic

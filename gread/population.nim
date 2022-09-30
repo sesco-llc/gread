@@ -1,17 +1,19 @@
-import std/sequtils
 import std/deques
-import std/heapqueue
-import std/options
-import std/random
 import std/hashes
-import std/packedsets
+import std/heapqueue
 import std/math
+import std/options
+import std/packedsets
+import std/random
+import std/sequtils
 
 import pkg/adix/stat except variance
 
 import gread/spec
 import gread/programs
 import gread/maths
+
+{.experimental: "strictFuncs".}
 
 const
   defaultParsimony = 0.01
@@ -71,7 +73,6 @@ assert HeapQueue[Program[int]] is PopLike[int]
 assert seq[Program[int]] is PopLike[int]
 assert array[5, Program[int]] is PopLike[int]
 
-proc parsimony*(pop: Population): float
 proc parsimony*(pop: Population; ken: PopMetrics): float
 
 proc toggleParsimony*(pop: Population; value = on) =
@@ -150,13 +151,6 @@ func len*[T](p: Population[T]): int =
   ## the number of programs in the population
   p.programs.len
 
-func best*(pop: Population): Score {.deprecated.} =
-  ## the score of the fittest program in the population, or NaN
-  if not pop.fittest.isNil:
-    if pop.fittest.score.isValid:
-      return pop.fittest.score
-  return NaN.Score
-
 func fittest*[T](pop: Population[T]): Program[T] {.deprecated.} =
   ## the fittest member of the population
   withInitialized pop:
@@ -201,12 +195,16 @@ proc score*(ken: PopMetrics; p: Program): Score =
   else:
     Score NaN
 
-template maybeReportFittest(pop: Population; p: Program) =
-  when defined(greadReportFittestChanges):
+when defined(greadReportFittestChanges):
+  import std/strformat
+  proc maybeReportFittest(pop: Population; p: Program) =
     if not p.isNil:
-      echo fmt"fittest in {pop.ken.core} score {p.score} from {p.core}/{p.generation}"
+      echo fmt"fittest in {pop.ken.core} score {p.score} from {p.core}/{p.generation} hash {p.hash}"
+      #echo fmt"fittest in {pop.ken.core} {p}"
+else:
+  template maybeReportFittest(pop: Population; p: Program) = discard
 
-proc maybeResetFittest*[T](pop: Population[T]; p: Program[T]) =
+proc maybeResetFittest[T](pop: Population[T]; p: Program[T]) =
   ## reset the fittest pointer if the argument is actually superior
   withInitialized pop:
     if p.isValid:
@@ -215,7 +213,9 @@ proc maybeResetFittest*[T](pop: Population[T]; p: Program[T]) =
           if pop.fittest.hash == p.hash:
             break
           # the fittest is not a function of parsimony
-          if p <= pop.fittest:
+          if p < pop.fittest:
+            break
+          if p == pop.fittest:
             break
         maybeReportFittest(pop, pop.fittest)
         pop.fittest = p
@@ -251,8 +251,6 @@ proc add*[T](pop: Population[T]; p: Program[T]) =
           false
       if not optimizeAway():
         addImpl(pop, p)
-        when not defined(greadFast):
-          maybeResetFittest(pop, p)
 
 iterator items*[T](pop: Population[T]): Program[T] =
   withInitialized pop:
@@ -320,29 +318,10 @@ proc parsimony*(pop: Population; ken: PopMetrics): float =
         lengths.add p.len.float
     result = covariance(lengths, scores) / variance(lengths)
 
-proc parsimony*(pop: Population): float {.deprecated.} =
-  ## compute parsimony for members of the population with valid scores
-  withInitialized pop:
-    result = parsimony(pop, pop.ken)
-
 proc nextGeneration*(ken: var PopMetrics): Generation =
   ## inform the population that we're entering a new generation
   inc ken.generation
   result = ken.generation
-
-proc nextGeneration*(pop: Population): Generation {.deprecated.} =
-  ## inform the population that we're entering a new generation
-  withInitialized pop:
-    result = nextGeneration pop.ken
-
-func generations*(ken: PopMetrics): Generation =
-  ## return the population's Generation
-  ken.generation
-
-func generations*(pop: Population): Generation {.deprecated.} =
-  ## return the population's Generation
-  withInitialized pop:
-    result = generations pop.ken
 
 proc scoreChanged*(pop: Population; p: Program; s: Option[float]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
@@ -361,16 +340,10 @@ proc scoreChanged*(pop: Population; p: Program; s: Option[float]; index: int) =
       pop.ken.validity.push 1.0
       pop.ken.scores.push p.score
       p.zombie = false  # NOTE: trigger a defect if necessary
-      when not defined(greadFast):
-        maybeResetFittest(pop, p)
     else:
       p.score = NaN
       p.zombie = true
       pop.ken.validity.push 0.0
-
-proc core*(pop: Population): CoreSpec {.deprecated.} =
-  withInitialized pop:
-    pop.ken.core
 
 proc resetMetrics*(pop: Population) =
   ## reset validity, score, and parsimony metrics in the population; O(n)
@@ -390,24 +363,29 @@ proc resetMetrics*(pop: Population) =
       pop.ken.caches.push p.cacheSize.float
     resetParsimony pop
 
-proc metrics*(pop: Population): PopMetrics =
+func paintFittest*(metrics: var PopMetrics; fittest: Program) =
+  {.warning: "doassert".}
+  doAssert not fittest.isNil
+  metrics.bestSize = fittest.len
+  metrics.bestScore = fittest.score
+  metrics.bestGen = fittest.generation
+  if fittest.core == metrics.core:
+    let current = metrics.generation.int.float
+    metrics.staleness = fittest.generation.float / current
+    metrics.usurper = none CoreId
+  else:
+    metrics.staleness = NaN
+    metrics.usurper = fittest.core
+
+func metrics*(pop: Population): PopMetrics =
   ## returns a copy of the population's metrics
   resetMetrics pop
   result = pop.ken
   result.size = pop.len
   if not pop.fittest.isNil:
-    result.bestSize = pop.fittest.len
-    result.bestScore = pop.fittest.score
-    result.bestGen = pop.fittest.generation
-    if pop.fittest.core == pop.ken.core:
-      let current = pop.ken.generation.int.float
-      result.staleness = pop.fittest.generation.float / current
-      result.usurper = none int
-    else:
-      result.staleness = NaN
-      result.usurper = pop.fittest.core
+    paintFittest(result, pop.fittest)
 
-proc clone*[T](population: Population[T]; core = none CoreId): Population[T] =
+func clone*[T](population: Population[T]; core = none CoreId): Population[T] =
   ## create a copy of the population
   result = newPopulation[T](size = population.programs.len, core = core)
   for program in population.items:

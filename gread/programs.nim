@@ -1,5 +1,6 @@
-import std/options
 import std/hashes
+import std/math
+import std/options
 
 import pkg/adix/stat
 import pkg/adix/lptabz
@@ -36,7 +37,7 @@ type
     ast*: Ast[T]              ## the ast of the program itself
     scores*: MovingStat[float64] ## statistics around valid scores
     when programCache:
-      cache: LPTab[Hash, Option[Score]] ## cache of score given symbol set hash
+      cache: GreadCache[Hash, Option[Score]] ## cache of score given symbol set hash
   Program*[T] = ref ProgramObj[T]
 
 proc push*(p: Program; s: Score) =
@@ -87,7 +88,7 @@ proc `<`*[T](a, b: Program[T]): bool =
   a.score < b.score
 
 proc `==`*[T](a, b: Program[T]): bool =
-  ## two programs are equal only if they express identical code
+  ## some objective measurement of two programs; score
   # this silliness works around a nim bug with our
   # `==`() leaking into system/arc's reference counting
   if a.isNil != b.isNil:
@@ -95,22 +96,21 @@ proc `==`*[T](a, b: Program[T]): bool =
   elif a.isNil:
     true
   else:
-    a.hash == b.hash
+    almostEqual(a.score, b.score)
 
 proc `<=`*[T](a, b: Program[T]): bool =
-  ## some objective measurement of two programs; score
-  a.score <= b.score
-
-proc newProgram*[T](a: Ast[T]): Program[T] =
-  ## instantiate a new program from the given ast
-  result = Program[T](ast: a, hash: hash a, score: NaN)
-  when programCache:
-    init(result.cache, initialSize = 2)
+  ## a < b or a == b
+  a < b or a == b
 
 proc newProgram*[T](a: Ast[T]; geno: Genome): Program[T] =
   ## instantiate a new program from the given ast and genome
-  result = newProgram(a)
-  result.genome = geno
+  result = Program[T](ast: a, hash: hash a, score: NaN, genome: geno)
+  when programCache:
+    init(result.cache, initialSize = 2)
+
+proc newProgram*[T](a: Ast[T]): Program[T] =
+  ## instantiate a new program from the given ast
+  result = newProgram(a, EmptyGenome)
 
 proc clone*[T](p: Program[T]): Program[T] =
   ## it's not a clone if it's different
@@ -151,7 +151,7 @@ proc cacheSize*(p: Program): int {.deprecated.} =
     result = p.cache.len
 
 func hash*(p: Program): Hash {.inline.} =
-  ## hash() symbol for LPTab purposes
+  ## hash() symbol for LPTabz purposes
   p.hash
 
 when false:

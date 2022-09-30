@@ -10,12 +10,14 @@ import std/strutils
 import std/times
 
 import pkg/lunacy except Integer
+import pkg/lunacy/json as luajs
 import pkg/adix/lptabz
 import pkg/adix/stat
 import pkg/balls
 import pkg/cps
 import pkg/frosty/streams as brrr
 import pkg/htsparse/fennel/fennel_core_only as parsefen
+import pkg/lrucache
 
 import gread/spec
 import gread/ast
@@ -31,9 +33,11 @@ import gread/decompile
 export stat
 export lptabz
 export lunacy
+export lrucache
 
 const
   greadSemanticErrorsAreFatal {.booldefine.} = false
+  greadLuaCacheSize {.intdefine.} = 2048
 
 type
   Fennel* = ref object
@@ -43,7 +47,7 @@ type
     nans*: FennelStat
     errors*: FennelStat
     runtime*: FennelStat
-    aslua: LPTab[Hash, string]
+    aslua: GreadCache[Hash, string]
 
   FennelStat* = MovingStat[float32]
 
@@ -55,11 +59,11 @@ type
 
   Locals* = SymbolSet[Fennel, LuaValue]
 
-proc isValid*(score: LuaValue): bool =
-  score.kind != TInvalid
+func isValid*(score: LuaValue): bool {.inline.} =
+  unlikely score.kind != TInvalid
 
-proc strength*(score: LuaValue): float =
-  if score.kind == TNumber:
+func strength*(score: LuaValue): float =
+  if likely score.kind == TNumber:
     score.toFloat
   else:
     1.0
@@ -80,6 +84,9 @@ proc deserialize*[S](input: var S; output: var LuaValue) =
   new js
   deserialize(input, js[])
   output = js.toLuaValue
+
+proc memoryGraphSize[T](thing: T): int =
+  freeze(thing).len
 
 proc asTable*[T](locals: SymbolSet[Fennel, LuaValue]): LPTab[string, T] =
   ## given locals, select values of the given type into a table
@@ -150,7 +157,7 @@ const
 proc newFennel*(core = none int): Fennel =
   ## reset a Fennel instance and prepare it for running programs
   result = Fennel(vm: newState(), core: core)
-  init result.aslua
+  initGreadCache(result.aslua, initialSize=greadLuaCacheSize)
   clearStats result
 
   # setup the lua vm with the fennel compiler and any shims
@@ -195,7 +202,7 @@ proc pushGlobal*(vm: PState; name: string; value: Terminal) =
     raise ValueError.newException "unsupported term"
   vm.setGlobal name
 
-proc hash(p: FProg; locals: Locals): Hash =
+proc hash(p: FProg; locals: Locals): Hash {.deprecated.} =
   ## produce a unique value according to program and training input
   var h: Hash = 0
   h = h !& p.hash
@@ -235,16 +242,16 @@ proc render[T](a: Ast[T]; n: AstNode[T]; i = 0): string =
     else:
       $n
   elif n.isSymbol:
-    a.strings[LitId n.operand]
+    a.stringOp(n)
   elif n.isStringLit:
-    escapeJson(a.strings[LitId n.operand], result)
+    escapeJson(a.stringOp(n), result)
     result
   elif fnk(n.kind) == fennelBoolean:
-    $(bool a.numbers[LitId n.operand])
+    $(bool a.numberOp(n))
   elif fnk(n.kind) in fennelTokenKinds:
     strRepr fnk(n.kind)
   elif n.isNumberLit:
-    $cast[BiggestFloat](a.numbers[LitId n.operand])
+    $cast[BiggestFloat](a.numberOp(n))
   else:
     raise Defect.newException:
       "unimpl node kind: $# ($#)" % [ strRepr(fnk n.kind), $n.kind ]
@@ -296,7 +303,6 @@ proc compileFennel(vm: PState; source: string): string =
     vm.checkLua vm.doString fennel.cstring:
       vm.getGlobal "result"
       result = vm.popStack.value.strung
-      #echo result
   except LuaError as e:
     when greadSemanticErrorsAreFatal:
       echo e.name, ": ", e.msg
@@ -312,27 +318,29 @@ proc toLua(fnl: Fennel; p: FProg): string =
     result = fnl.aslua[p.hash]
   else:
     result = compileFennel(fnl.vm, $p)
-    fnl.aslua[p.hash] = result
+    memoryAudit "lua cache shenanigans":
+      fnl.aslua[p.hash] = result
 
 proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
   ## compile and evaluate the program as fennel; the result of
   ## the expression is assigned to the variable `result`.
-  for point in locals.items:
-    discard vm.push point.value
-    vm.setGlobal point.name.cstring
-  try:
-    vm.checkLua loadString(vm, s.cstring):
-      vm.checkLua pcall(vm, 0, MultRet, 0):
-        result = popStack vm
-  except LuaError as e:
-    when greadSemanticErrorsAreFatal:
+  memoryAudit "evaluateLua all-in":
+    for point in locals.items:
+      discard vm.push point.value
+      vm.setGlobal point.name.cstring
+    try:
+      vm.checkLua loadString(vm, s.cstring):
+        vm.checkLua pcall(vm, 0, MultRet, 0):
+          result = popStack vm
+    except LuaError as e:
+      when greadSemanticErrorsAreFatal:
+        echo e.name, ": ", e.msg
+        writeStackTrace()
+        raise
+    except Exception as e:
       echo e.name, ": ", e.msg
       writeStackTrace()
       raise
-  except Exception as e:
-    echo e.name, ": ", e.msg
-    writeStackTrace()
-    raise
 
 proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   ## compile and evaluate the program as fennel; the result of
@@ -420,8 +428,8 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
       if s.isValid and s.kind == TNumber:
         results.add s.toFloat
     if results.len > 0:
-      checkpoint "  stddev:", Score stddev(results)
-      checkpoint "      ss: ", Score ss(results)
+      checkpoint "  stddev:", ff stddev(results)
+      checkpoint "      ss: ", ff ss(results)
     fnl.dumpScore p
 
 proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, LuaValue)];
@@ -462,14 +470,20 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
   var fnl = evo.platform
   var pop = evo.population
   template genTime: FennelStat = evo.generationTime
-  let m = pop.metrics
+  var m = pop.metrics
   let threaded = when compileOption"threads": $getThreadId() else: "-"
   if evo.fittest.isSome:
+    paintFittest(m, get(evo.fittest))
     fnl.dumpScore get(evo.fittest)
+  elif evo.generation > 1000:
+    raise
 
   var dumb = m.lengths.variance.int  # work around nim bug
   # program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
   let age = int(m.generation.int.float - m.ages.mean)
+  m.generation = evo.generation
+  let totalTime = getTime() - evoTime
+  let totalMs = totalTime.inMilliseconds.float
   when false:
     if m.generation.int == 0:
       raise ValueError.newException "no generations yet"
@@ -487,14 +501,14 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
           validity rate in pop: {m.validity.mean.percent} <= 100%
             average age in pop: {age}
             age vs generations: {percent(age.float / m.generation.int.float)} >= 0%
-           average valid score: {Score m.scores.mean}
+           average valid score: {ff m.scores.mean}
           greatest of all time: {m.bestScore}
            evolver cache count: {evo.cacheSize}
            evolver cache usage: {evo.cacheUsage.percent} >= 0%
           average program size: {m.lengths.mean.int}
          program size variance: {dumb}
           size of best program: {m.bestSize}
-         parsimony coefficient: {Score m.parsimony}
+         parsimony coefficient: {ff m.parsimony}
             insufficiency rate: {fnl.nans.mean.percent} >= 0%
            semantic error rate: {fnl.errors.mean.percent} >= 0%
              foreign influence: {m.usurper}
@@ -503,10 +517,11 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
           mapping failure rate: {evo.shortGenome.mean.percent}
                best generation: {m.bestGen}
              total generations: {m.generation} / {evo.tableau.maxGenerations}
-        vm runs per generation: {Score(fnl.runs.float / m.generation.float)}
+        vm runs per generation: {ff(fnl.runs.float / m.generation.float)}
              invention recency: {m.staleness.percent} <= 100%
-               generation time: {Score genTime.mean} ms
-                evolution time: {(getTime() - evoTime).inSeconds} sec
+               generation time: {ff genTime.mean} ms
+        generations per second: {ff(1000.0 * m.generation.float / totalMs)}
+                evolution time: {ff(totalMs / 1000.0)} sec
   """
   clearStats fnl
 
@@ -526,18 +541,18 @@ proc terminalNode*[T: Fennel](a: var Ast[T]; term: Terminal): AstNode[T] =
   of None:
     AstNode[T](kind: fennelNil)
   of Symbol:
-    AstNode[T](kind: fennelSymbol, operand: a.strings.getOrIncl term.name)
+    AstNode[T](kind: fennelSymbol, operand: a.learnString term.name)
   of String:
-    AstNode[T](kind: fennelString, operand: a.strings.getOrIncl term.strVal)
+    AstNode[T](kind: fennelString, operand: a.learnString term.strVal)
   of Float:
     AstNode[T](kind: fennelNumber,
-               operand: a.numbers.getOrIncl cast[BiggestInt](term.floatVal))
+               operand: a.learnNumber term.floatVal)
   of Integer:
     AstNode[T](kind: fennelNumber,  # transcode it to a float...
-               operand: a.numbers.getOrIncl cast[BiggestInt](float term.intVal))
+               operand: a.learnNumber term.intVal.float)
   of Boolean:
     AstNode[T](kind: fennelBoolean,
-               operand: a.numbers.getOrIncl cast[BiggestInt](term.boolVal))
+               operand: a.learnNumber term.boolVal)
 
 proc composeCall*[T: Fennel](fun: Function[T]): Ast[T] =
   ## create a call of the given function
@@ -620,28 +635,40 @@ when compileOption"threads":
     var evoTime = getTime()
     # fittest -> finest due to nim bug
     var finest: Option[Program[Fennel]]
-    while evo.population.generations.int <= evo.tableau.maxGenerations:
+    while evo.generation <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
       search(args, evo.population)   # fresh meat from other threads
 
-      let stale = randomMember(evo.population, evo.rng)
-      share(args, stale.program)
+      memoryAudit "sharing a random member":
+        let stale = randomMember(evo.population, evo.rng)
+        share(args, stale.program)
 
       # share any new winner
       if evo.fittest.isSome:
-        if finest.isNone or finest != evo.fittest:
+        if finest.isNone or get(finest) != get(evo.fittest):
           finest = evo.fittest
           # NOTE: clone the finest so that we don't have to
           #       worry about the reference counter across threads
           forceShare(args, clone get(finest))
 
-      for discovery in evo.generation():
-        discard
+      memoryAudit "generational iteration":
+        for discovery in evo.generation():
+          discard
 
       if args.stats > 0:
-        if evo.population.generations.int mod args.stats == 0:
+        if evo.generation mod args.stats == 0:
           dumpStats(evo, evoTime)
+          #echo "memory consumption for evolver: ", memoryGraphSize(evo)
+          if false and evo.generation > 10_000:
+            echo "memory consumption for aslua: ", memoryGraphSize(evo.platform.aslua)
+            when defined(greadLargeCache):
+              when defined(greadSlowTable):
+                echo fmt"aslua (table) capacity: {rightSize(len evo.platform.aslua)}"
+              else:
+                echo fmt"aslua (table) capacity: {getCap evo.platform.aslua}"
+            else:
+              echo fmt"aslua (lru) capacity: {capacity evo.platform.aslua}"
           clearStats evo
 
     while evo.population.len > 0:
@@ -688,7 +715,7 @@ when compileOption"threads":
       let score = evo.score(transit)
       if score.isSome:
         # this is a fitmany result; ie. a single float
-        transit.score = evo.strength(get score)
+        transit.score = strength(evo)(get score)
       else:
         transit.score = NaN
       for index in 0..evo.dataset.high:
@@ -728,7 +755,7 @@ when compileOption"threads":
 
       let s = evo.score(transit)
       if s.isSome:
-        transit.score = evo.strength(get s)
+        transit.score = strength(evo)(get s)
       else:
         transit.score = NaN
       transit.source = getThreadId()
@@ -828,7 +855,7 @@ proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Gramm
   #let codeAsCharacters = toSeq(freeze program.ast)
   let codeAsCharacters = source.toSeq
 
-  proc strength(score: LuaValue): float =
+  proc strong(score: LuaValue): float =
     -jaccard(toSeq $score, codeAsCharacters)
 
   proc fitter(d: T; data: SymbolSet[T, G]; p: Program[T]): Option[G] =
@@ -852,10 +879,19 @@ proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Gramm
     geMutation[T, G]:      4.0,
     randomCrossover[T, G]: 1.0,
   }
-  evo.strength = strength
+  evo.strength = strong
   evo.grammar = gram
   evo.fitone = fitter
   evo.fitmany = fitthem
   evo.dataset = @[initSymbolSet[T, G]([("source", source.toLuaValue)])]
   evo.population = evo.randomPop()
   result = evo
+
+proc del*[T: Fennel, V: LuaValue](evo: var Evolver[T, V]; p: Program[T]) =
+  ## remove a program from the evolver; currently used to drop cache entries
+  type Nope = distinct void
+  del(cast[Evolver[Nope, V]](evo), p)
+  try:
+    del(evo.platform.aslua, p.hash)
+  except KeyError:
+    discard

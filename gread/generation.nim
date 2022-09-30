@@ -22,7 +22,7 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
   ## try to create novel program(s) from better existing programs
 
   # inform the pop that we're in a new generation
-  let gen = nextGeneration evo.population
+  let gen = nextGeneration evo
   let clock = getTime()
   var discoveries = 0
 
@@ -30,7 +30,7 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
     while discoveries == 0:
       let operator = evo.randomOperator()
       for p in operator(evo).items:
-        p.generation = gen
+        p.generation = Generation gen
         p.core = evo.core
         # FIXME: optimization point
         let s =
@@ -41,7 +41,8 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
             # sample all datapoints in order to develop useful score
             evo.score(p)
         if s.isSome:
-          p.score = evo.strength(get s)
+          p.score = strength(evo)(get s)
+          evo.maybeResetFittest(p)
         else:
           p.zombie = true
 
