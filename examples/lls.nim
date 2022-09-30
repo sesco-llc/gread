@@ -1,5 +1,3 @@
-when not defined(greadFast):
-  {.error: "needs --define:greadFast".}
 when not compileOption"threads":
   {.error: "needs --threads:on".}
 
@@ -21,6 +19,7 @@ import pkg/loony
 import pkg/adix/lptabz
 
 const
+  greadSeed {.intdefine.} = 0
   goodEnough = -0.10     # termination condition
   statFrequency = 5000  # report after this many generations
   llsGrammar = """
@@ -84,13 +83,14 @@ when isMainModule:
 
   # define the parameters for the evolvers
   var tab = defaultTableau
-  tab.flags = {UseParsimony, EqualWeight}
+  tab += {UseParsimony}
+  tab -= {RequireValid, EqualWeight}
   tab.seedProgramSize = 400
   tab.seedPopulation = 400
-  tab.maxPopulation = 400
+  tab.maxPopulation = tab.seedPopulation
   tab.tournamentSize = int(0.03 * tab.maxPopulation.float)
   tab.sharingRate = 0.15
-  tab.maxGenerations = 1_000_000
+  tab.maxGenerations = 50_000
 
   # the main loop monitors inventions
   proc main(work: Work; inputs, outputs: LoonyQueue[FProg]) =
@@ -109,35 +109,34 @@ when isMainModule:
     evo.population =
       newPopulation[Fennel](monitor.maxPopulation, core = evo.core)
 
-    var seen: HashSet[Hash]
+    var seen: PackedSet[Hash]
     let et = getTime()
-    #var seen: PackedSet[Hash]
     while true:
       let p = pop inputs
       if p.isNil:
         sleep 250
-      else:
-        if p.isValid and not p.zombie and not seen.containsOrIncl(p.hash):
+      elif p.isValid:
+        # sharing
+        push(outputs, p)
+
+        # auditing
+        if not seen.containsOrIncl(p.hash):
           # FIXME: this shouldn't be necessary
           let p = clone p
           p.score = strength(evo)(get evo.score(p))
-          while p.isValid:
-            evo.makeRoom()
-            if not p.isValid:
-              break
-            evo.population.add p
-            when defined(greadFast):
-              maybeResetFittest(evo.population, p)
-            let best = evo.fittest
-            if best.isSome and best.get.hash == p.hash:
-              dumpScore(fnl, p)
-              if p.score > goodEnough:
-                echo "winner, winner, chicken dinner: ", p.score
-                echo "last generation: ", p.generation, " secs: ", (getTime() - et).inSeconds
-                quit 0
-            break
-        if p.isValid:
-          push(outputs, p)
+          # it should not be invalid
+          if not p.isValid:
+            raise
+          evo.makeRoom()
+          evo.population.add p
+          evo.maybeResetFittest(p)
+          let best = evo.fittest
+          if best.isSome and best.get.hash == p.hash:
+            dumpScore(fnl, p)
+            if p.score > goodEnough:
+              echo "winner, winner, chicken dinner: ", p.score
+              echo "last generation: ", p.generation, " secs: ", (getTime() - et).inSeconds
+              quit 0
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()
@@ -146,9 +145,17 @@ when isMainModule:
            dataset = dataset, fitone = fitone, fitmany = fitmany,
            strength = fennel.strength, stats = statFrequency)
 
-  let cores = max(1, getNumTotalCores())
+  const cores =
+    when not defined(release) or greadSeed != 0:
+      1
+    else:
+      max(1, getNumTotalCores())
   for core in 1..cores:
-    args.rng = some initRand()
+    when not defined(release) or greadSeed != 0:
+      args.rng = some: initRand(greadSeed)
+      args.tableau.sharingRate = 0.0
+    else:
+      args.rng = some: initRand()
     clump.boot(whelp worker(args), args.core)
     clump.redress args
 
