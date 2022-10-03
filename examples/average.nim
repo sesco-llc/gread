@@ -152,7 +152,7 @@ suite "simulation":
   block:
     ## ran until we can average two numbers
     var seen: PackedSet[Hash]
-    while evo.generations < tab.maxGenerations:
+    while evo.generation < tab.maxGenerations:
       if best >= goodEnough:
         break
       for discovery in evo.generation():
@@ -166,9 +166,9 @@ suite "simulation":
               best = s
               dumpPerformance p
 
-      if evo.generations mod statFrequency == 0:
+      if evo.generation mod statFrequency == 0:
         dumpStats()
-    lastGeneration = evo.generations
+    lastGeneration = evo.generation
 
   block:
     ## showed the top-10 programs

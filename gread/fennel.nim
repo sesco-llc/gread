@@ -889,8 +889,7 @@ proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Gramm
 
 proc del*[T: Fennel, V: LuaValue](evo: var Evolver[T, V]; p: Program[T]) =
   ## remove a program from the evolver; currently used to drop cache entries
-  type Nope = distinct void
-  del(cast[Evolver[Nope, V]](evo), p)
+  evolver.del(evo, p)
   try:
     del(evo.platform.aslua, p.hash)
   except KeyError:
