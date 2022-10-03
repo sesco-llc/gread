@@ -57,7 +57,6 @@ let operators = {
 
 var
   fnl = newFennel()
-  pop: FPop
   evo: FEvo
   # we want to make a function that returns the median of `lo` and `hi` inputs
   inputData = @[
@@ -139,9 +138,6 @@ suite "simulation":
     evo.fitmany = fitmany
     evo.population = evo.randomPop()
 
-    # we use `pop` in some closures, so we'll assign it here
-    pop = evo.population
-
   block:
     ## dumped some statistics
     dumpStats()
@@ -173,7 +169,7 @@ suite "simulation":
   block:
     ## showed the top-10 programs
     const N = 10
-    var programs = toSeq pop.items
+    var programs = toSeq evo.population.items
     sort programs
     for i in 1..N:
       fnl.dumpScore programs[^(N-i+1)]
