@@ -80,15 +80,15 @@ proc `$`*[T](a: Ast[T]): string =
     result.add ": "
     result.add $n
     if n.isSymbol:
-      result.add " (" & a.learnString(n) & ")"
+      result.add " (" & a.stringOp(n) & ")"
     elif n.isStringLit:
       var s: string
-      escapeJson(a.learnString(n), s)
+      escapeJson(a.stringOp(n), s)
       result.add " (" & s & ")"
     elif n.isNumberLit:
-      result.add " (" & $a.learnNumber(n) & ")"
+      result.add " (" & $a.numberOp(n) & ")"
     elif not n.isParent and n.operand > 0:  # NOTE: assume token
-      result.add " (" & a.learnString(n) & ")"
+      result.add " (" & a.stringOp(n) & ")"
   result.add "]"
 
 template audit*[T](a: Ast[T]; logic: untyped) =
@@ -189,7 +189,7 @@ func numberOfChildren*[T](n: AstNode[T]): int =
 proc sizeOfSubtree*[T](a: Ast[T]; index = 0): int =
   ## the size, in nodes, of the tree at the given index
   mixin isParent
-  audit a: echo "sizeof subtree: ", a
+  audit a: echo "sizeof subtree: ", $a
   if not a[index].isParent:
     result = 1
   else:
