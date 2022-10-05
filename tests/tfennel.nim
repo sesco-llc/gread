@@ -183,7 +183,7 @@ suite "basic fennel stuff":
     block decompilation:
       while true:
         for discovery in evo.generation():
-          let generation = evo.population.generations.int
+          let generation = evo.generation
           if evo.fittest.isNone:
             fail"simply unfit"
           else:
