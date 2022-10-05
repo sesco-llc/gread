@@ -2,11 +2,14 @@ when not compileOption"threads":
   {.error: "needs --threads:on".}
 
 import std/hashes
+import std/logging
 import std/options
 import std/os
 import std/packedsets
 import std/random
 import std/sets
+import std/strformat
+import std/strutils
 import std/times
 
 import gread
@@ -77,7 +80,14 @@ proc fitmany(fnl: Fennel; iter: iterator(): (ptr Locals, ptr LuaValue);
       result = some s
 
 when isMainModule:
+  import pkg/cutelog
+
   import gread/cluster
+
+  const logLevel {.strdefine.} = "lvlInfo"
+  addHandler:
+    newCuteConsoleLogger(fmtStr = "$datetime: ",
+                         levelThreshold = parseEnum[logging.Level](logLevel))
 
   randomize()
 
@@ -134,8 +144,8 @@ when isMainModule:
           if best.isSome and best.get.hash == p.hash:
             dumpScore(fnl, p)
             if p.score > goodEnough:
-              echo "winner, winner, chicken dinner: ", p.score
-              echo "last generation: ", p.generation, " secs: ", (getTime() - et).inSeconds
+              notice fmt"winner, winner, chicken dinner: {p.score}"
+              notice fmt"last generation: {p.generation} secs: {(getTime() - et).inSeconds}"
               quit 0
 
   # each worker gets a Work object as input to its thread

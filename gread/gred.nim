@@ -1,5 +1,6 @@
-import std/strutils
+import std/logging
 import std/options
+import std/strutils
 
 import pkg/frosty/streams as brrr
 import pkg/redis
@@ -83,8 +84,8 @@ proc load*[T](r: var Redis; gram: Grammar; key: string): Option[Program[T]] =
     try:
       result = unpack[T](gram, s)
     except StoreError as e:
-      echo e.msg
-      echo "rm'ing bad redis value -- did your grammar change?"
+      warn e.msg
+      warn "rm'ing bad redis value -- did your grammar change?"
       discard r.srem(key, s)
       result = none Program[T]
 

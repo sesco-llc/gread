@@ -85,9 +85,6 @@ proc `$`*(cs: CoreSpec): string =
 
 const
   debugging* = defined(greadDebug) and not defined(release)
-template debug*(args: varargs[untyped]): untyped =
-  when debugging:
-    echo args
 
 when defined(greadProfile):
   import std/times
@@ -160,9 +157,9 @@ when defined(greadMemoryAudit):
           auditor[stage] = getOrDefault(auditor, stage, 0) + mem
         if mem != 0:
           when compileOption"threads":
-            echo $getThreadId(), " ", total, " ", stage, " memory cost ", mem, " now ", auditor[stage]
+            notice fmt"{getThreadId()} {total} {stage} memory cost {mem} now {auditor[stage]}"
           else:
-            echo " (no thread)", " ", total, " ", stage, " memory cost ", mem, " now ", auditor[stage]
-          echo $auditor
+            notice fmt" (no thread) {total} {stage} memory cost {mem} now {auditor[stage]}"
+          notice auditor
 else:
   template memoryAudit*(stage: string; logic: untyped): untyped = logic

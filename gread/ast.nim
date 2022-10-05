@@ -1,7 +1,9 @@
-import std/strformat
+import std/hashes
+import std/logging
 import std/monotimes
 import std/options
-import std/hashes
+import std/strformat
+
 from std/json import escapeJson
 
 import gread/spec
@@ -189,7 +191,7 @@ func numberOfChildren*[T](n: AstNode[T]): int =
 proc sizeOfSubtree*[T](a: Ast[T]; index = 0): int =
   ## the size, in nodes, of the tree at the given index
   mixin isParent
-  audit a: echo "sizeof subtree: ", $a
+  audit a: debug "sizeof subtree: ", $a
   if not a[index].isParent:
     result = 1
   else:
@@ -205,7 +207,7 @@ proc sizeOfSubtree*[T](a: Ast[T]; index = 0): int =
 
 proc countAsChildren*[T](a: openArray[AstNode[T]]): int =
   mixin isParent
-  #audit a: echo "count as children: ", a
+  #audit a: debug "count as children: ", a
   var index = 0
   while index < a.len:
     if not a[index].isParent:
@@ -265,13 +267,13 @@ when false:
     try:
       result = a.strings[s]
     except KeyError:
-      echo "missing string: ", s
+      error "missing string: ", s
       raise
   proc learnNumber*(a: var Ast; n: SomeOrdinal): LitId =
     try:
       result = a.numbers[cast[BiggestInt](n.int64)]
     except KeyError:
-      echo "missing number: ", n.int64
+      error "missing number: ", n.int64
       raise
 else:
   template learnString*(a: var Ast; s: string): LitId =
@@ -324,7 +326,7 @@ proc resetLiterals[T](a: var Ast[T]; index: int; b: Ast[T]) =
 
 proc delete*[T](a: Ast[T]; index: int): Ast[T] =
   ## remove the node, and any of its children, at the given index
-  audit a: echo "delete entry: ", a
+  audit a: debug "delete entry: ", a
   let size = a.sizeOfSubtree(index)
   if a.len - size < 0:
     # NOTE: unprintable ast due to mixin issues for generic `$`
@@ -350,16 +352,16 @@ proc delete*[T](a: Ast[T]; index: int): Ast[T] =
     result.numbers = a.numbers
 
   audit result:
-    echo ""
-    echo "delete against index ", index, " with size ", size
-    echo "input: ", a
-    echo "result: ", result
+    debug ""
+    debug "delete against index ", index, " with size ", size
+    debug "input: ", a
+    debug "result: ", result
 
 proc insert*[T](a: Ast[T]; index: int; values: Ast[T];
                 parent = -1): Ast[T] =
   ## insert the `values` ast before `index` in `a`
-  audit values: echo "insert ast: ", values
-  audit a: echo a
+  audit values: debug "insert ast: ", values
+  audit a: debug a
   if index > a.len:
     raise IndexDefect.newException:
       "bad index " & $index & " vs " & $a.len
@@ -404,10 +406,10 @@ proc insert*[T](a: Ast[T]; index: int; values: Ast[T];
     resetLiterals(result, index, values)
 
     audit result:
-      echo "insertion index: ", index, " with parent: ", parent
-      echo "insert into ast: ", a
-      echo "data to insert: ", values
-      echo "insert/copy result: ", result
+      debug "insertion index: ", index, " with parent: ", parent
+      debug "insert into ast: ", a
+      debug "data to insert: ", values
+      debug "insert/copy result: ", result
 
 proc append*[T](a: Ast[T]; values: Ast[T]; parent = -1): Ast[T] =
   ## add `values` to `a`; if the `parent` index is not -1,

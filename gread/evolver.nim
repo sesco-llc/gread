@@ -1,5 +1,6 @@
 import std/algorithm
 import std/hashes
+import std/logging
 import std/math
 import std/options
 import std/packedsets
@@ -445,11 +446,11 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
       if RequireValid notin evo.tableau or p.isValid:
         result.add p
         when defined(greadEchoRandomPop):
-          echo result.len, " ", $p
+          debug fmt"{result.len} {p}"
     except ShortGenome:
       discard
-      #echo "short genome on core ", evo.core, "; pop size ", result.len
-  echo "pop generation complete on core ", evo.core
+      #debug fmt"short genome on core {evo.core}; pop size {result.len}"
+  info "pop generation complete on core {evo.core}"
 
 proc randomDataIndexes*(evo: var Evolver): seq[int] =
   ## a randomly-ordered sequence of dataset indexes
@@ -542,10 +543,9 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
   debug "returning cmp; ", a1.get, " vs ", b1.get, " = ", result
 
 when defined(greadReportFittestChanges):
-  import std/strformat
   proc maybeReportFittest(evo: Evolver; p: Program) =
     if not p.isNil:
-      echo fmt"fittest in {evo.core} score {p.score} from {p.core}/{p.generation} hash {p.hash}"
+      notice fmt"fittest in {evo.core} score {p.score} from {p.core}/{p.generation} hash {p.hash}"
 else:
   template maybeReportFittest(evo: Evolver; p: Program) = discard
 

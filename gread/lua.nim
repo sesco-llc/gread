@@ -1,11 +1,12 @@
-import std/json
-import std/times
-import std/strformat
-import std/sequtils
-import std/math
 import std/hashes
+import std/json
+import std/logging
+import std/math
 import std/options
+import std/sequtils
+import std/strformat
 import std/strutils
+import std/times
 
 import pkg/lunacy except Integer
 import pkg/adix/lptabz
@@ -105,7 +106,7 @@ proc clearStats*(lua: Lua) =
     let began = getTime()
     lua.vm.checkLua lua.vm.gc(GcCollect, 0):
       discard
-    echo "collected in ", (getTime() - began).inMilliseconds, " µs"
+    warn "collected in ", (getTime() - began).inMilliseconds, " µs"
 
 proc newLua*(core = none int): Lua =
   ## reset a Lua instance and prepare it for running programs
@@ -436,7 +437,7 @@ proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
   of luaIdentifier, luaPropertyIdentifier:
     result = result.append Terminal(kind: Symbol, name: s[node])
   of luaParents:
-    #echo "parent kind ", node.kind, " text ", s[node]
+    #debug "parent kind ", node.kind, " text ", s[node]
     result = result.append Terminal(kind: Token,
                                        token: node.kind)
 

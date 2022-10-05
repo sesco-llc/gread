@@ -1,5 +1,6 @@
 import std/hashes
 import std/json
+import std/logging
 import std/math
 import std/options
 import std/os
@@ -124,7 +125,7 @@ proc clearStats*(fnl: Fennel) =
     let began = getTime()
     fnl.vm.checkLua fnl.vm.gc(GcCollect, 0):
       discard
-    echo "collected in ", (getTime() - began).inMilliseconds, " µs"
+    notice fmt"collected in {(getTime() - began).inMilliseconds} µs"
 
 const
   #[
@@ -305,11 +306,11 @@ proc compileFennel(vm: PState; source: string): string =
       result = vm.popStack.value.strung
   except LuaError as e:
     when greadSemanticErrorsAreFatal:
-      echo e.name, ": ", e.msg
+      error e.name, ": ", e.msg
       writeStackTrace()
       raise
   except Exception as e:
-    echo e.name, ": ", e.msg
+    error e.name, ": ", e.msg
     writeStackTrace()
     raise
 
@@ -334,11 +335,11 @@ proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
           result = popStack vm
     except LuaError as e:
       when greadSemanticErrorsAreFatal:
-        echo e.name, ": ", e.msg
+        error e.name, ": ", e.msg
         writeStackTrace()
         raise
     except Exception as e:
-      echo e.name, ": ", e.msg
+      error e.name, ": ", e.msg
       writeStackTrace()
       raise
 
@@ -358,11 +359,11 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
       result = popStack vm
   except LuaError as e:
     when greadSemanticErrorsAreFatal:
-      echo e.name, ": ", e.msg
+      error e.name, ": ", e.msg
       writeStackTrace()
       raise
   except Exception as e:
-    echo e.name, ": ", e.msg
+    error e.name, ": ", e.msg
     writeStackTrace()
     raise
 
@@ -659,16 +660,16 @@ when compileOption"threads":
       if args.stats > 0:
         if evo.generation mod args.stats == 0:
           dumpStats(evo, evoTime)
-          #echo "memory consumption for evolver: ", memoryGraphSize(evo)
-          if false and evo.generation > 10_000:
-            echo "memory consumption for aslua: ", memoryGraphSize(evo.platform.aslua)
+          if defined(debug) and evo.generation > 10_000:
+            debug fmt"memory consumption for evolver: {memoryGraphSize(evo)}"
+            debug fmt"memory consumption for aslua: {memoryGraphSize(evo.platform.aslua)}"
             when defined(greadLargeCache):
               when defined(greadSlowTable):
-                echo fmt"aslua (table) capacity: {rightSize(len evo.platform.aslua)}"
+                debug fmt"aslua (table) capacity: {rightSize(len evo.platform.aslua)}"
               else:
-                echo fmt"aslua (table) capacity: {getCap evo.platform.aslua}"
+                debug fmt"aslua (table) capacity: {getCap evo.platform.aslua}"
             else:
-              echo fmt"aslua (lru) capacity: {capacity evo.platform.aslua}"
+              debug fmt"aslua (lru) capacity: {capacity evo.platform.aslua}"
           clearStats evo
 
     while evo.population.len > 0:

@@ -1,4 +1,5 @@
 import std/algorithm
+import std/logging
 
 import gread/spec
 import gread/programs
@@ -16,7 +17,7 @@ type
 when debugging:
   import std/os
   template think*(final: untyped): untyped =
-    echo final.program
+    debug final.program
     #sleep 4_000
 else:
   template think*(final: untyped): untyped = discard

@@ -1,8 +1,10 @@
 import std/hashes
+import std/logging
 import std/macros
 import std/md5
 import std/sequtils
 import std/sets
+import std/strformat
 import std/strutils
 
 import pkg/adix/lptabz
@@ -338,8 +340,7 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
     # shrink them
     gram.strings = clone gram.strings
     gram.numbers = clone gram.numbers
-  when true:
-    echo "nonterminal references: ", nonterminals
-    echo "       total terminals: ", gram.t.card
-    echo "               strings: ", gram.strings
-    echo "               numbers: ", gram.numbers
+  info fmt"nonterminal references: {nonterminals}"
+  info fmt"       total terminals: {gram.t.card}"
+  debug fmt"{gram.strings.len} strings = {gram.strings}"
+  debug fmt"{gram.numbers.len} numbers = {gram.numbers}"
