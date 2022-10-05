@@ -236,7 +236,6 @@ iterator sampleSets(evo: var Evolver; a, b: Program): PackedSet[int] =
     x = evo.unnovel[a.hash]
     y = evo.unnovel[b.hash]
   when not defined(release):
-    {.warning: "doAssert".}
     doAssert x == evo.unnovel[a.hash]
     doAssert y == evo.unnovel[a.hash]
 
@@ -277,7 +276,6 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: Program; index: int;
     assert not evo.strength.isNil, "strength() unassigned to evolver"
     p.push evo.strength(score)
     when not defined(release):
-      {.warning: "doassert".}
       doAssert index in evo.unnovel[p.hash]
 
 proc scoreFromCache*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =

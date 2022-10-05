@@ -337,8 +337,6 @@ proc resetMetrics*(pop: Population) =
     resetParsimony pop
 
 func paintFittest*(metrics: var PopMetrics; fittest: Program) =
-  {.warning: "doassert".}
-  doAssert not fittest.isNil
   metrics.bestSize = fittest.len
   metrics.bestScore = fittest.score
   metrics.bestGen = fittest.generation
