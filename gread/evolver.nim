@@ -129,6 +129,23 @@ proc clearStats*(evo: var Evolver) =
   ## reset any statistics recorded by the Evolver
   clear evo.gentime
 
+when defined(greadReportFittestChanges):
+  proc maybeReportFittest(evo: Evolver; p: Program) =
+    if not p.isNil:
+      notice fmt"fittest in {evo.core} score {p.score} from {p.core}/{p.generation} hash {p.hash}"
+else:
+  template maybeReportFittest(evo: Evolver; p: Program) = discard
+
+proc maybeResetFittest*(evo: var Evolver; program: Program) =
+  ## maybe reset the fittest program metric
+  if program.score.isValid:
+    if evo.cacheSize(program) == evo.dataset.len:
+      if evo.fittest.isNone or get(evo.fittest) < program:
+        if evo.fittest.isSome:
+          maybeReportFittest(evo, get(evo.fittest))
+        evo.fittest = some program
+        maybeReportFittest(evo, program)
+
 proc `core=`*(evo: var Evolver; core: CoreSpec) = evo.core = core
 proc core*(evo: var Evolver): CoreSpec = evo.core
 
@@ -139,7 +156,7 @@ proc `operators=`*[T, V](evo: var Evolver[T, V];
 proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
   evo.population = population
   if not evo.population.isNil:
-    for p in evo.population.items():
+    for p in evo.population.items:
       if not p.score.isValid:
         # FIXME: optimization point
         let s =
@@ -154,6 +171,8 @@ proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
             NaN
     if UseParsimony in evo.tableau:
       evo.population.toggleParsimony(on)
+    for p in evo.population.items:
+      maybeResetFittest(evo, p)
 
 proc population*[T, V](evo: Evolver[T, V]): Population[T] =
   evo.population
@@ -541,23 +560,6 @@ proc confidentComparison*(evo: var Evolver; a, b: Program; p = defaultP): int =
   # FIXME: better()?
   result = cmp(evo.strength(get a1), evo.strength(get b1))
   debug "returning cmp; ", a1.get, " vs ", b1.get, " = ", result
-
-when defined(greadReportFittestChanges):
-  proc maybeReportFittest(evo: Evolver; p: Program) =
-    if not p.isNil:
-      notice fmt"fittest in {evo.core} score {p.score} from {p.core}/{p.generation} hash {p.hash}"
-else:
-  template maybeReportFittest(evo: Evolver; p: Program) = discard
-
-proc maybeResetFittest*(evo: var Evolver; program: Program) =
-  ## maybe reset the fittest program metric
-  if program.score.isValid:
-    if evo.cacheSize(program) == evo.dataset.len:
-      if evo.fittest.isNone or get(evo.fittest) < program:
-        if evo.fittest.isSome:
-          maybeReportFittest(evo, get(evo.fittest))
-        evo.fittest = some program
-        maybeReportFittest(evo, program)
 
 proc discharge(evo: var Evolver; c: Competitor) =
   ## a modern remover
