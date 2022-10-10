@@ -139,12 +139,21 @@ else:
 proc maybeResetFittest*(evo: var Evolver; program: Program) =
   ## maybe reset the fittest program metric
   if program.score.isValid:
-    if evo.cacheSize(program) == evo.dataset.len:
+    if (program.core.isNone or program.core == evo.core or evo.core.isNone) or evo.cacheSize(program) == evo.dataset.len:
       if evo.fittest.isNone or get(evo.fittest) < program:
         if evo.fittest.isSome:
           maybeReportFittest(evo, get(evo.fittest))
+        program.flags.incl FinestKnown
         evo.fittest = some program
         maybeReportFittest(evo, program)
+
+proc resetFittest*(evo: var Evolver) =
+  ## reset the fittest program metric, clearing all other FinestKnown flags
+  for p in evo.population.items:
+    evo.maybeResetFittest(p)
+    p.flags.excl FinestKnown
+  if evo.fittest.isSome:
+    get(evo.fittest).flags.incl FinestKnown
 
 proc `core=`*(evo: var Evolver; core: CoreSpec) = evo.core = core
 proc core*(evo: var Evolver): CoreSpec = evo.core
@@ -463,7 +472,7 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
       if RequireValid notin evo.tableau or p.isValid:
         result.add p
         when defined(greadEchoRandomPop):
-          debug fmt"{result.len} {p}"
+          notice fmt"{result.len} {p}"
     except ShortGenome:
       discard
       #debug fmt"short genome on core {evo.core}; pop size {result.len}"
