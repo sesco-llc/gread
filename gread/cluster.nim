@@ -1,12 +1,13 @@
 when not compileOption"threads":
   {.error: "cluster support requires threads".}
 
-import std/sequtils
-import std/options
-import std/random
-import std/os
-import std/strformat
 import std/deques
+import std/options
+import std/os
+import std/osproc
+import std/random
+import std/sequtils
+import std/strformat
 
 import pkg/loony
 import pkg/cps
@@ -59,7 +60,9 @@ type
 
   CQ = LoonyQueue[C]
 
-let processors* = max(1, getNumTotalCores())
+# we'll run as many as (processors) threads, though we
+# may not recommend more than (cores) concurrency
+let processors* = max(1, countProcessors())
 var
   threads: seq[Thread[CQ]]
   shelf: seq[CQ]
