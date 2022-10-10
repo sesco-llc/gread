@@ -85,7 +85,15 @@ proc `$`*(p: Program): string =
 
 proc `<`*[T](a, b: Program[T]): bool =
   ## some objective measurement of two programs; score
-  a.score < b.score
+  if a.score.isNaN and not b.score.isNaN:
+    true
+  else:
+    a.score < b.score
+
+# trust no one
+assert not(NaN < -Inf) and not(NaN > -Inf)
+assert not(NaN < -0.0) and not(NaN > 0.0)
+assert not almostEqual(NaN, NaN)
 
 proc `==`*[T](a, b: Program[T]): bool =
   ## some objective measurement of two programs; score
