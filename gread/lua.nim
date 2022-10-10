@@ -2,6 +2,7 @@ import std/hashes
 import std/json
 import std/logging
 import std/math
+import std/monotimes
 import std/options
 import std/sequtils
 import std/strformat
@@ -257,9 +258,9 @@ proc evaluate*(lua: Lua; p: LProg; locals: Locals): LuaValue =
   inc lua.runs
   try:
     # pass the program and the training inputs
-    let began = getTime()
+    let began = getMonoTime()
     let stack = evaluate(lua.vm, $p, locals)
-    lua.runtime.push (getTime() - began).inMilliseconds.float
+    lua.runtime.push (getMonoTime() - began).inNanoseconds.float
     lua.errors.push 0.0
     # score a resultant value if one was produced
     if not stack.isNil:
@@ -347,7 +348,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
                core and thread: {m.core}/{threaded} -- {evo.name}
                   dataset size: {evo.dataset.len}
           virtual machine runs: {lua.runs} (never reset)
-            average vm runtime: {lua.runtime.mean:>6.2f} ms
+            average vm runtime: {lua.runtime.mean / 1_000_000.0:>8.4f} ms
          total population size: {m.size}
           validity rate in pop: {m.validity.mean.percent}
             average age in pop: {age}
