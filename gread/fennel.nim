@@ -2,6 +2,7 @@ import std/hashes
 import std/json
 import std/logging
 import std/math
+import std/monotimes
 import std/options
 import std/os
 import std/random
@@ -373,12 +374,15 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals): LuaValue =
   inc fnl.runs
   try:
     # pass the program and the training inputs
-    let began = getTime()
     when defined(greadNoFennelCache):
+      let began = getMonoTime()
       let stack = evaluate(fnl.vm, $p, locals)
+      fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
     else:
-      let stack = evaluateLua(fnl.vm, toLua(fnl, p), locals)
-    fnl.runtime.push (getTime() - began).inMilliseconds.float
+      let source = fnl.toLua(p)
+      let began = getMonoTime()
+      let stack = evaluateLua(fnl.vm, source, locals)
+      fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
     fnl.errors.push 0.0
     # score a resultant value if one was produced
     if not stack.isNil:
@@ -497,7 +501,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
                   dataset size: {evo.dataset.len}
           virtual machine runs: {fnl.runs} (never reset)
          lua compilation cache: {fnl.aslua.len}
-            average vm runtime: {fnl.runtime.mean:>8.4f} ms
+            average vm runtime: {fnl.runtime.mean / 1_000_000.0:>8.4f} ms
          total population size: {m.size}
           validity rate in pop: {m.validity.mean.percent} <= 100%
             average age in pop: {age}
