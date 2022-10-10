@@ -104,10 +104,10 @@ template learn(pop: Population; p: Program; pos: int) =
   pop.ken.lengths.push p.len.float
   if p.core == pop.ken.core:
     pop.ken.ages.push float(int p.generation)
+    if Cached notin p.flags:
+      inc pop.ken.inventions
   else:
     inc pop.ken.immigrants
-  if Cached notin p.flags:
-    inc pop.ken.inventions
 
 template forget(population: Population; program: Program; pos: int) =
   when populationCache:
@@ -121,10 +121,10 @@ template forget(population: Population; program: Program; pos: int) =
   population.ken.lengths.pop program.len.float
   if program.core == population.ken.core:
     population.ken.ages.pop float(int program.generation)
+    if Cached notin program.flags:
+      dec population.ken.inventions
   else:
     dec population.ken.immigrants
-  if Cached notin program.flags:
-    dec population.ken.inventions
 
 template withInitialized*(pop: Population; logic: untyped): untyped =
   ## execute the body only when the population is initialized
@@ -150,11 +150,6 @@ proc newPopulation*[T](size = 0; core = none int): Population[T] =
 func len*[T](p: Population[T]): int =
   ## the number of programs in the population
   p.programs.len
-
-func fittest*[T](pop: Population[T]): Program[T] {.deprecated.} =
-  ## the fittest member of the population
-  withInitialized pop:
-    pop.fittest
 
 proc rescale(ken: PopMetrics; score: Score): Score =
   ## rescale a given score according to the distribution of the population
@@ -200,8 +195,7 @@ template addImpl[T](population: Population[T]; p: Program[T]) =
   learn(population, p, population.programs.high)
 
 proc introduce*[T](population: Population[T]; p: Program[T]) =
-  ## introduce a foreign program to the local pop without
-  ## setting it as the fittest individual, etc.
+  ## introduce a foreign program to the local pop
   withInitialized population:
     when populationCache:
       if not population.cache.containsOrIncl p.hash:
@@ -298,7 +292,7 @@ proc nextGeneration*(ken: var PopMetrics): Generation =
 
 proc scoreChanged*(pop: Population; p: Program; s: Option[float]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
-  ## is used to update metrics, parsimony, and the `fittest` population member
+  ## is used to update metrics and parsimony
   withInitialized pop:
     if p.isValid:
       pop.ken.validity.pop 1.0
@@ -353,8 +347,6 @@ func metrics*(pop: Population): PopMetrics =
   resetMetrics pop
   result = pop.ken
   result.size = pop.len
-  if not pop.fittest.isNil:
-    paintFittest(result, pop.fittest)
 
 func clone*[T](population: Population[T]; core = none CoreId): Population[T] =
   ## create a copy of the population
@@ -362,9 +354,6 @@ func clone*[T](population: Population[T]; core = none CoreId): Population[T] =
   for program in population.items:
     let cloned = clone program
     result.programs.add cloned
-    if not population.fittest.isNil:
-      if program.hash == population.fittest.hash:
-        result.fittest = cloned
-      when populationCache:
-        result.cache.incl cloned.hash
+    when populationCache:
+      result.cache.incl cloned.hash
   result.resetMetrics()
