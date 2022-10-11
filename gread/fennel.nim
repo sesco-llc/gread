@@ -416,7 +416,7 @@ proc injectLocals*(p: FProg; locals: Locals): string =
   result.add ")"
 
 proc dumpScore*(fnl: Fennel; p: FProg) =
-  var s = fmt"{p.score}[{p.len}]: "
+  var s = fmt"{p.score} {p.core}/{p.generation}[{p.len}]: "
   s.add $p
   checkpoint s
 
