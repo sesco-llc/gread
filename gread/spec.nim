@@ -88,9 +88,10 @@ const
 
 when defined(greadProfile):
   import std/times
+  import std/monotimes
   import std/macros
   macro profile*(s: string; logic: typed): untyped =
-    let readTime = newCall bindSym"getTime"
+    let readTime = newCall bindSym"getMonoTime"
     let readThread =
       when compileOption"threads":
         newCall bindSym"getThreadId"
