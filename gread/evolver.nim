@@ -73,7 +73,7 @@ proc nextGeneration*(evo: var Evolver): Generation =
 
 proc generation*(evo: Evolver): Generation =
   ## return the current generation
-  Generation evo.generations
+  evo.generations
 
 proc platform*[T, V](evo: Evolver[T, V]): T =
   ## recover the platform of an evolver
