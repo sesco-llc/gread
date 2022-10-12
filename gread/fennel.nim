@@ -506,7 +506,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
           validity rate in pop: {m.validity.mean.percent} <= 100%
             average age in pop: {age}
             age vs generations: {percent(age.float / m.generation.int.float)} >= 0%
-           average valid score: {ff m.scores.mean}
+           average valid score: {Score m.scores.mean}
           greatest of all time: {m.bestScore}
            evolver cache count: {evo.cacheSize}
            evolver cache usage: {evo.cacheUsage.percent} >= 0%
