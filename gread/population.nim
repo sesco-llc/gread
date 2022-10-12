@@ -312,23 +312,29 @@ proc scoreChanged*(pop: Population; p: Program; s: Option[float]; index: int) =
       p.zombie = true
       pop.ken.validity.push 0.0
 
-proc resetMetrics*(pop: Population) =
+func paintMetrics*(metrics: var PopMetrics; population: Population) =
   ## reset validity, score, and parsimony metrics in the population; O(n)
-  withInitialized pop:
-    clear pop.ken.validity
-    clear pop.ken.scores
-    clear pop.ken.caches
-    clear pop.ken.lengths
-    for p in pop.items:
-      if p.isValid:
-        pop.ken.validity.push 1.0
-        if p.score.isValid:
-          pop.ken.scores.push p.score
+  withInitialized population:
+    clear metrics.validity
+    clear metrics.scores
+    clear metrics.caches
+    clear metrics.lengths
+    metrics.size = 0
+    for program in population.items:
+      inc metrics.size
+      if program.isValid:
+        metrics.validity.push 1.0
+        if program.score.isValid:
+          metrics.scores.push program.score
       else:
-        pop.ken.validity.push 0.0
-      pop.ken.lengths.push p.len.float
-      pop.ken.caches.push p.cacheSize.float
-    resetParsimony pop
+        metrics.validity.push 0.0
+      metrics.lengths.push program.len.float
+      when programCache:
+        metrics.caches.push program.cacheSize.float
+
+func resetMetrics*(population: Population) {.deprecated.} =
+  ## reset validity, score, and parsimony metrics in the population; O(n)
+  paintMetrics(population.ken, population)
 
 func paintFittest*(metrics: var PopMetrics; fittest: Program) =
   metrics.bestSize = fittest.len
@@ -344,9 +350,9 @@ func paintFittest*(metrics: var PopMetrics; fittest: Program) =
 
 func metrics*(pop: Population): PopMetrics =
   ## returns a copy of the population's metrics
-  resetMetrics pop
   result = pop.ken
-  result.size = pop.len
+  result.paintMetrics(pop)
+  resetParsimony pop
 
 func clone*[T](population: Population[T]; core = none CoreId): Population[T] =
   ## create a copy of the population
