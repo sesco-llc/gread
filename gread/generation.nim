@@ -55,6 +55,6 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
   finally:
     if discoveries > 0:
       # update the parsimony to account for additions and removals
-      resetParsimony evo.population
+      discard evo.resetParsimony()
 
     evo.generationTime (getTime() - clock).inMilliseconds.float

@@ -84,12 +84,6 @@ proc toggleParsimony*(pop: Population; value = on) =
     else:
       NaN
 
-proc resetParsimony*(pop: Population) {.deprecated.} =
-  ## recompute and set the parsimony for the population,
-  ## if parsimony is enabled for the population
-  if not pop.ken.parsimony.isNaN:
-    pop.ken.parsimony = parsimony(pop, pop.ken)
-
 template learn(pop: Population; p: Program; pos: int) =
   when populationCache:
     pop.cache.incl p.hash
@@ -352,7 +346,6 @@ func metrics*(pop: Population): PopMetrics =
   ## returns a copy of the population's metrics
   result = pop.ken
   result.paintMetrics(pop)
-  resetParsimony pop
 
 func clone*[T](population: Population[T]; core = none CoreId): Population[T] =
   ## create a copy of the population

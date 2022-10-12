@@ -521,7 +521,7 @@ when compileOption"threads":
     evo.fitone = args.fitone
     evo.fitmany = args.fitmany
     evo.population = evo.randomPop()
-    resetParsimony evo.population
+    resetParsimony evo
 
     var leader: Hash
     var evoTime = getTime()

@@ -654,6 +654,33 @@ iterator trim*[T, V](evo: var Evolver[T, V]): Program[T] =
     del(evo.population, loser.index)
     yield loser.program
 
+proc resetParsimony*(evo: var Evolver): PopMetrics =
+  ## recompute the parsimony for the population,
+  ## if parsimony is enabled for the population;
+  ## returns the population metrics in any event
+  result = evo.population.metrics
+  if UseParsimony notin evo.tableau:
+    return result
+  if evo.strength.isNil:
+    raise ValueError.newException "evolver needs strength assigned"
+  profile "reset parsimony":
+    block failure:
+      # reset their scores
+      for program in evo.population.mitems:
+        let s = evo.score(program)
+        if s.isSome:
+          program.score = evo.strength(get s)
+        else:
+          program.score = NaN
+          result.parsimony = NaN
+          break failure
+      # calculate parsimony
+      result.parsimony = parsimony(evo.population, result)
+      # adjust the scores accordingly
+      for program in evo.population.mitems:
+        assert program.score.isValid
+        program.score = result.score(program.score, program.len)
+
 proc `strength=`*[T, V](evo: var Evolver[T, V]; strong: Strength[V]) =
   ## assign a new strength function to the evolver
   evo.strength = strong
