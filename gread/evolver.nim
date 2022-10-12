@@ -476,7 +476,7 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
     except ShortGenome:
       discard
       #debug fmt"short genome on core {evo.core}; pop size {result.len}"
-  info "pop generation complete on core {evo.core}"
+  info fmt"pop generation complete on core {evo.core}"
 
 proc randomDataIndexes*(evo: var Evolver): seq[int] =
   ## a randomly-ordered sequence of dataset indexes
