@@ -219,7 +219,7 @@ proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau; r
 
 proc tableau*(evo: Evolver): Tableau = evo.tableau
 
-template isEqualWeight*(evo: Evolver): bool = EqualWeight in evo.tableau
+func isEqualWeight*(evo: Evolver): bool = false
 
 proc randomOperator*[T, V](evo: var Evolver[T, V]): Operator[T, V] =
   if evo.operators.len == 0:
