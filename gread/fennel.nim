@@ -14,7 +14,7 @@ import std/times
 import pkg/lunacy except Integer
 import pkg/lunacy/json as luajs
 import pkg/adix/lptabz
-import pkg/adix/stat
+import pkg/adix/stat except Option
 import pkg/balls
 import pkg/cps
 import pkg/frosty/streams as brrr
@@ -32,7 +32,6 @@ import gread/grammar
 import gread/tableau
 import gread/decompile
 
-export stat
 export lptabz
 export lunacy
 export lrucache
@@ -51,7 +50,7 @@ type
     runtime*: FennelStat
     aslua: GreadCache[Hash, string]
 
-  FennelStat* = MovingStat[float32]
+  FennelStat* = MovingStat[float32, uint32]
 
   Fun* = Function[Fennel]
 

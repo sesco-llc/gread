@@ -10,7 +10,7 @@ import std/strformat
 import std/times
 
 import pkg/adix/lptabz
-import pkg/adix/stat
+import pkg/adix/stat except variance, Option
 
 import gread/population
 import gread/spec
@@ -57,8 +57,8 @@ type
     tableau: Tableau
     population: Population[T]
     operators: AliasMethod[Operator[T, V]]
-    gentime: MovingStat[float32]
-    shorties: MovingStat[float32]
+    gentime: MovingStat[float32, uint32]
+    shorties: MovingStat[float32, uint32]
     cache: GreadTable[Hash, seq[V]]
     cacheCounter: int
     indexes: PackedSet[int]
@@ -109,7 +109,7 @@ proc del*[T, V](evo: var Evolver[T, V]; p: Program[T]) =
   except KeyError:
     discard
 
-proc shortGenome*(evo: Evolver): MovingStat[float32] =
+proc shortGenome*(evo: Evolver): MovingStat[float32, uint32] =
   ## retrieve the statistics on mapping failures due to short genomes
   evo.shorties
 
@@ -117,7 +117,7 @@ proc shortGenome*(evo: var Evolver; tooShort: bool) =
   ## record a short (true) or sufficient (false) genome result due to mapping
   evo.shorties.push float(ord tooShort)
 
-proc generationTime*(evo: Evolver): MovingStat[float32] =
+proc generationTime*(evo: Evolver): MovingStat[float32, uint32] =
   ## fetch the generation time statistics
   evo.gentime
 

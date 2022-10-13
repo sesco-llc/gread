@@ -7,7 +7,7 @@ import std/packedsets
 import std/random
 import std/sequtils
 
-import pkg/adix/stat except variance
+import pkg/adix/stat except variance, Option
 
 import gread/spec
 import gread/programs
@@ -31,14 +31,14 @@ type
   PopMetrics* = object
     core*: CoreSpec
     generation*: Generation
-    lengths*: MovingStat[float32]       ## accurate only after resetMetrics()
-    scores*: MovingStat[float64]
-    ages*: MovingStat[float32]
+    lengths*: MovingStat[float32, uint32]       ## accurate only after resetMetrics()
+    scores*: MovingStat[float64, uint32]
+    ages*: MovingStat[float32, uint32]
     immigrants*: int
     inventions*: int
     parsimony*: float
-    validity*: MovingStat[float32]
-    caches*: MovingStat[float32]
+    validity*: MovingStat[float32, uint32]
+    caches*: MovingStat[float32, uint32]
     # the rest are populated JIT
     bestSize*: int
     bestGen*: Generation
