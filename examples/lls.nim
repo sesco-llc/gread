@@ -23,8 +23,9 @@ import pkg/adix/lptabz
 
 const
   greadSeed {.intdefine.} = 0
-  goodEnough = -0.10     # termination condition
-  statFrequency = 5000  # report after this many generations
+  goodEnough = -0.01     # termination condition
+  manyGenerations = 1_000_000
+  statFrequency = 10000  # report after this many generations
   llsGrammar = """
     <start>        ::= <numexpr>
     <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
@@ -99,8 +100,8 @@ when isMainModule:
   tab.seedPopulation = 400
   tab.maxPopulation = tab.seedPopulation
   tab.tournamentSize = int(0.03 * tab.maxPopulation.float)
-  tab.sharingRate = 0.15
-  tab.maxGenerations = 50_000
+  tab.sharingRate = 0.0025
+  tab.maxGenerations = manyGenerations
 
   # the main loop monitors inventions
   proc main(work: Work; inputs, outputs: LoonyQueue[FProg]) =
