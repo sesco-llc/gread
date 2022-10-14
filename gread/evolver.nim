@@ -2,6 +2,7 @@ import std/algorithm
 import std/hashes
 import std/logging
 import std/math
+import std/monotimes
 import std/options
 import std/packedsets
 import std/random
@@ -336,11 +337,11 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
       let v = evo.getScoreFromCache(p, index)
       result = some v[]
     else:
-      let began = getTime()
+      let began = getMonoTime()
       memoryAudit "perform fitone itself":
         result = evo.fitone(evo.platform, evo.dataset[index], p)
       demandValid result
-      p.runtime.push (getTime() - began).inMilliseconds.float
+      p.runtime.push (getMonoTime() - began).inNanoseconds.float
       if result.isSome:
         evo.addScoreToCache(p, index, get result)
 

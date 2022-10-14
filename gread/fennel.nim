@@ -488,6 +488,11 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
   let age = int(m.generation.int.float - m.ages.mean)
   let totalTime = getTime() - evoTime
   let totalMs = totalTime.inMilliseconds.float
+  let bestRuntime =
+    if evo.fittest.isSome:
+      fmt"{get(evo.fittest).runtime.mean / 1_000_000.0:>8.4f} ms"
+    else:
+      "nan"
   when false:
     if m.generation.int == 0:
       raise ValueError.newException "no generations yet"
@@ -512,6 +517,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
           average program size: {m.lengths.mean.int}
          program size variance: {dumb}
           size of best program: {m.bestSize}
+       runtime of best program: {bestRuntime}
          parsimony coefficient: {ff m.parsimony}
             insufficiency rate: {fnl.nans.mean.percent} >= 0%
            semantic error rate: {fnl.errors.mean.percent} >= 0%
