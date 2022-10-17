@@ -15,6 +15,7 @@ import pkg/balls
 import pkg/lunacy
 import pkg/lunacy/json as shhh
 import pkg/adix/lptabz
+import pkg/adix/stat except Option
 
 randomize()
 
