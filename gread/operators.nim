@@ -1,4 +1,8 @@
+import std/genasts
+import std/macros
 import std/options
+import std/strformat
+import std/strutils
 
 import gread/mutation
 import gread/programs
@@ -81,3 +85,33 @@ proc geMutation*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
       result.add newProgram(x.get.ast, x.get.genome)
     else:
       evo.shortGenome true
+
+macro composeNoise(n: static string): untyped =
+    let it = n.replace(".", "pt")
+    var name = nnkAccQuoted.newTree(ident(fmt"geNoise{it}"))
+    var iter = nnkAccQuoted.newTree(ident(fmt"geNoisy{it}"))
+    name = postfix(name, "*")
+    result = newStmtList()
+    result.add:
+      genAstOpt({}, name, iter, rs=ident"result"):
+        proc name[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
+          ## perform noisy GE mutation of a program to create novel offspring
+          template size: int = evo.tableau.tournamentSize
+          let a = tournament(evo, size).program
+          var g = a.genome
+          when greadWrapping:
+            g.add g
+            g.add g
+            g.add g
+          for x in iter[T](evo.rng, evo.grammar, g):
+            if x.isSome:
+              evo.shortGenome false
+              rs.add newProgram(x.get.ast, x.get.genome)
+            else:
+              evo.shortGenome true
+
+composeNoise("0.25")
+composeNoise("0.5")
+composeNoise("1.0")
+composeNoise("2.0")
+composeNoise("4.0")

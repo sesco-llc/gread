@@ -27,7 +27,7 @@ proc `[]`*[T, U: Ordinal](geno: Genome; hs: HSlice[T, U]): Genome =
   ## essentially a `.borrow.` which works around a nim bug
   Genome geno.string[hs]
 
-proc `[]=`(geno: var Genome; index: int; ch: char) =
+proc `[]=`*(geno: var Genome; index: int; ch: char) =
   geno.string[index] = ch
 
 proc canRead*[T: Genes](geno: Genome; pc: PC; count = 1): bool =
