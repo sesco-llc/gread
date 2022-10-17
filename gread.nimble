@@ -14,7 +14,6 @@ requires "https://github.com/haxscramper/htsparse >= 0.1.10 & < 1.0.0"
 requires "https://github.com/haxscramper/hmisc >= 0.14.5 & < 1.0.0"
 requires "https://github.com/treeform/sysinfo >= 0.2.1 & < 1.0.0"
 requires "https://github.com/jackhftang/lrucache.nim.git < 2.0.0"
-requires "https://github.com/disruptek/cutelog < 3.0.0"
 
 when not defined(release):
   requires "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0"
