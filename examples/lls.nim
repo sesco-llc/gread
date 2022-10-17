@@ -43,9 +43,10 @@ initFennelGrammar(gram, llsGrammar)
 let operators = {
   geCrossover[Fennel, LuaValue]:        1.0,
   geMutation[Fennel, LuaValue]:         1.0,
-  #subtreeXover[Fennel, LuaValue]:       1.0,
-  #randomSubtreeXover[Fennel, LuaValue]: 1.0,
+  subtreeXover[Fennel, LuaValue]:       1.0,
+  randomSubtreeXover[Fennel, LuaValue]: 1.0,
   randomCrossover[Fennel, LuaValue]:    1.0,
+  geNoise1pt0[Fennel, LuaValue]:        1.0,
 }
 
 const
@@ -100,7 +101,7 @@ when isMainModule:
   tab.seedPopulation = 400
   tab.maxPopulation = tab.seedPopulation
   tab.tournamentSize = int(0.03 * tab.maxPopulation.float)
-  tab.sharingRate = 0.0025
+  tab.sharingRate = 0.015
   tab.maxGenerations = manyGenerations
 
   # the main loop monitors inventions
