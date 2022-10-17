@@ -1,3 +1,4 @@
+import std/algorithm
 import std/deques
 import std/hashes
 import std/heapqueue
@@ -73,16 +74,7 @@ assert HeapQueue[Program[int]] is PopLike[int]
 assert seq[Program[int]] is PopLike[int]
 assert array[5, Program[int]] is PopLike[int]
 
-proc parsimony*(pop: Population; ken: PopMetrics): float
-
-proc toggleParsimony*(pop: Population; value = on) =
-  ## turn parsimony `on` or `off`; when switching parsimony on,
-  ## this will recompute and set the parsimony for the population
-  pop.ken.parsimony =
-    if value:
-      parsimony(pop, pop.ken)
-    else:
-      NaN
+proc parsimony*(ken: PopMetrics; pop: Population): float
 
 template learn(pop: Population; p: Program; pos: int) =
   when populationCache:
@@ -266,7 +258,18 @@ proc randomRemoval*[T](pop: Population[T]; rng: var Rand): Program[T] =
     result = query.program
     del(pop, query.index)
 
-proc parsimony*(pop: Population; ken: PopMetrics): float =
+proc parsimony*(population: Population): float =
+  ## compute parsimony for valid members of the population
+  withInitialized population:
+    var scores = newSeqOfCap[float](population.len)
+    var lengths = newSeqOfCap[float](population.len)
+    for index, program in population.pairs:
+      if program.isValid:
+        scores.add program.score.float
+        lengths.add program.len.float
+    result = covariance(lengths, scores) / variance(lengths)
+
+proc parsimony*(ken: PopMetrics; pop: Population): float =
   ## compute parsimony for members of the population with valid scores
   withInitialized pop:
     if ken.scores.n == 0:
@@ -288,23 +291,31 @@ proc scoreChanged*(pop: Population; p: Program; s: Option[float]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
   ## is used to update metrics and parsimony
   withInitialized pop:
-    if p.isValid:
-      pop.ken.validity.pop 1.0
-      if p.score.isValid:
-        if pop.ken.scores.n == 0:
-          raise Defect.newException "fewer than zero scores?"
-        pop.ken.scores.pop p.score
+    when false:
+      if p.isValid:
+        pop.ken.validity.pop 1.0
+        if p.score.isValid:
+          if pop.ken.scores.n == 0:
+            raise Defect.newException "fewer than zero scores?"
+          pop.ken.scores.pop p.score
+      else:
+        pop.ken.validity.pop 0.0
+      if s.isSome and s.get.isValid:
+        p.score = get s
+        pop.ken.validity.push 1.0
+        pop.ken.scores.push p.score
+        p.zombie = false  # NOTE: trigger a defect if necessary
+      else:
+        p.score = NaN
+        p.zombie = true
+        pop.ken.validity.push 0.0
     else:
-      pop.ken.validity.pop 0.0
-    if s.isSome and s.get.isValid:
-      p.score = get s
-      pop.ken.validity.push 1.0
-      pop.ken.scores.push p.score
-      p.zombie = false  # NOTE: trigger a defect if necessary
-    else:
-      p.score = NaN
-      p.zombie = true
-      pop.ken.validity.push 0.0
+      if s.isSome and get(s).isValid:
+        p.score = get s
+        p.zombie = false  # NOTE: trigger a defect if necessary
+      else:
+        p.score = NaN
+        p.zombie = true
 
 func paintMetrics*(metrics: var PopMetrics; population: Population) =
   ## reset validity, score, and parsimony metrics in the population; O(n)
@@ -323,12 +334,14 @@ func paintMetrics*(metrics: var PopMetrics; population: Population) =
       else:
         metrics.validity.push 0.0
       metrics.lengths.push program.len.float
+      if program.core == metrics.core:
+        metrics.ages.push float(int program.generation)
+        if Cached notin program.flags:
+          inc metrics.inventions
+      else:
+        inc metrics.immigrants
       when programCache:
         metrics.caches.push program.cacheSize.float
-
-func resetMetrics*(population: Population) {.deprecated.} =
-  ## reset validity, score, and parsimony metrics in the population; O(n)
-  paintMetrics(population.ken, population)
 
 func paintFittest*(metrics: var PopMetrics; fittest: Program) =
   metrics.bestSize = fittest.len
@@ -355,4 +368,6 @@ func clone*[T](population: Population[T]; core = none CoreId): Population[T] =
     result.programs.add cloned
     when populationCache:
       result.cache.incl cloned.hash
-  result.resetMetrics()
+
+proc sort*(population: Population) =
+  sort population.programs

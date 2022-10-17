@@ -150,15 +150,12 @@ proc share*(work: Work; p: Program) =
   for copies in 0..<max(0, sharing):
     forceShare(work, p)
 
-proc search*(work: Work; population: Population) =
+proc search*(work: Work; evo: var Evolver) =
   ## try to get some fresh genes from another thread
   ## and add them to the supplied population
   var transit = pop work.io.inputs
   if not transit.isNil:
-    when true:
-      population.introduce transit    # no propogation of winners into fittest
-    else:
-      population.add transit          # allows a winner to further propogate
+    evo.introduce transit
 
 iterator invalidPrograms*[T, V](work: Work[T, V]): Program[T] =
   ## iterate over, and remove, programs marked invalid elsewhere

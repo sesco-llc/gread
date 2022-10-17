@@ -471,13 +471,12 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, LuaValue)];
 
 proc dumpStats*(evo: Evolver; evoTime: Time) =
   ## a threadsafe echo of some statistics regarding the vm and population
-  var fnl = evo.platform
-  var pop = evo.population
-  template genTime: FennelStat = evo.generationTime
-  var m = pop.metrics
   let threaded = when compileOption"threads": $getThreadId() else: "-"
+  let fnl = evo.platform
+  template genTime: FennelStat = evo.generationTime
+  var m: PopMetrics
+  m.paintMetrics(evo)
   if evo.fittest.isSome:
-    paintFittest(m, get(evo.fittest))
     fnl.dumpScore get(evo.fittest)
   elif evo.generation > 1000:
     raise
@@ -639,8 +638,7 @@ when compileOption"threads":
         evo.randomPop()
       else:
         args.population
-    evo.population.resetMetrics()
-    evo.population.toggleParsimony(UseParsimony in evo.tableau)
+    evo.toggleParsimony(UseParsimony in evo.tableau)
 
     var evoTime = getTime()
     # fittest -> finest due to nim bug
@@ -648,7 +646,7 @@ when compileOption"threads":
     while evo.generation <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
-      search(args, evo.population)   # fresh meat from other threads
+      search(args, evo)   # fresh meat from other threads
 
       memoryAudit "sharing a random member":
         let stale = randomMember(evo.population, evo.rng)
@@ -706,7 +704,7 @@ when compileOption"threads":
       evo.population = newPopulation[Fennel]()
     else:
       evo.population = args.population
-      evo.population.toggleParsimony(UseParsimony in evo.tableau)
+      evo.toggleParsimony(UseParsimony in evo.tableau)
 
     while true:
       noop() # give other evolvers a chance
@@ -753,7 +751,7 @@ when compileOption"threads":
       evo.population = newPopulation[Fennel]()
     else:
       evo.population = args.population
-      evo.population.toggleParsimony(UseParsimony in evo.tableau)
+      evo.toggleParsimony(UseParsimony in evo.tableau)
 
     while true:
       noop() # give other evolvers a chance

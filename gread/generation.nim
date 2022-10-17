@@ -30,26 +30,25 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
     while discoveries == 0:
       let operator = evo.randomOperator()
       for p in operator(evo).items:
-        p.generation = Generation gen
+        p.generation = gen
         p.core = evo.core
-        # FIXME: optimization point
-        let s =
-          if evo.isEqualWeight:
-            # sample a single datapoint in order to check validity
-            evo.scoreRandomly(p)
+        if RequireValid in evo.tableau:
+          let s = evo.score(p)
+          if s.isSome:
+            p.score = strength(evo)(get s)
+            if p.isValid:
+              makeRoom evo
+              evo.add p
+              inc discoveries   # we have something worth adding
+              evo.discover(p)
+              yield p
           else:
-            # sample all datapoints in order to develop useful score
-            evo.score(p)
-        if s.isSome:
-          p.score = strength(evo)(get s)
-          evo.maybeResetFittest(p)
+            p.zombie = true
         else:
-          p.zombie = true
-
-        if RequireValid notin evo.tableau or p.isValid:
+          makeRoom evo
+          evo.add p
           inc discoveries   # we have something worth adding
-          evo.makeRoom()
-          evo.population.add p
+          evo.discover(p)
           yield p
 
   finally:

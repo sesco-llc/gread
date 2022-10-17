@@ -66,11 +66,13 @@ type
     generations: Generation
     fittest: Option[Program[T]]
     unnovel: GreadTable[Hash, PackedSet[int]]
+    ken: PopMetrics
+    scoreCache: GreadTable[Hash, Option[float]]
 
 proc nextGeneration*(evo: var Evolver): Generation =
   ## inform the evolver of a new generation
   inc evo.generations
-  result = Generation evo.generations
+  result = evo.generations
 
 proc generation*(evo: Evolver): Generation =
   ## return the current generation
@@ -103,6 +105,7 @@ proc del*[T, V](evo: var Evolver[T, V]; p: Program[T]) =
   dec(evo.cacheCounter, evo.cacheSize(p))
   try:
     del(evo.cache, p.hash)
+    del(evo.scoreCache, p.hash)
   except KeyError:
     discard
   try:
@@ -155,9 +158,7 @@ proc resetFittest*(evo: var Evolver) =
     p.flags.excl FinestKnown
   if evo.fittest.isSome:
     get(evo.fittest).flags.incl FinestKnown
-
-proc `core=`*(evo: var Evolver; core: CoreSpec) = evo.core = core
-proc core*(evo: var Evolver): CoreSpec = evo.core
+    paintFittest(evo.ken, get(evo.fittest))
 
 proc `operators=`*[T, V](evo: var Evolver[T, V];
                          weighted: openArray[(Operator[T, V], float64)]) =
@@ -180,7 +181,7 @@ proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
           else:
             NaN
     if UseParsimony in evo.tableau:
-      evo.population.toggleParsimony(on)
+      evo.toggleParsimony(on)
     for p in evo.population.items:
       maybeResetFittest(evo, p)
 
@@ -196,6 +197,7 @@ proc grammar*[T, V](evo: Evolver[T, V]): Grammar =
 proc resetCache*(evo: var Evolver) =
   ## clear the cache of previously-evaluated symbol sets, per each program
   initGreadTable(evo.cache, evo.tableau.maxPopulation)
+  initGreadTable(evo.scoreCache, evo.tableau.maxPopulation)
   initGreadTable(evo.unnovel, evo.tableau.maxPopulation)
   clear evo.indexes
   for index in evo.dataset.low .. evo.dataset.high:
@@ -216,9 +218,9 @@ proc dataset*[T, V](evo: Evolver[T, V]): lent seq[SymbolSet[T, V]] =
 proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau; rng: Rand = randState()) =
   ## perform initial setup of the Evolver, binding platform and tableau
   evo = Evolver[T, V](platform: platform, tableau: tableau, rng: rng)
+  if evo.core.isNone:
+    evo.core = platform.core
   evo.resetCache()
-
-proc tableau*(evo: Evolver): Tableau = evo.tableau
 
 func isEqualWeight*(evo: Evolver): bool = false
 
@@ -317,6 +319,10 @@ proc scoreFromCache*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
     demandValid result
   except UnfitError:
     result = none V
+  except Exception:
+    error p
+    writeStackTrace()
+    raise
 
 proc score*[T, V](evo: var Evolver[T, V]; index: int;
                   p: Program[T]): Option[V] =
@@ -374,21 +380,12 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
   elif p.zombie:
     result = none V
   else:
-    {.warning: "fix".}
-    let complete = false and card(indices[]) == len(evo.dataset)
-    let cache: ptr seq[V] =
-      if complete:
-        addr evo.cache[p.hash]
-      else:
-        nil
     let e = addr evo
     # the iterator evaluates each symbol set in the dataset
     iterator iter(): (ptr SymbolSet[T, V], ptr V) =
       for index in indices[].items:
         var v: ptr V
-        if complete:
-          v = addr cache[][index]
-        elif e[].hasSampled(p, index):
+        if e[].hasSampled(p, index):
           v = e[].getScoreFromCache(p, index)
         else:
           let s = e[].score(index, p)
@@ -404,6 +401,10 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
       demandValid result
     except UnfitError:
       result = none V
+    except Exception:
+      echo $p
+      writeStackTrace()
+      raise
 
 proc score*[T, V](evo: var Evolver[T, V]; p: Program[T]): Option[V] =
   ## score the program against all available symbol sets
@@ -452,7 +453,10 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
   ## create a new (random) population using the given evolver's parameters
   mixin isValid
   result = newPopulation[T](evo.tableau.seedPopulation, core = evo.core)
-  result.toggleParsimony(UseParsimony in evo.tableau)
+  when false:
+    evo.toggleParsimony(UseParsimony in evo.tableau)
+  else:
+    {.warning: "we don't (yet) assert parsimony scoring on random pops".}
   while result.len < evo.tableau.seedPopulation:
     try:
       if evo.grammar.isNil:
@@ -655,32 +659,58 @@ iterator trim*[T, V](evo: var Evolver[T, V]): Program[T] =
     del(evo.population, loser.index)
     yield loser.program
 
+func paintMetrics*(ken: var PopMetrics; evo: Evolver) =
+  ## recover validity, score, and parsimony metrics of the population; O(n)
+  ken.core = evo.core
+  paintMetrics(ken, evo.population)
+  if UseParsimony notin evo.tableau:
+    ken.parsimony = NaN
+  if evo.fittest.isSome:
+    paintFittest(ken, get(evo.fittest))
+
 proc resetParsimony*(evo: var Evolver): PopMetrics =
   ## recompute the parsimony for the population,
   ## if parsimony is enabled for the population;
   ## returns the population metrics in any event
-  result = evo.population.metrics
-  if UseParsimony notin evo.tableau:
-    return result
-  if evo.strength.isNil:
-    raise ValueError.newException "evolver needs strength assigned"
-  profile "reset parsimony":
-    block failure:
+  paintMetrics(result, evo)
+  try:
+    if UseParsimony notin evo.tableau:
+      return
+    if evo.strength.isNil:
+      raise ValueError.newException "evolver needs strength assigned"
+    profile "reset parsimony":
       # reset their scores
       for program in evo.population.mitems:
-        let s = evo.score(program)
-        if s.isSome:
-          program.score = evo.strength(get s)
+        var s: Option[float]
+        try:
+          s = evo.scoreCache[program.hash]
+        except KeyError:
+          let v = evo.score(program)
+          if v.isSome:
+            s = some evo.strength(get v)
+            # XXX: s.isValid?
+          else:
+            s = none float
+          evo.scoreCache[program.hash] = s
+        if s.isSome and Score(get s).isValid:
+          program.score = Score(get s)
+          result.scores.push program.score.float
         else:
+          program.zombie = true
           program.score = NaN
-          result.parsimony = NaN
-          break failure
       # calculate parsimony
-      result.parsimony = parsimony(evo.population, result)
+      result.parsimony = parsimony(result, evo.population)
+      # we need to average adjusted scores as we compute them
+      var modified: MovingStat[float64, uint32]
       # adjust the scores accordingly
       for program in evo.population.mitems:
-        assert program.score.isValid
         program.score = result.score(program.score, program.len)
+        if program.score.isValid:
+          modified.push program.score
+      result.scores = modified
+  finally:
+    evo.ken = result
+    #echo fmt"reset parsimony: {ff evo.ken.scores.mean} {ff evo.ken.parsimony}"
 
 proc `strength=`*[T, V](evo: var Evolver[T, V]; strong: Strength[V]) =
   ## assign a new strength function to the evolver
@@ -695,3 +725,57 @@ proc strength*[T, V](evo: Evolver[T, V]): Strength[V] =
 
 proc fittest*[T, V](evo: Evolver[T, V]): Option[Program[T]] =
   result = evo.fittest
+
+func resetMetrics*(evo: var Evolver): PopMetrics =
+  ## recover validity, score, and parsimony metrics of the population; O(n)
+  evo.ken.paintMetrics(evo)
+  result = evo.ken
+
+proc toggleParsimony*(evo: var Evolver; value = on) =
+  ## turn parsimony `on` or `off`; when switching parsimony on,
+  ## this will recompute and set the parsimony for the population
+  if value == on:
+    evo.tableau.flags.incl UseParsimony
+  else:
+    evo.tableau.flags.excl UseParsimony
+  # recalculate parsimony and all other metrics
+  discard resetParsimony(evo)
+  # reset the fittest individual
+  evo.resetFittest()
+
+proc introduce*(evo: var Evolver; program: Program) =
+  ## add a program to an evolver without scoring it
+  evo.population.add program
+
+proc add*(evo: var Evolver; program: Program) =
+  ## add a program to an evolver, maybe reset fittest program
+  evo.introduce program
+  if not program.zombie and not program.score.isValid:
+    let s =
+      if evo.isEqualWeight:
+        evo.scoreRandomly(program)
+      else:
+        evo.score(program)
+    program.score =
+      if s.isSome:
+        let s = evo.strength(get s)
+        if s.isValid:
+          # XXX: rescale?
+          s
+        else:
+          NaN
+      else:
+        NaN
+    if program.isValid:
+      evo.maybeResetFittest(program)
+
+proc discover*(evo: var Evolver; program: Program) =
+  inc evo.ken.inventions
+
+proc tableau*(evo: Evolver): Tableau = evo.tableau
+
+proc `core=`*(evo: var Evolver; core: CoreSpec) =
+  evo.core = core
+  evo.ken.core = evo.core
+
+proc core*(evo: var Evolver): CoreSpec = evo.core
