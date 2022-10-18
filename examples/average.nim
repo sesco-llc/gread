@@ -94,7 +94,6 @@ for (js, ideal) in inputData.items:
   for name, value in js.pairs:
     paired.add (name, value.toLuaValue)
   paired.add ("ideal", ideal.toLuaValue)
-  var locals = initLocals paired
   training.add:
     initLocals paired
 
