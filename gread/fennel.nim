@@ -318,6 +318,7 @@ proc toLua(fnl: Fennel; p: FProg): string =
   if p.hash in fnl.aslua:
     result = fnl.aslua[p.hash]
   else:
+    inc fnl.runs
     result = compileFennel(fnl.vm, $p)
     memoryAudit "lua cache shenanigans":
       fnl.aslua[p.hash] = result
