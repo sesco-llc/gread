@@ -171,9 +171,10 @@ proc maybeResetFittest*(evo: var Evolver; program: Program) =
       if evo.fittest.isNone or get(evo.fittest) < program:
         if evo.fittest.isSome:
           maybeReportFittest(evo, get(evo.fittest))
+          if program.generation > get(evo.fittest).generation or program.core != get(evo.fittest).core:
+            inc evo.ken.leaders
         evo.fittest = some program
         program.flags.incl FinestKnown
-        inc evo.ken.leaders
         maybeReportFittest(evo, program)
 
 proc resetFittest*(evo: var Evolver) =
