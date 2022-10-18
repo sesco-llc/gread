@@ -359,5 +359,5 @@ func clone*[T](population: Population[T]; core = none CoreId): Population[T] =
     when populationCache:
       result.cache.incl cloned.hash
 
-proc sort*(population: Population) =
-  sort population.programs
+proc sort*(population: Population; order = SortOrder.Ascending) =
+  sort(population.programs, order = order)
