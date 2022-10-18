@@ -17,6 +17,7 @@ proc `$`*(pc: PC): string {.borrow.}
 proc `==`*(a, b: PC): bool {.borrow.}
 proc inc(pc: var PC; n: int32) {.borrow.}
 
+proc `$`*(geno: Genome): string {.borrow.}
 proc low*(geno: Genome): int {.borrow.}
 proc high*(geno: Genome): int {.borrow.}
 proc len*(geno: Genome): int {.borrow.}
