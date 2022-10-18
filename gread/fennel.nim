@@ -522,13 +522,15 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
             insufficiency rate: {fnl.nans.mean.percent} >= 0%
            semantic error rate: {fnl.errors.mean.percent} >= 0%
              foreign influence: {m.usurper}
-              immigration rate: {(m.immigrants.float / m.size.float).percent}
-          novel invention rate: {(m.inventions.float / m.size.float).percent}
+              total immigrants: {m.immigrants}
+             invention recency: {m.staleness.percent} <= 100%
+              total inventions: {m.inventions}
+                leader changes: {m.leaders}
+               zombies created: {m.zombies}
           mapping failure rate: {evo.shortGenome.mean.percent}
                best generation: {m.bestGen}
              total generations: {m.generation} / {evo.tableau.maxGenerations}
         vm runs per generation: {ff(fnl.runs.float / m.generation.float)}
-             invention recency: {m.staleness.percent} <= 100%
                generation time: {ff genTime.mean} ms
         generations per second: {ff(1000.0 * m.generation.float / totalMs)}
                 evolution time: {ff(totalMs / 1000.0)} sec
@@ -634,12 +636,21 @@ when compileOption"threads":
     evo.core = fnl.core
     evo.fitone = args.fitone
     evo.fitmany = args.fitmany
-    evo.population =
-      if args.population.isNil:
-        evo.randomPop()
+    if args.population.isNil:
+      evo.population = evo.randomPop()
+    else:
+      evo.population = args.population
+      # this worker currently assumes that the lesser evil
+      # is to score the entire population, as opposed to
+      # simply spewing "fit" programs which are merely the
+      # fittest found thus far among an existing population
+      for program in evo.population.mitems:
+        discard evo.paintScore(program, inPop=true)
+      if UseParsimony in evo.tableau:
+        evo.toggleParsimony(on)
       else:
-        args.population
-    evo.toggleParsimony(UseParsimony in evo.tableau)
+        evo.toggleParsimony(off)
+        evo.resetFittest()
 
     var evoTime = getTime()
     # fittest -> finest due to nim bug
@@ -705,7 +716,11 @@ when compileOption"threads":
       evo.population = newPopulation[Fennel]()
     else:
       evo.population = args.population
-      evo.toggleParsimony(UseParsimony in evo.tableau)
+      if UseParsimony in evo.tableau:
+        evo.toggleParsimony(on)
+      else:
+        evo.toggleParsimony(off)
+        evo.resetFittest()
 
     while true:
       noop() # give other evolvers a chance
@@ -752,7 +767,11 @@ when compileOption"threads":
       evo.population = newPopulation[Fennel]()
     else:
       evo.population = args.population
-      evo.toggleParsimony(UseParsimony in evo.tableau)
+      if UseParsimony in evo.tableau:
+        evo.toggleParsimony(on)
+      else:
+        evo.toggleParsimony(off)
+        evo.resetFittest()
 
     while true:
       noop() # give other evolvers a chance

@@ -37,6 +37,8 @@ type
     ages*: MovingStat[float32, uint32]
     immigrants*: int
     inventions*: int
+    leaders*: int
+    zombies*: int
     parsimony*: float
     validity*: MovingStat[float32, uint32]
     caches*: MovingStat[float32, uint32]
@@ -90,10 +92,6 @@ template learn(pop: Population; p: Program; pos: int) =
   pop.ken.lengths.push p.len.float
   if p.core == pop.ken.core:
     pop.ken.ages.push float(int p.generation)
-    if Cached notin p.flags:
-      inc pop.ken.inventions
-  else:
-    inc pop.ken.immigrants
 
 template forget(population: Population; program: Program; pos: int) =
   when populationCache:
@@ -107,10 +105,6 @@ template forget(population: Population; program: Program; pos: int) =
   population.ken.lengths.pop program.len.float
   if program.core == population.ken.core:
     population.ken.ages.pop float(int program.generation)
-    if Cached notin program.flags:
-      dec population.ken.inventions
-  else:
-    dec population.ken.immigrants
 
 template withInitialized*(pop: Population; logic: untyped): untyped =
   ## execute the body only when the population is initialized
@@ -336,10 +330,6 @@ func paintMetrics*(metrics: var PopMetrics; population: Population) =
       metrics.lengths.push program.len.float
       if program.core == metrics.core:
         metrics.ages.push float(int program.generation)
-        if Cached notin program.flags:
-          inc metrics.inventions
-      else:
-        inc metrics.immigrants
       when programCache:
         metrics.caches.push program.cacheSize.float
 

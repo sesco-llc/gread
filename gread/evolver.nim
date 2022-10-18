@@ -69,6 +69,30 @@ type
     ken: PopMetrics
     scoreCache: GreadTable[Hash, Option[float]]
 
+proc paintScore*(evo: var Evolver; program: Program; inPop = false): Score =
+  ## do the score assignment dance
+  mixin isValid
+  let score =
+    if evo.isEqualWeight:
+      evo.scoreRandomly(program)
+    else:
+      evo.score(program)
+  program.score =
+    if score.isSome:
+      let str = evo.strength(get score)
+      if str.isValid:
+        str # XXX: rescale?
+      else:
+        NaN
+    else:
+      NaN
+  if program.isValid:
+    if inPop:
+      evo.maybeResetFittest(program)
+  else:
+    program.zombie = true
+  result = program.score
+
 proc nextGeneration*(evo: var Evolver): Generation =
   ## inform the evolver of a new generation
   inc evo.generations
@@ -142,13 +166,14 @@ else:
 
 proc maybeResetFittest*(evo: var Evolver; program: Program) =
   ## maybe reset the fittest program metric
-  if program.score.isValid:
+  if program.isValid and program.score.isValid:
     if (program.core.isNone or program.core == evo.core or evo.core.isNone) or evo.cacheSize(program) == evo.dataset.len:
       if evo.fittest.isNone or get(evo.fittest) < program:
         if evo.fittest.isSome:
           maybeReportFittest(evo, get(evo.fittest))
-        program.flags.incl FinestKnown
         evo.fittest = some program
+        program.flags.incl FinestKnown
+        inc evo.ken.leaders
         maybeReportFittest(evo, program)
 
 proc resetFittest*(evo: var Evolver) =
@@ -168,22 +193,11 @@ proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
   evo.population = population
   if not evo.population.isNil:
     for p in evo.population.items:
-      if not p.score.isValid:
-        # FIXME: optimization point
-        let s =
-          if evo.isEqualWeight:
-            evo.scoreRandomly(p)
-          else:
-            evo.score(p)
-        p.score =
-          if s.isSome:
-            evo.strength(get s)
-          else:
-            NaN
+      discard evo.paintScore(p)
     if UseParsimony in evo.tableau:
       evo.toggleParsimony(on)
-    for p in evo.population.items:
-      maybeResetFittest(evo, p)
+    else:
+      evo.resetFittest()
 
 proc population*[T, V](evo: Evolver[T, V]): Population[T] =
   evo.population
@@ -661,7 +675,7 @@ iterator trim*[T, V](evo: var Evolver[T, V]): Program[T] =
 
 func paintMetrics*(ken: var PopMetrics; evo: Evolver) =
   ## recover validity, score, and parsimony metrics of the population; O(n)
-  ken.core = evo.core
+  ken = evo.ken
   paintMetrics(ken, evo.population)
   if UseParsimony notin evo.tableau:
     ken.parsimony = NaN
@@ -746,31 +760,19 @@ proc toggleParsimony*(evo: var Evolver; value = on) =
 proc introduce*(evo: var Evolver; program: Program) =
   ## add a program to an evolver without scoring it
   evo.population.add program
+  if program.core != evo.core:
+    inc evo.ken.immigrants
 
 proc add*(evo: var Evolver; program: Program) =
   ## add a program to an evolver, maybe reset fittest program
   evo.introduce program
   if not program.zombie and not program.score.isValid:
-    let s =
-      if evo.isEqualWeight:
-        evo.scoreRandomly(program)
-      else:
-        evo.score(program)
-    program.score =
-      if s.isSome:
-        let s = evo.strength(get s)
-        if s.isValid:
-          # XXX: rescale?
-          s
-        else:
-          NaN
-      else:
-        NaN
-    if program.isValid:
-      evo.maybeResetFittest(program)
+    discard evo.paintScore(program, inPop=true)
 
 proc discover*(evo: var Evolver; program: Program) =
   inc evo.ken.inventions
+  if program.zombie:
+    inc evo.ken.zombies
 
 proc tableau*(evo: Evolver): Tableau = evo.tableau
 

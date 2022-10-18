@@ -21,10 +21,17 @@ proc makeRoom*[T, V](evo: var Evolver[T, V]; space = 1) =
 iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
   ## try to create novel program(s) from better existing programs
 
-  # inform the pop that we're in a new generation
+  # inform the evolver that we're in a new generation
   let gen = nextGeneration evo
   let clock = getTime()
   var discoveries = 0
+
+  template addIt(program: Program): untyped {.dirty.} =
+    makeRoom evo
+    evo.add program
+    inc discoveries   # we have something worth adding
+    evo.discover(program)
+    yield program
 
   try:
     while discoveries == 0:
@@ -33,25 +40,17 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
         p.generation = gen
         p.core = evo.core
         if RequireValid in evo.tableau:
-          let s = evo.score(p)
-          if s.isSome:
-            p.score = strength(evo)(get s)
-            if p.isValid:
-              makeRoom evo
-              evo.add p
-              inc discoveries   # we have something worth adding
-              evo.discover(p)
-              yield p
-          else:
-            p.zombie = true
+          discard evo.paintScore(p, inPop=false)
+          if p.isValid:
+            addIt p
         else:
-          makeRoom evo
-          evo.add p
-          inc discoveries   # we have something worth adding
-          evo.discover(p)
-          yield p
+          addIt p
 
   finally:
+    if discoveries == 0:
+      raise Defect.newException "too few discoveries"
+    elif discoveries > 2:
+      raise Defect.newException "too many discoveries"
     if discoveries > 0:
       # update the parsimony to account for additions and removals
       discard evo.resetParsimony()
