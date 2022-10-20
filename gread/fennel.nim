@@ -35,6 +35,7 @@ import gread/decompile
 export lptabz
 export lunacy
 export lrucache
+export stat except Option  # nim bug workaround
 
 const
   greadSemanticErrorsAreFatal {.booldefine.} = false
