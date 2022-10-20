@@ -11,7 +11,7 @@ import std/times
 
 import pkg/lunacy except Integer
 import pkg/adix/lptabz
-import pkg/adix/stat
+import pkg/adix/stat except Option
 import pkg/balls
 import pkg/cps
 import pkg/frosty/streams as brrr
@@ -26,11 +26,9 @@ import gread/data
 import gread/evolver
 import gread/grammar
 
-export stat
+export stat except Option
 export lptabz
 export lunacy
-
-{.passL: "-lstdc++".}  # workaround buglet with htsparse(?)
 
 const
   semanticErrorsAreFatal = false
@@ -44,7 +42,7 @@ type
     errors*: LuaStat
     runtime*: LuaStat
 
-  LuaStat* = MovingStat[float32]
+  LuaStat* = MovingStat[float32, uint32]
 
   Fun* = Function[Lua]
 
