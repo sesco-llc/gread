@@ -1,5 +1,6 @@
 import std/logging
 import std/options
+import std/sequtils
 import std/strutils
 
 import pkg/frosty/streams as brrr
@@ -25,6 +26,105 @@ const
 type
   StoreError* = object of IOError
 
+  ScoredGenomeMapName* = distinct string
+  ScoredSourceMapName* = distinct string
+  ScoredMapNames = ScoredGenomeMapName or ScoredSourceMapName
+
+proc `$`*(store: ScoredGenomeMapName): string = string store
+proc `$`*(store: ScoredSourceMapName): string = string store
+
+proc store*(r: var Redis; key: ScoredGenomeMapName; programs: openArray[Program]): BiggestInt =
+  ## store a genome to a given redis sorted set with the program's score.
+  ## returns the number of stored programs.
+  if programs.len == 0:
+    return 0
+  var members = newSeq[(string, float)](programs.len)
+  for index, program in programs.pairs:
+    members[index] = ($(program.genome), program.score.float)
+    program.flags.incl Cached
+  result = r.zadd($key, members, nan="-inf")
+
+proc store*(r: var Redis; key: ScoredMapNames; population: Population): BiggestInt =
+  ## store a population to a given redis sorted set with scores.
+  ## returns the number of stored programs.
+  var programs = toSeq population.items
+  result = store(r, key, programs)
+
+proc unpackGenomeToProgram[T](gram: Grammar; geno: Genome): Program[T] =
+  ## turn a genome into a program
+  mixin newProgram
+  try:
+    let (pc {.used.}, ast) = πGE[T](gram, geno)
+    result = newProgram(ast, geno[0..<pc])
+    result.flags.incl Cached
+  except ShortGenome:
+    raise StoreError.newException:
+      "deserialization failure: short genome"
+
+proc load*(r: var Redis; key: ScoredGenomeMapName): Option[Genome] =
+  ## attempt to load a random program from the sorted set
+  let genes: string = r.zrandmember($key)
+  if genes.len > 0:
+    result = some genes.Genome
+
+proc load*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName): Option[Program[T]] =
+  ## try to fetch a random program from the redis sorted set
+  # FIXME: also load the score and assign it to the program
+  var genome = load(r, key)
+  if genome.isSome:
+    result = some unpackGenomeToProgram[T](gram, get genome)
+
+proc clear*(r: var Redis; key: ScoredGenomeMapName; genomes: openArray[Genome]) =
+  ## remove programs from the redis sorted set
+  var members = newSeqOfCap[string](genomes.len)
+  for genome in genomes.items:
+    members.add $genome
+  discard r.zrem($key, @members)
+
+proc clear*[T](r: var Redis; key: ScoredGenomeMapName; programs: openArray[Program[T]]) =
+  ## remove programs from the redis sorted set
+  var genomes = newSeqOfCap[Genome](programs.len)
+  for program in programs.items:
+    genomes.add program.genome
+    program.flags.excl Cached
+  clear(r, key, genomes)
+
+proc clearWorst*(r: var Redis; key: ScoredMapNames; count: Natural = 1) =
+  ## remove the `count` poorest programs from the sorted set
+  discard r.zpopmin($key, count = int count)
+
+proc randomGenomes*(r: var Redis; key: ScoredGenomeMapName;
+                    count: Natural = 1): seq[Genome] =
+  ## select `count` genomes at random from the sorted set
+  let genes = r.zrandmembers($key, count)
+  setLen(result, genes.len)
+  for index, gene in genes.pairs:
+    result[index] = gene.Genome
+
+proc randomPopulation*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
+                          size: int; core = none int): Population[T] =
+  ## select a random population of programs from the sorted set
+  # FIXME: also load the scores and assign them to the program
+  let genes = randomGenomes(r, key, count=size)
+  result = newPopulation[T](size = genes.len, core = core)
+  for gene in genes.items:
+    try:
+      result.add unpackGenomeToProgram[T](gram, Genome gene)
+    except StoreError:
+      warn "ignored bad genome from " & $key
+
+proc entirePopulation*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
+                          core = none int): Population[T] =
+  ## select the entire population of programs from the sorted set
+  # FIXME: also load the scores and assign them to the program
+  let genes = r.zrange($key, 0, -1)
+  result = newPopulation[T](size = genes.len, core = core)
+  for gene in genes.items:
+    try:
+      result.add unpackGenomeToProgram[T](gram, Genome gene)
+    except StoreError:
+      warn "ignored bad genome from " & $key
+
 proc store*[T](r: var Redis; p: Program[T]; key: string) =
   ## store a program to a given redis key set
   var geno = freeze p.genome
@@ -40,39 +140,34 @@ proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
     return none Program[T]
 
   try:
-    var p: Program[T]
+    var program: Program[T]
     if s.endsWith frostyMagic:
       # it's serialized via frosty
       var s = s
       setLen(s, s.len - frostyMagic.len)  # remove the magic
-      var geno: Genome
-      thaw(s, geno)
-      try:
-        var (pc {.used.}, ast) = πGE[T](gram, geno)
-        p = newProgram(ast, geno)
-      except ShortGenome:
-        raise StoreError.newException:
-          "deserialization failure: short genome"
+      var genome: Genome
+      thaw(s, genome)
+      program = unpackGenomeToProgram(gram, genome)
     else:
       when supportsParsing:
         # parse it using tree-sitter
-        p = newProgram s
+        program = newProgram s
+        program.flags.incl Cached
       else:
         # remove extant unsupported keys
         raise StoreError.newException:
           "deserialization failure: no tree-sitter available"
-    if not p.isNil:
-      p.flags.incl Cached
-      result = some p
+    if not program.isNil:
+      result = some program
   except ThawError as e:
     raise StoreError.newException "deserialization failure: " & e.msg
 
-proc clear*[T](r: var Redis; p: Program[T]; key: string) =
+proc clear*[T](r: var Redis; program: Program[T]; key: string) =
   ## remove a program from the redis key set
-  var geno = freeze p.genome
-  geno.add frostyMagic
-  p.flags.excl Cached
-  discard r.srem(key, geno)
+  var genome = freeze program.genome
+  genome.add frostyMagic
+  program.flags.excl Cached
+  discard r.srem(key, genome)
 
 proc load*[T](r: var Redis; gram: Grammar; key: string): Option[Program[T]] =
   ## try to fetch a random program from the redis key set
