@@ -35,8 +35,6 @@ proc initDataPoint*[T, V](name: string; value: V): DataPoint[T, V] =
 
 proc initSymbolSet*[T, V](values: openArray[DataPoint[T, V]]): SymbolSet[T, V] =
   ## convert an openArray of DataPoints into a suitable SymbolSet
-  when SymbolSet[T, V] is ref:
-    new result
   result.values = @values
   result.hash = hash result.values
 
@@ -47,7 +45,8 @@ proc initSymbolSet*[T, V](values: openArray[(string, V)]): SymbolSet[T, V] =
   for name, value in values.items:
     points.add:
       initDataPoint[T, V](name, value)
-  result = initSymbolSet[T, V](points)
+  result.values = points
+  result.hash = hash result.values
 
 type
   NamePoint[T, V] = tuple  # only for pairs iteration; no export

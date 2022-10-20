@@ -109,7 +109,7 @@ proc randomPopulation*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
   result = newPopulation[T](size = genes.len, core = core)
   for gene in genes.items:
     try:
-      result.add unpackGenomeToProgram[T](gram, Genome gene)
+      result.add unpackGenomeToProgram[T](gram, gene)
     except StoreError:
       warn "ignored bad genome from " & $key
 
