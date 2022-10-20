@@ -416,10 +416,13 @@ proc injectLocals*(p: FProg; locals: Locals): string =
   result.add $p
   result.add ")"
 
-proc dumpScore*(fnl: Fennel; p: FProg) =
+proc dumpScore*(p: FProg) =
   var s = fmt"{p.score} {p.core}/{p.generation}[{p.len}]: "
   s.add $p
   checkpoint s
+
+proc dumpScore*(fnl: Fennel; p: FProg) {.deprecated: "use dumpScore/1".} =
+  dumpScore p
 
 proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
                       samples = 8) =
