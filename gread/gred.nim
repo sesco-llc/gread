@@ -125,6 +125,24 @@ proc entirePopulation*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
     except StoreError:
       warn "ignored bad genome from " & $key
 
+proc bestGenomes*(r: var Redis; key: ScoredGenomeMapName; count: Natural = 1): seq[Genome] =
+  ## retrieve the best `count` genomes from a sorted set
+  let genes = r.zrange($key, -int(count), -1)
+  setLen(result, genes.len)
+  for index, gene in genes.pairs:
+    result[index] = gene.Genome
+
+proc bestPrograms*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
+                      count: Natural = 1; core = none int): Population[T] =
+  ## retrieve the `count` best programs from a sorted set
+  let genes = bestGenomes(r, key, count)
+  result = newPopulation[T](size = genes.len, core = core)
+  for gene in genes.items:
+    try:
+      result.add unpackGenomeToProgram[T](gram, gene)
+    except StoreError:
+      warn "ignored bad genome from " & $key
+
 proc store*[T](r: var Redis; p: Program[T]; key: string) =
   ## store a program to a given redis key set
   var geno = freeze p.genome
