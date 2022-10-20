@@ -905,7 +905,7 @@ proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Gramm
   initEvolver(evo, d, tab, rng)
   evo.operators = {
     geCrossover[T, G]:     2.0,
-    geMutation[T, G]:      4.0,
+    geNoise1pt0[T, G]:     10.0,
     randomCrossover[T, G]: 1.0,
   }
   evo.strength = strong

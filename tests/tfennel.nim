@@ -156,6 +156,7 @@ suite "basic fennel stuff":
         except ShortGenome:
           discard
 
+when false:
   block:
     ## decompilation is a thing
     var fnl = newFennel()
@@ -183,24 +184,24 @@ suite "basic fennel stuff":
     block decompilation:
       while true:
         for discovery in evo.generation():
-          let generation = evo.generation
           if evo.fittest.isNone:
             fail"simply unfit"
           else:
-            if $evo.fittest.get == target:
+            let generation = evo.generation
+            if $get(evo.fittest) == target:
               checkpoint "decompiled program after ", generation, " generations"
               break decompilation
             elif 0 == generation mod 10_000:
               dumpStats(evo, et)
-              echo $evo.fittest.get
+              echo $get(evo.fittest)
               echo target
             elif generation >= 1_000_000:
-              fail "unable to decompile program"
+              fail"unable to decompile program"
 
     dumpStats(evo, et)
 
     block:
-      let geno = evo.fittest.get.genome
+      let geno = get(evo.fittest).genome
       let (pc, ast) = πGE[Fennel](gram, geno)
       p = newProgram(ast, geno[0..<pc.int])
       let s = $p
