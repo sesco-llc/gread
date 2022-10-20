@@ -30,8 +30,8 @@ type
   ScoredSourceMapName* = distinct string
   ScoredMapNames = ScoredGenomeMapName or ScoredSourceMapName
 
-proc `$`*(store: ScoredGenomeMapName): string = string store
-proc `$`*(store: ScoredSourceMapName): string = string store
+proc `$`*(store: ScoredGenomeMapName): string {.borrow.}
+proc `$`*(store: ScoredSourceMapName): string {.borrow.}
 
 proc store*(r: var Redis; key: ScoredGenomeMapName; programs: openArray[Program]): BiggestInt =
   ## store a genome to a given redis sorted set with the program's score.
