@@ -272,6 +272,10 @@ func isReferential(c: Component): bool =
   else:
     raise ValueError.newException "nonsensical outside of production rules"
 
+proc isInitialized*(gram: var Grammar): bool =
+  ## true if the grammar has been initialized 🙄
+  not gram.isNil
+
 proc initGrammar*(gram: var Grammar) =
   ## initialize a grammar
   if not gram.isNil:
