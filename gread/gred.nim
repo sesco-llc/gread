@@ -1,4 +1,5 @@
 import std/logging
+import std/macros
 import std/options
 import std/sequtils
 import std/strutils
@@ -33,14 +34,21 @@ type
 proc `$`*(store: ScoredGenomeMapName): string {.borrow.}
 proc `$`*(store: ScoredSourceMapName): string {.borrow.}
 
-proc store*(r: var Redis; key: ScoredGenomeMapName; programs: openArray[Program]): BiggestInt =
-  ## store a genome to a given redis sorted set with the program's score.
+proc store*(r: var Redis; key: ScoredMapNames; programs: openArray[Program]): BiggestInt =
+  ## store programs to a given redis sorted set with the program's score.
   ## returns the number of stored programs.
   if programs.len == 0:
     return 0
   var members = newSeq[(string, float)](programs.len)
   for index, program in programs.pairs:
-    members[index] = ($(program.genome), program.score.float)
+    let data =
+      when key is ScoredGenomeMapName:
+        $(program.genome)
+      elif key is ScoredSourceMapName:
+        $program
+      else:
+        {.error: "not implemented".}
+    members[index] = (data, program.score.float)
     program.flags.incl Cached
   result = r.zadd($key, members, nan="-inf")
 
