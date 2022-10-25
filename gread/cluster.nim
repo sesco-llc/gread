@@ -2,6 +2,7 @@ when not compileOption"threads":
   {.error: "cluster support requires threads".}
 
 import std/deques
+import std/logging
 import std/options
 import std/os
 import std/osproc
@@ -22,20 +23,41 @@ import gread/evolver
 import gread/grammar
 
 type
-  EvalResult*[T, V] = ref object
+  EvalResult*[T, V] = object
     program*: Program[T]
     results*: seq[Option[V]]
 
-  ProgramQueue*[T] = LoonyQueue[Program[T]]
-  EvaluationQueue*[T, V] = LoonyQueue[EvalResult[T, V]]
-  IO[T] = tuple[inputs, outputs: ProgramQueue[T]]
+  TransportKind* = enum
+    ctMetrics
+    ctEvolver
+    ctPopulation
+    ctProgram
+    ctPrograms
+    ctEvalResult
+
+  ClusterTransport*[T, V] = ref object
+    case kind*: TransportKind
+    of ctMetrics:
+      metrics*: PopMetrics
+    of ctEvolver:
+      evolver*: Evolver[T, V]
+    of ctPopulation:
+      population*: Population[T]
+    of ctProgram:
+      program*: Program[T]
+    of ctPrograms:
+      programs*: seq[Program[T]]
+    of ctEvalResult:
+      result*: EvalResult[T, V]
+
+  TransportQ*[T, V] = LoonyQueue[ClusterTransport[T, V]]
+  IO[T, V] = tuple[input, output: TransportQ[T, V]]
+
   Cluster*[T, V] = ref object
     name: string
     cores: seq[CoreId]
-    pq: IO[T]                      ## program gene transfer
-    negs: seq[ProgramQueue[T]]     ## thread-local invalid program caches
-    results: EvaluationQueue[T, V] ## send/receive result sets
-    nextId: CoreId                 ## the value of the next core identity
+    io: IO[T, V]           ## how we move data between threads
+    nextId: CoreId         ## the value of the next core identity
 
   Worker*[T, V] = proc(w: Work[T, V]) {.thread.}
 
@@ -53,9 +75,7 @@ type
     fitone*: FitOne[T, V]
     fitmany*: FitMany[T, V]
     strength*: Strength[V]                 ## compute a metric for sorting
-    io*: IO[T]                             ## how we send/receive genes
-    neg: ProgramQueue[T]                   ## receives invalid programs
-    results*: EvaluationQueue[T, V]        ## maps programs to result sets
+    io*: IO[T, V]                          ## how we move data between threads
     cluster: Cluster[T, V]
 
   CQ = LoonyQueue[C]
@@ -67,7 +87,35 @@ var
   threads: seq[Thread[CQ]]
   shelf: seq[CQ]
 
-proc corker*(queue: CQ) {.thread.} =
+proc push*[T, V](tq: TransportQ[T, V]; program: sink Program[T]) =
+  ## convenience for pushing into a transport queue
+  tq.push ClusterTransport[T, V](kind: ctProgram, program: program)
+
+proc push*[T, V](tq: TransportQ[T, V]; population: sink Population[T]) =
+  ## convenience for pushing into a transport queue
+  tq.push ClusterTransport[T, V](kind: ctPopulation, population: population)
+
+proc push*[T, V](tq: TransportQ[T, V]; metrics: sink PopMetrics) =
+  ## convenience for pushing into a transport queue
+  tq.push ClusterTransport[T, V](kind: ctMetrics, metrics: metrics)
+
+proc push*[T, V](tq: TransportQ[T, V]; evolver: sink Evolver[T, V]) =
+  ## convenience for pushing into a transport queue
+  tq.push ClusterTransport[T, V](kind: ctEvolver, evolver: evolver)
+
+proc push*[T, V](tq: TransportQ[T, V]; programs: sink seq[Program[T]]) =
+  ## convenience for pushing into a transport queue
+  tq.push ClusterTransport[T, V](kind: ctPrograms, programs: programs)
+
+proc push*[T, V](tq: TransportQ[T, V]; evaluated: sink EvalResult[T, V]) =
+  ## convenience for pushing into a transport queue
+  tq.push ClusterTransport[T, V](kind: ctEvalResult, result: evaluated)
+
+template push*(cluster: Cluster; thing: untyped): untyped =
+  push(cluster.io.input, thing)
+
+proc continuationRunner*(queue: CQ) {.thread.} =
+  ## continuation worker
   var work: Deque[C]
   {.gcsafe.}:
     while true:
@@ -94,7 +142,7 @@ for core in 0..<processors:
   setLen(threads, threads.len + 1)
   setLen(shelf, shelf.len + 1)
   shelf[^1] = newLoonyQueue[C]()
-  createThread(threads[^1], corker, shelf[^1])
+  createThread(threads[^1], continuationRunner, shelf[^1])
   when defined(greadPin):
     pinToCpu(threads[^1], core)
 
@@ -130,7 +178,7 @@ proc forceShare*(work: Work; p: Program) =
   var transit = clone p
   transit.source = getThreadId()
   transit.core = work.core         # set the core to help define origin
-  push(work.io.outputs, transit)
+  push(work.io.output, transit)
 
 proc share*(work: Work; p: Program) =
   ## send a better program to other threads
@@ -150,25 +198,35 @@ proc share*(work: Work; p: Program) =
   for copies in 0..<max(0, sharing):
     forceShare(work, p)
 
+iterator programs*[T, V](transport: ClusterTransport[T, V]): Program[T] =
+  ## iterate over programs passed in a transport envelope
+  if transport.isNil:
+    raise Defect.newException "attempt to iterate nil transport"
+  else:
+    case transport.kind
+    of ctProgram:
+      yield transport.program
+    of ctPrograms:
+      for program in transport.programs.items:
+        yield program
+    of ctPopulation:
+      for program in transport.population.items:
+        yield program
+    else:
+      warn "programs iterator ignored " & $transport.kind
+
 proc search*(work: Work; evo: var Evolver) =
   ## try to get some fresh genes from another thread
   ## and add them to the supplied population
-  var transit = pop work.io.inputs
-  if not transit.isNil:
-    evo.introduce transit
+  var transport = pop work.io.input
+  if not transport.isNil:
+    for program in programs(transport):
+      evo.introduce program
 
-iterator invalidPrograms*[T, V](work: Work[T, V]): Program[T] =
-  ## iterate over, and remove, programs marked invalid elsewhere
-  while not work.neg.isNil:
-    var transit = pop work.neg
-    if transit.isNil:
-      break
-    yield transit
-
-proc programQueues*[T, V](cluster: Cluster[T, V]): IO[T] =
+proc programQueues*[T, V](cluster: Cluster[T, V]): IO[T, V] =
   ## returns input and output queues which cluster
   ## members will use to exchange novel programs
-  (cluster.pq.inputs, cluster.pq.outputs)
+  cluster.io
 
 proc size*(cluster: Cluster): int =
   ## returns the number of evolvers in the cluster
@@ -181,10 +239,7 @@ proc nextCore*(cluster: Cluster): Option[CoreId] =
 
 proc redress*[T, V](cluster: Cluster[T, V]; work: var Work[T, V]) =
   ## freshen a work object with a new core and i/o channels, etc.
-  cluster.negs.add newLoonyQueue[Program[T]]()
-  work.neg = cluster.negs[^1]
-  work.io = cluster.programQueues()
-  work.results = cluster.results
+  work.io = cluster.io
   work.core = cluster.nextCore
   work.cluster = cluster
 
@@ -200,29 +255,21 @@ proc boot*[T, V](cluster: Cluster[T, V]; worker: C; core: CoreSpec) =
 proc halt*(cluster: Cluster; core = none CoreId) =
   ## halt a cluster or a particular core
   for i, thread in threads.mitems:
-    if true: #core.isNone or cluster.cores[i] == get core:
-      joinThread thread
-      #del(cluster.threads, i)
-      #del(cluster.negs, i)
-  cluster.negs = @[]
+    joinThread thread
+
+proc newTransportQ*[T, V](): TransportQ[T, V] =
+  ## create a new transport queue for messaging between threads
+  newLoonyQueue[ClusterTransport[T, V]]()
 
 proc newCluster*[T, V](name = ""): Cluster[T, V] =
   ## create a new cluster
-  result = Cluster[T, V](name: name)
-  result.pq = (newLoonyQueue[Program[T]](), newLoonyQueue[Program[T]]())
-  result.results = newLoonyQueue[EvalResult[T, V]]()
+  result = Cluster[T, V](name: name,
+                         io: (input: newTransportQ[T, V](),
+                              output: newTransportQ[T, V]()))
 
 proc name*(cluster: Cluster): string =
+  ## name a cluster
   if cluster.name == "":
     "cores " & cluster.cores.map(`$`).join(",")
   else:
     cluster.name
-
-proc negativeCache*(cluster: Cluster; p: Program) =
-  ## inform the members of the cluster that Program `p` is invalid
-  for queue in cluster.negs.items:
-    queue.push(clone p)
-
-proc negativeCache*(work: Work; p: Program) =
-  ## inform the members of the cluster that Program `p` is invalid
-  negativeCache(work.cluster, p)

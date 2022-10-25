@@ -105,7 +105,7 @@ when isMainModule:
   tab.maxGenerations = manyGenerations
 
   # the main loop monitors inventions
-  proc main(work: Work; inputs, outputs: LoonyQueue[FProg]) =
+  proc main(work: Work; inputs, outputs: TransportQ[Fennel, LuaValue]) =
     # create a population to monitor new inventions
     let fnl = newFennel()
     var monitor = tab
@@ -124,31 +124,37 @@ when isMainModule:
     var seen: PackedSet[Hash]
     let et = getTime()
     while true:
-      let p = pop inputs
-      if p.isNil:
+      let transport: ClusterTransport[Fennel, LuaValue] = pop inputs
+      if transport.isNil:
         sleep 250
-      elif p.isValid:
-        # sharing
-        push(outputs, p)
+      else:
+        case transport.kind
+        of ctProgram:
+          let p = transport.program
+          if p.isValid:
+            # sharing
+            push(outputs, p)
 
-        # auditing
-        if not seen.containsOrIncl(p.hash):
-          # FIXME: this shouldn't be necessary
-          let p = clone p
-          p.score = strength(evo)(get evo.score(p))
-          # it should not be invalid
-          if not p.isValid:
-            raise
-          evo.makeRoom()
-          evo.population.add p
-          evo.maybeResetFittest(p)
-          let best = evo.fittest
-          if best.isSome and best.get.hash == p.hash:
-            dumpScore(fnl, p)
-            if p.score > goodEnough:
-              notice fmt"winner, winner, chicken dinner: {p.score}"
-              notice fmt"last generation: {p.generation} secs: {(getTime() - et).inSeconds}"
-              quit 0
+            # auditing
+            if not seen.containsOrIncl(p.hash):
+              # FIXME: this shouldn't be necessary
+              let p = clone p
+              p.score = strength(evo)(get evo.score(p))
+              # it should not be invalid
+              if not p.isValid:
+                raise
+              evo.makeRoom()
+              evo.population.add p
+              evo.maybeResetFittest(p)
+              let best = evo.fittest
+              if best.isSome and best.get.hash == p.hash:
+                dumpScore p
+                if p.score > goodEnough:
+                  notice fmt"winner, winner, chicken dinner: {p.score}"
+                  notice fmt"last generation: {p.generation} secs: {(getTime() - et).inSeconds}"
+                  quit 0
+        else:
+          raise Defect.newException "unsupported transport: " & $transport.kind
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()

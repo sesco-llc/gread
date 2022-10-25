@@ -621,7 +621,7 @@ when compileOption"threads":
   import gread/cluster
   import gread/generation
 
-  proc noop(c: C): C {.cpsMagic.} = c
+  proc coop(c: C): C {.cpsMagic.} = c
 
   proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
     let fnl = newFennel(core = args.core)
@@ -660,7 +660,7 @@ when compileOption"threads":
     # fittest -> finest due to nim bug
     var finest: Option[Program[Fennel]]
     while evo.generation <= evo.tableau.maxGenerations:
-      noop() # give other evolvers a chance
+      coop() # give other evolvers a chance
 
       search(args, evo)   # fresh meat from other threads
 
@@ -727,29 +727,31 @@ when compileOption"threads":
         evo.resetFittest()
 
     while true:
-      noop() # give other evolvers a chance
+      coop() # give other evolvers a chance
 
-      var transit = pop args.io.inputs
-      if transit.isNil:
+      let transport = pop args.io.input
+      if transport.isNil:
         # we're done
         break
-
-      # XXX: not using newSeq due to nim call operator bug
-      var results: seq[Option[LuaValue]]
-      setLen(results, evo.dataset.len)
-
-      transit.source = getThreadId()
-      transit.core = args.core
-      let score = evo.score(transit)
-      if score.isSome:
-        # this is a fitmany result; ie. a single float
-        transit.score = strength(evo)(get score)
       else:
-        transit.score = NaN
-      for index in 0..evo.dataset.high:
-        results[index] = evo.score(index, transit)
-      push(args.results, EvalResult[Fennel, LuaValue](program: transit,
-                                                      results: results))
+        # XXX: not using newSeq due to nim call operator bug
+        var results: seq[Option[LuaValue]]
+        setLen(results, evo.dataset.len)
+
+        for transit in programs(transport):
+          transit.source = getThreadId()
+          transit.core = args.core
+          let score = evo.score(transit)
+          if score.isSome:
+            # this is a fitmany result; ie. a single float
+            transit.score = strength(evo)(get score)
+          else:
+            transit.score = NaN
+          for index in 0..evo.dataset.high:
+            results[index] = evo.score(index, transit)
+          let evaluated = EvalResult[Fennel, LuaValue](program: transit,
+                                                       results: results)
+          push(args.io.output, evaluated)
 
   proc scorer*(args: Work[Fennel, LuaValue]) {.cps: C.} =
     ## a continuation that simply scores programs in the input
@@ -778,21 +780,22 @@ when compileOption"threads":
         evo.resetFittest()
 
     while true:
-      noop() # give other evolvers a chance
+      coop() # give other evolvers a chance
 
-      var transit = pop args.io.inputs
-      if transit.isNil:
+      let transport = pop args.io.input
+      if transport.isNil:
         # we're done
         break
-
-      let s = evo.score(transit)
-      if s.isSome:
-        transit.score = strength(evo)(get s)
       else:
-        transit.score = NaN
-      transit.source = getThreadId()
-      transit.core = args.core
-      push(args.io.outputs, transit)
+        for transit in programs(transport):
+          let s = evo.score(transit)
+          if s.isSome:
+            transit.score = strength(evo)(get s)
+          else:
+            transit.score = NaN
+          transit.source = getThreadId()
+          transit.core = args.core
+          push(args.io.output, transit)
 
   template maybeProgressBar(iter: typed; body: untyped): untyped =
     when hasSuru:
@@ -819,11 +822,12 @@ when compileOption"threads":
     result = newPopulation[T](population.len)
     maybeProgressBar(1..population.len):
       while true:
-        let p = pop outputs
-        if p.isNil:
+        let transport = pop outputs
+        if transport.isNil:
           sleep 5
         else:
-          result.add p
+          for program in programs(transport):
+            result.add program
           break
 
   proc threadedEvaluate*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]): LPTab[Program[T], seq[Option[V]]] =
@@ -843,11 +847,11 @@ when compileOption"threads":
 
     maybeProgressBar(1..population.len):
       while true:
-        let eval = pop args.results
-        if eval.isNil:
+        let transport = pop args.io.output
+        if transport.isNil:
           sleep 5
-        else:
-          result[eval.program] = eval.results
+        elif transport.kind == ctEvalResult:
+          result[transport.result.program] = transport.result.results
           break
 
 proc parseToken*[T: Fennel](s: string): FennelNodeKind =
