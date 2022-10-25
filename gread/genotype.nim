@@ -68,3 +68,9 @@ proc randomGenome*(rng: var Rand; size: int): Genome =
   result = Genome newString(size)
   for i in result.low ..< result.high:
     result[i] = rng.rand(int char.high).char
+
+converter toString*(geno: Genome): string =
+  string geno
+
+converter fromString*(str: string): Genome =
+  Genome str
