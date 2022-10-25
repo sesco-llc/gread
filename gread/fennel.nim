@@ -662,7 +662,21 @@ when compileOption"threads":
     while evo.generation <= evo.tableau.maxGenerations:
       coop() # give other evolvers a chance
 
-      search(args, evo)   # fresh meat from other threads
+      # messages from other threads
+      var transport = pop args.io.input
+      if not transport.isNil:
+        case transport.kind
+        of ctControl:
+          case transport.control
+          of ckWorkerQuit:
+            info "terminating on request"
+            break
+          else:
+            warn "ignoring control: " & $transport.control
+        else:
+          for program in programs(transport):
+            evo.introduce program
+      reset transport  # free memory
 
       memoryAudit "sharing a random member":
         let stale = randomMember(evo.population, evo.rng)
@@ -696,9 +710,9 @@ when compileOption"threads":
           clearStats evo
 
     while evo.population.len > 0:
-      share(args, randomRemoval(evo.population, evo.rng))
+      share(args, pop(evo.population))
 
-    quit 0
+    push(args.io.output, ckWorkerQuit)
 
   proc runner*(args: Work[Fennel, LuaValue]) {.cps: C.} =
     ## a continuation that maps a population against a dataset
@@ -738,20 +752,31 @@ when compileOption"threads":
         var results: seq[Option[LuaValue]]
         setLen(results, evo.dataset.len)
 
-        for transit in programs(transport):
-          transit.source = getThreadId()
-          transit.core = args.core
-          let score = evo.score(transit)
-          if score.isSome:
-            # this is a fitmany result; ie. a single float
-            transit.score = strength(evo)(get score)
+        case transport.kind
+        of ctControl:
+          case transport.control
+          of ckWorkerQuit:
+            info "terminating on request"
+            break
           else:
-            transit.score = NaN
-          for index in 0..evo.dataset.high:
-            results[index] = evo.score(index, transit)
-          let evaluated = EvalResult[Fennel, LuaValue](program: transit,
-                                                       results: results)
-          push(args.io.output, evaluated)
+            warn "ignoring control: " & $transport.control
+        else:
+          for transit in programs(transport):
+            transit.source = getThreadId()
+            transit.core = args.core
+            let score = evo.score(transit)
+            if score.isSome:
+              # this is a fitmany result; ie. a single float
+              transit.score = strength(evo)(get score)
+            else:
+              transit.score = NaN
+            for index in 0..evo.dataset.high:
+              results[index] = evo.score(index, transit)
+            let evaluated = EvalResult[Fennel, LuaValue](program: transit,
+                                                         results: results)
+            push(args.io.output, evaluated)
+
+    push(args.io.output, ckWorkerQuit)
 
   proc scorer*(args: Work[Fennel, LuaValue]) {.cps: C.} =
     ## a continuation that simply scores programs in the input
@@ -787,15 +812,26 @@ when compileOption"threads":
         # we're done
         break
       else:
-        for transit in programs(transport):
-          let s = evo.score(transit)
-          if s.isSome:
-            transit.score = strength(evo)(get s)
+        case transport.kind
+        of ctControl:
+          case transport.control
+          of ckWorkerQuit:
+            info "terminating on request"
+            break
           else:
-            transit.score = NaN
-          transit.source = getThreadId()
-          transit.core = args.core
-          push(args.io.output, transit)
+            warn "ignoring control: " & $transport.control
+        else:
+          for transit in programs(transport):
+            let s = evo.score(transit)
+            if s.isSome:
+              transit.score = strength(evo)(get s)
+            else:
+              transit.score = NaN
+            transit.source = getThreadId()
+            transit.core = args.core
+            push(args.io.output, transit)
+
+    push(args.io.output, ckWorkerQuit)
 
   template maybeProgressBar(iter: typed; body: untyped): untyped =
     when hasSuru:
@@ -826,9 +862,17 @@ when compileOption"threads":
         if transport.isNil:
           sleep 5
         else:
-          for program in programs(transport):
-            result.add program
-          break
+          case transport.kind
+          of ctControl:
+            case transport.control
+            of ckWorkerQuit:
+              debug "worker terminated"
+            else:
+              warn "ignoring control: " & $transport.control
+          else:
+            for program in programs(transport):
+              result.add program
+            break
 
   proc threadedEvaluate*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]): LPTab[Program[T], seq[Option[V]]] =
     ## evaluate programs in the population using multiple threads
@@ -850,9 +894,20 @@ when compileOption"threads":
         let transport = pop args.io.output
         if transport.isNil:
           sleep 5
-        elif transport.kind == ctEvalResult:
-          result[transport.result.program] = transport.result.results
-          break
+        else:
+          case transport.kind
+          of ctControl:
+            case transport.control
+            of ckWorkerQuit:
+              info "terminating on request"
+              break
+            else:
+              warn "ignoring control: " & $transport.control
+          of ctEvalResult:
+            result[transport.result.program] = transport.result.results
+            break
+          else:
+            warn "threadedEvaluate() ignoring " & $transport.control
 
 proc parseToken*[T: Fennel](s: string): FennelNodeKind =
   case s

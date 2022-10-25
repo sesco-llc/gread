@@ -108,6 +108,7 @@ when isMainModule:
   proc main(work: Work; inputs, outputs: TransportQ[Fennel, LuaValue]) =
     # create a population to monitor new inventions
     let fnl = newFennel()
+    var workerCount = work.clusterSize
     var monitor = tab
     monitor.maxPopulation = 10
     var evo: Evolver[Fennel, LuaValue]
@@ -129,6 +130,15 @@ when isMainModule:
         sleep 250
       else:
         case transport.kind
+        of ctControl:
+          case transport.control
+          of ckWorkerQuit:
+            dec workerCount
+            debug fmt"cluster has {workerCount} workers"
+            if workerCount == 0:
+              break
+          else:
+            discard
         of ctProgram:
           let p = transport.program
           if p.isValid:
@@ -152,7 +162,9 @@ when isMainModule:
                 if p.score > goodEnough:
                   notice fmt"winner, winner, chicken dinner: {p.score}"
                   notice fmt"last generation: {p.generation} secs: {(getTime() - et).inSeconds}"
-                  quit 0
+                  for index in 1..workerCount:
+                    debug "shutting down worker " & $index
+                    push(inputs, ckWorkerQuit)
         else:
           raise Defect.newException "unsupported transport: " & $transport.kind
 

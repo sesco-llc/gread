@@ -2,6 +2,7 @@ when not compileOption"threads":
   {.error: "cluster support requires threads".}
 
 import std/deques
+import std/json
 import std/logging
 import std/options
 import std/os
@@ -27,6 +28,9 @@ type
     program*: Program[T]
     results*: seq[Option[V]]
 
+  ControlKind* = enum
+    ckWorkerQuit
+
   TransportKind* = enum
     ctMetrics
     ctEvolver
@@ -34,6 +38,8 @@ type
     ctProgram
     ctPrograms
     ctEvalResult
+    ctMessage
+    ctControl
 
   ClusterTransport*[T, V] = ref object
     case kind*: TransportKind
@@ -49,6 +55,11 @@ type
       programs*: seq[Program[T]]
     of ctEvalResult:
       result*: EvalResult[T, V]
+    of ctMessage:
+      message*: string
+    of ctControl:
+      control*: ControlKind
+      argument*: JsonNode
 
   TransportQ*[T, V] = LoonyQueue[ClusterTransport[T, V]]
   IO[T, V] = tuple[input, output: TransportQ[T, V]]
@@ -86,6 +97,12 @@ let processors* = max(1, countProcessors())
 var
   threads: seq[Thread[CQ]]
   shelf: seq[CQ]
+
+proc push*[T, V](tq: TransportQ[T, V]; control: ControlKind;
+                 argument: JsonNode = newJNull()) =
+  ## convenience for pushing into a transport queue
+  tq.push ClusterTransport[T, V](kind: ctControl,
+                                 control: control, argument: argument)
 
 proc push*[T, V](tq: TransportQ[T, V]; program: sink Program[T]) =
   ## convenience for pushing into a transport queue
@@ -213,7 +230,7 @@ iterator programs*[T, V](transport: ClusterTransport[T, V]): Program[T] =
       for program in transport.population.items:
         yield program
     else:
-      warn "programs iterator ignored " & $transport.kind
+      raise Defect.newException "programs iterator called on " & $transport.kind
 
 proc search*(work: Work; evo: var Evolver) =
   ## try to get some fresh genes from another thread
@@ -231,6 +248,10 @@ proc programQueues*[T, V](cluster: Cluster[T, V]): IO[T, V] =
 proc size*(cluster: Cluster): int =
   ## returns the number of evolvers in the cluster
   cluster.cores.len
+
+proc clusterSize*(work: Work): int =
+  ## exposes the size of the parent cluster
+  work.cluster.size
 
 proc nextCore*(cluster: Cluster): Option[CoreId] =
   ## returns the next CoreId which will be used by the cluster
