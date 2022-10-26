@@ -2,6 +2,7 @@ import std/logging
 import std/macros
 import std/options
 import std/sequtils
+import std/strformat
 import std/strutils
 
 import pkg/frosty/streams as brrr
@@ -105,19 +106,26 @@ proc randomGenomes*(r: var Redis; key: ScoredGenomeMapName;
                     count: Natural = 1): seq[Genome] =
   ## select `count` genomes at random from the sorted set
   let genes = r.zrandmembers($key, count)
+  debug fmt"loaded {genes.len} random members; asked for {count}"
   setLen(result, genes.len)
   for index, gene in genes.pairs:
-    result[index] = gene.Genome
+    result[index] = gene.fromString
 
 proc randomPopulation*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
                           size: int; core = none int): Population[T] =
   ## select a random population of programs from the sorted set
   # FIXME: also load the scores and assign them to the program
   let genes = randomGenomes(r, key, count=size)
-  result = newPopulation[T](size = genes.len, core = core)
+  result = newPopulation[T](size = min(size, genes.len), core = core)
   for gene in genes.items:
     try:
-      result.add unpackGenomeToProgram[T](gram, gene)
+      let program = unpackGenomeToProgram[T](gram, gene)
+      {.warning: "remove if redis cardinality matches population cardinality".}
+      if program in result:
+        notice fmt"rm duplicate ast {program}"
+        clear(r, key, [gene])
+      else:
+        result.add program
     except StoreError:
       warn "ignored bad genome from " & $key
 
@@ -129,7 +137,13 @@ proc entirePopulation*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
   result = newPopulation[T](size = genes.len, core = core)
   for gene in genes.items:
     try:
-      result.add unpackGenomeToProgram[T](gram, Genome gene)
+      let program = unpackGenomeToProgram[T](gram, gene.fromString)
+      {.warning: "remove if redis cardinality matches population cardinality".}
+      if program in result:
+        notice fmt"rm duplicate ast {program}"
+        clear(r, key, [gene.fromString])
+      else:
+        result.add program
     except StoreError:
       warn "ignored bad genome from " & $key
 
