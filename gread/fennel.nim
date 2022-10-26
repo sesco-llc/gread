@@ -439,7 +439,7 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
     if results.len > 0:
       checkpoint "  stddev:", ff stddev(results)
       checkpoint "      ss: ", ff ss(results)
-    fnl.dumpScore p
+    dumpScore p
 
 proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, LuaValue)];
                       samples = 8) =
@@ -472,7 +472,7 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, LuaValue)];
                  "corr:", correlation(results, ideals).percent,
                  "ss:", ss(results, ideals),
                  "of ideal:", (sum(results) / sum(ideals)).percent
-    fnl.dumpScore p
+    dumpScore p
 
 proc dumpStats*(evo: Evolver; evoTime: Time) =
   ## a threadsafe echo of some statistics regarding the vm and population
@@ -482,7 +482,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
   var m: PopMetrics
   m.paintMetrics(evo)
   if evo.fittest.isSome:
-    fnl.dumpScore get(evo.fittest)
+    dumpScore get(evo.fittest)
   elif evo.generation > 1000:
     raise
 
@@ -709,8 +709,9 @@ when compileOption"threads":
               debug fmt"aslua (lru) capacity: {capacity evo.platform.aslua}"
           clearStats evo
 
-    while evo.population.len > 0:
-      share(args, pop(evo.population))
+    let shared = evo.population
+    evo.population = nil
+    push(args.io.output, shared)
 
     push(args.io.output, ckWorkerQuit)
 
