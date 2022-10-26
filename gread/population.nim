@@ -170,6 +170,15 @@ proc score*(ken: PopMetrics; p: Program): Score =
   else:
     Score NaN
 
+proc contains*(population: Population; program: Program): bool =
+  ## membership test for programs
+  when populationCache:
+    program.hash in population.cache
+  else:
+    for member in population.programs.items:
+      if member.hash == program.hash:
+        return true
+
 template addImpl[T](population: Population[T]; p: Program[T]) =
   population.programs.add p
   learn(population, p, population.programs.high)
