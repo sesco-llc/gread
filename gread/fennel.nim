@@ -512,13 +512,13 @@ proc getStats*(evo: Evolver; evoTime: Time): string =
     sample thread
     sample process
     threadStats.add "\n" & """
-              process memory: {Kute(process.maxResidentBytes)}""".fmt
+                process memory: {Kute(process.maxResidentBytes)}""".fmt
     threadStats.add "\n" & """
-               thread memory: {Kute(thread.maxResidentBytes)}""".fmt
+                 thread memory: {Kute(thread.maxResidentBytes)}""".fmt
     threadStats.add "\n" & """
-  voluntary context switches: {thread.voluntaryContextSwitches}""".fmt
+    voluntary context switches: {thread.voluntaryContextSwitches}""".fmt
     threadStats.add "\n" & """
-involuntary context switches: {thread.involuntaryContextSwitches}""".fmt
+  involuntary context switches: {thread.involuntaryContextSwitches}""".fmt
   else:
     const threadStats = "\n"
   when false:
