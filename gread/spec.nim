@@ -140,6 +140,8 @@ else:
       demandValid(get s)
 
 when defined(greadMemoryAudit):
+  import pkg/grok/mem
+  import pkg/grok/kute
   when not defined(useMalloc):
     {.error: "the memory audit requires --define:useMalloc".}
   else:
@@ -158,9 +160,9 @@ when defined(greadMemoryAudit):
           auditor[stage] = getOrDefault(auditor, stage, 0) + mem
         if mem != 0:
           when compileOption"threads":
-            notice fmt"{getThreadId()} {total} {stage} memory cost {mem} now {auditor[stage]}"
+            notice fmt"{getThreadId()} {Kute(total)} {stage} memory cost {Kute(mem)} now {Kute(auditor[stage])}"
           else:
-            notice fmt" (no thread) {total} {stage} memory cost {mem} now {auditor[stage]}"
+            notice fmt" (no thread) {Kute(total)} {stage} memory cost {Kute(mem)} now {Kute(auditor[stage])}"
           notice auditor
 else:
   template memoryAudit*(stage: string; logic: untyped): untyped = logic

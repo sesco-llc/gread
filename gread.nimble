@@ -1,9 +1,10 @@
-version = "0.0.29"
+version = "0.0.30"
 author = "disruptek"
 description = "grammar-evolving algorithm designer"
 license = "GPLv3"
 
 requires "https://github.com/disruptek/lunacy >= 0.0.9 & < 1.0.0"
+requires "https://github.com/disruptek/grok >= 0.6.0 & < 1.0.0"
 requires "https://github.com/nim-works/loony >= 0.1.8 & < 1.0.0"
 requires "https://github.com/nim-works/cps >= 0.5.0 & < 1.0.0"
 requires "https://github.com/nim-works/arc < 1.0.0"

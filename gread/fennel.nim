@@ -20,6 +20,8 @@ import pkg/cps
 import pkg/frosty/streams as brrr
 import pkg/htsparse/fennel/fennel_core_only as parsefen
 import pkg/lrucache
+import pkg/grok/resources
+import pkg/grok/kute
 
 import gread/spec
 import gread/ast
@@ -416,6 +418,13 @@ proc injectLocals*(p: FProg; locals: Locals): string =
   result.add $p
   result.add ")"
 
+proc threadName(core: CoreSpec): string =
+  ## render the core with local thread-id `when compileOption"threads"`
+  when compileOption"threads":
+    result.add $getThreadId()
+    result.add ":"
+  result.add $core
+
 proc dumpScore*(p: FProg) =
   var s = fmt"{p.score} {p.core}/{p.generation}[{p.len}]: "
   s.add $p
@@ -474,9 +483,8 @@ proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, LuaValue)];
                  "of ideal:", (sum(results) / sum(ideals)).percent
     dumpScore p
 
-proc dumpStats*(evo: Evolver; evoTime: Time) =
-  ## a threadsafe echo of some statistics regarding the vm and population
-  let threaded = when compileOption"threads": $getThreadId() else: "-"
+proc getStats*(evo: Evolver; evoTime: Time): string =
+  ## compose a report of some statistics regarding the vm and population
   let fnl = evo.platform
   template genTime: FennelStat = evo.generationTime
   var m: PopMetrics
@@ -497,6 +505,22 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
       fmt"{get(evo.fittest).runtime.mean / 1_000_000.0:>8.4f} ms"
     else:
       "nan"
+  when compileOption"threads":
+    var threadStats: string
+    var process: ProcessResources
+    var thread: ThreadResources
+    sample thread
+    sample process
+    threadStats.add "\n" & """
+              process memory: {Kute(process.maxResidentBytes)}""".fmt
+    threadStats.add "\n" & """
+               thread memory: {Kute(thread.maxResidentBytes)}""".fmt
+    threadStats.add "\n" & """
+  voluntary context switches: {thread.voluntaryContextSwitches}""".fmt
+    threadStats.add "\n" & """
+involuntary context switches: {thread.involuntaryContextSwitches}""".fmt
+  else:
+    const threadStats = "\n"
   when false:
     if m.generation.int == 0:
       raise ValueError.newException "no generations yet"
@@ -504,8 +528,8 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
       raise ValueError.newException "no generation limit"
     if m.size == 0:
       raise ValueError.newException "empty population"
-  checkpoint fmt"""
-               core and thread: {m.core}/{threaded} -- {evo.name}
+  result = fmt"""
+               core and thread: {m.core.threadName} -- {evo.name}
                   dataset size: {evo.dataset.len}
           virtual machine runs: {fnl.runs} (never reset)
          lua compilation cache: {fnl.aslua.len}
@@ -537,9 +561,14 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
         vm runs per generation: {ff(fnl.runs.float / m.generation.float)}
                generation time: {ff genTime.mean} ms
         generations per second: {ff(1000.0 * m.generation.float / totalMs)}
-                evolution time: {ff(totalMs / 1000.0)} sec
-  """
+                evolution time: {ff(totalMs / 1000.0)} sec"""
+  when compileOption"threads":
+    result &= threadStats
   clearStats fnl
+
+proc dumpStats*(evo: Evolver; evoTime: Time) {.deprecated.} =
+  ## a threadsafe echo of some statistics regarding the vm and population
+  checkpoint getStats(evo, evoTime) & "\n"
 
 proc programNode*[T: Fennel](a: var Ast[T]): AstNode[T] =
   ## create a head node for the program
