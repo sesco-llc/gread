@@ -139,6 +139,9 @@ when isMainModule:
               break
           else:
             discard
+        of ctPopulation:
+          # thread shut-down
+          discard
         of ctProgram:
           let p = transport.program
           if p.isValid:
