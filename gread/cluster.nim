@@ -146,14 +146,15 @@ proc continuationRunner*(queue: CQ) {.thread.} =
         # trampoline that tolerates errors and coops
         var o: Continuation = work.popFirst()
         if o.running:
+          var prior = o  # hold on to the prior continuation pointer
           try:
             # run a single leg at a time
             o = o.fn(o)
             work.addLast o.C
           except Exception as e:
-            writeStackFrames o
-            stdmsg().writeLine fmt"{e.name}: {e.msg}"
-            stdmsg().writeLine "dismissing continuation..."
+            writeStackFrames prior  # recover the stack from the prior pointer
+            error fmt"{e.name}: {e.msg}"
+            error "dismissing continuation..."
 
 for core in 0..<processors:
   setLen(threads, threads.len + 1)
