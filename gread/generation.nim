@@ -47,12 +47,9 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
           addIt p
 
   finally:
-    if discoveries == 0:
-      raise Defect.newException "too few discoveries"
-    elif discoveries > 2:
+    if discoveries > 2:
       raise Defect.newException "too many discoveries"
-    if discoveries > 0:
-      # update the parsimony to account for additions and removals
-      discard evo.resetParsimony()
+    # update the parsimony to account for additions and removals
+    discard evo.resetParsimony()
 
     evo.generationTime (getTime() - clock).inMilliseconds.float
