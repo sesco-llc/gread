@@ -418,7 +418,7 @@ proc injectLocals*(p: FProg; locals: Locals): string =
   result.add $p
   result.add ")"
 
-proc threadName(core: CoreSpec): string =
+proc threadName*(core: CoreSpec): string =
   ## render the core with local thread-id `when compileOption"threads"`
   when compileOption"threads":
     result.add $getThreadId()
