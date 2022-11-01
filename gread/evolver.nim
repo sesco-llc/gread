@@ -619,10 +619,11 @@ proc tournament*[T, V](evo: var Evolver[T, V]; size: int;
   var seen: PackedSet[int]           # de-dupe fighters by index;
   # we're counting unique programs, not unique members!
   while seen.len < size:
-    var (i, p) = randomMember(evo.population, evo.rng)
-    if not seen.containsOrIncl i:
-      victim = (valid: p.isValid, score: Score NaN,
-                len: p.len, index: i, program: p)
+    {.warning: "work around https://github.com/nim-lang/Nim/issues/19364".}
+    let bug = randomMember(evo.population, evo.rng)
+    if not seen.containsOrIncl bug.index:
+      victim = (valid: bug.program.isValid, score: Score NaN,
+                len: bug.program.len, index: bug.index, program: bug.program)
       if result.program.isNil:
         # it's our first time through the loop, so we'll establish
         # the defender
