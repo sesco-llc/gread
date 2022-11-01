@@ -129,6 +129,9 @@ proc del*[T, V](evo: var Evolver[T, V]; p: Program[T]) =
   dec(evo.cacheCounter, evo.cacheSize(p))
   try:
     del(evo.cache, p.hash)
+  except KeyError:
+    discard
+  try:
     del(evo.scoreCache, p.hash)
   except KeyError:
     discard
