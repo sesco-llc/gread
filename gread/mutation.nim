@@ -21,8 +21,7 @@ iterator geMutation*[T](rng: var Rand; gram: Grammar;
   var g = a
   g.string[rng.rand(g.high)] = rng.rand(int char.high).char
   try:
-    let (pc {.used.}, ast) = πGE[T](gram, g)                    # map the new genome
-    yield some (ast: ast, genome: g[0..<pc.int])
+    yield some πFilling[T](gram, g)
   except ShortGenome:
     yield none Invention[T]
 
@@ -46,8 +45,7 @@ macro composeNoise(n: static string): untyped =
               # g[i] = rng.rand(int char.high).char
               assign(g, i, rng.rand(int char.high).char)
           try:
-            let (pc {.used.}, ast) = πGE[T](gram, g)                    # map the new genome
-            yield some (ast: ast, genome: g[0..<pc.int])
+            yield some πFilling[T](gram, g)
           except ShortGenome:
             yield none Invention[T]
 

@@ -63,8 +63,7 @@ proc unpackGenomeToProgram[T](gram: Grammar; geno: Genome): Program[T] =
   ## turn a genome into a program
   mixin newProgram
   try:
-    let (pc {.used.}, ast) = πGE[T](gram, geno)
-    result = newProgram(ast, geno[0..<pc])
+    result = πMap[T](gram, geno)
     result.flags.incl Cached
   except ShortGenome:
     raise StoreError.newException:

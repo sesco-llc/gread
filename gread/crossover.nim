@@ -26,8 +26,8 @@ proc subtreeXoverImpl[T](rng: var Rand; gram: Grammar;
     g.add g
     g.add g
   try:
-    let (pc, ast) = πGE[T](gram, g)                     # map the new genome
-    result = some (ast: ast, genome: g[0..<pc.int])
+    let bug = πFilling[T](gram, g)
+    result = some bug
   except ShortGenome:
     result = none Invention[T]
 
@@ -44,8 +44,8 @@ iterator crossoverImpl[T](rng: var Rand; gram: Grammar;
       g.add g                                           # again!
       g.add g                                           # again!
     try:
-      let (pc, ast) = πGE[T](gram, g)                   # map the new genome
-      yield some (ast: ast, genome: g[0..<pc.int])
+      let bug = πFilling[T](gram, g)
+      yield some bug
     except ShortGenome:
       yield none Invention[T]
 

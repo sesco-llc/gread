@@ -14,6 +14,7 @@ import gread/spec
 import gread/aliasmethod
 import gread/ast
 import gread/genotype
+import gread/programs
 
 export ShortGenome
 
@@ -348,3 +349,16 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
   info fmt"       total terminals: {gram.t.card}"
   debug fmt"{gram.strings.len} strings = {gram.strings}"
   debug fmt"{gram.numbers.len} numbers = {gram.numbers}"
+
+proc πFilling*[T](grammar: Grammar; genome: Genome): tuple[ast: Ast[T]; genome: Genome] {.inline.} =
+  {.warning: "work around https://github.com/nim-lang/Nim/issues/19364".}
+  let bug = πGE[T](grammar, genome)
+  var genes = newStringOfCap(bug.pc.int)
+  genes = string genome[0..<bug.pc.int]
+  result = (ast: bug.ast, genome: Genome genes)
+
+proc πMap*[T](grammar: Grammar; genome: Genome): Program[T] {.inline.} =
+  ## map a `genome` to a program using the given `grammar`
+  {.warning: "work around https://github.com/nim-lang/Nim/issues/19364".}
+  let bug = πFilling[T](grammar, genome)
+  result = newProgram[T](bug.ast, bug.genome)
