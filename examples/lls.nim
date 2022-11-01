@@ -23,6 +23,11 @@ import pkg/adix/lptabz
 
 const
   greadSeed {.intdefine.} = 0
+  cores =
+    when not defined(release) or greadSeed != 0:
+      1
+    else:
+      max(1, getNumTotalCores())
   goodEnough = -0.01     # termination condition
   manyGenerations = 1_000_000
   statFrequency = 10000  # report after this many generations
@@ -146,12 +151,11 @@ when isMainModule:
           let p = transport.program
           if p.isValid:
             # sharing
-            push(outputs, p)
+            when cores > 1:
+              push(outputs, clone p)
 
             # auditing
             if not seen.containsOrIncl(p.hash):
-              # FIXME: this shouldn't be necessary
-              let p = clone p
               p.score = strength(evo)(get evo.score(p))
               # it should not be invalid
               if not p.isValid:
@@ -178,11 +182,6 @@ when isMainModule:
            dataset = dataset, fitone = fitone, fitmany = fitmany,
            strength = fennel.strength, stats = statFrequency)
 
-  const cores =
-    when not defined(release) or greadSeed != 0:
-      1
-    else:
-      max(1, getNumTotalCores())
   for core in 1..cores:
     when not defined(release) or greadSeed != 0:
       args.rng = some: initRand(greadSeed)
