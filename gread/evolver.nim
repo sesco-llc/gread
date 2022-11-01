@@ -362,8 +362,7 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
       result = some v[]
     else:
       let began = getMonoTime()
-      memoryAudit "perform fitone itself":
-        result = evo.fitone(evo.platform, evo.dataset[index], p)
+      result = evo.fitone(evo.platform, evo.dataset[index], p)
       demandValid result
       p.runtime.push (getMonoTime() - began).inNanoseconds.float
       if result.isSome:

@@ -140,29 +140,50 @@ else:
       demandValid(get s)
 
 when defined(greadMemoryAudit):
+  import std/logging
+  import std/strformat
+
   import pkg/grok/mem
   import pkg/grok/kute
-  when not defined(useMalloc):
-    {.error: "the memory audit requires --define:useMalloc".}
-  else:
-    var auditor*: GreadTable[string, int]
-    initGreadTable auditor
-    template memoryAudit*(stage: string; logic: untyped): untyped =
-      var mem = -getOccupiedMem()
-      try:
-        logic
-      finally:
-        let total = getOccupiedMem()
+  import pkg/grok/resources
+  type
+    Auditor = GreadTable[string, int]
+
+  proc prettyDump*(auditor: Auditor) =
+    for stage, memory in auditor.pairs:
+      notice fmt"{stage:>40} {Kute(memory):>8}"
+
+  proc audit*(auditor: Auditor; stage: string;
+              mem: int; total: int) =
+    let name =
+      when compileOption"threads":
+        $getThreadId()
+      else:
+        "(no thread)"
+    notice fmt"{name} {stage} memory cost {Kute(mem)} now {Kute(auditor[stage])}"
+    auditor.prettyDump()
+
+  var auditor*: Auditor
+  initGreadTable auditor
+  template memoryAudit*(stage: string; logic: untyped): untyped =
+    var thread: ThreadResources
+    var mem = -thread.maxResidentBytes
+    try:
+      logic
+    finally:
+      sample thread
+      block:
+        let total = thread.maxResidentBytes
         mem += total
-        when GreadTable is LPTabz:
-          mgetOrDefault(auditor, stage, 0).inc(mem)
-        else:
-          auditor[stage] = getOrDefault(auditor, stage, 0) + mem
         if mem != 0:
-          when compileOption"threads":
-            notice fmt"{getThreadId()} {Kute(total)} {stage} memory cost {Kute(mem)} now {Kute(auditor[stage])}"
+          when defined(greadSlowTable):
+            mgetOrDefault(auditor, stage, 0).inc(mem)
           else:
-            notice fmt" (no thread) {Kute(total)} {stage} memory cost {Kute(mem)} now {Kute(auditor[stage])}"
-          notice auditor
+            # NOTE: this crap because adix is dumb
+            try:
+              auditor[stage] = auditor[stage] + mem
+            except KeyError:
+              auditor[stage] = mem
+          auditor.audit(stage, mem, total)
 else:
   template memoryAudit*(stage: string; logic: untyped): untyped = logic

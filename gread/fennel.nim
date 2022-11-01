@@ -323,8 +323,7 @@ proc toLua(fnl: Fennel; p: FProg): string =
   else:
     inc fnl.runs
     result = compileFennel(fnl.vm, $p)
-    memoryAudit "lua cache shenanigans":
-      fnl.aslua[p.hash] = result
+    fnl.aslua[p.hash] = result
 
 proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
   ## compile and evaluate the program as fennel; the result of
@@ -373,39 +372,42 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
 
 proc evaluate*(fnl: Fennel; p: FProg; locals: Locals): LuaValue =
   # prepare to run the vm
-  result = LuaValue(kind: TInvalid)
-  inc fnl.runs
-  try:
-    # pass the program and the training inputs
-    when defined(greadNoFennelCache):
-      let began = getMonoTime()
-      let stack = evaluate(fnl.vm, $p, locals)
-      fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
-    else:
-      let source = fnl.toLua(p)
-      let began = getMonoTime()
-      let stack = evaluateLua(fnl.vm, source, locals)
-      fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
-    fnl.errors.push 0.0
-    # score a resultant value if one was produced
-    if not stack.isNil:
-      result = stack.value
-  except LuaError as e:
-    when greadSemanticErrorsAreFatal:
-      debugEcho $p
-      debugEcho e.msg
-      quit 1
-    else:
-      discard e
-    fnl.errors.push 1.0
+  memoryAudit "evaluate fennel all-in":
+    result = LuaValue(kind: TInvalid)
+    inc fnl.runs
+    try:
+      # pass the program and the training inputs
+      memoryAudit "evaluate fennel zone":
+        block:
+          when defined(greadNoFennelCache):
+            let began = getMonoTime()
+            let stack = evaluate(fnl.vm, $p, locals)
+            fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
+          else:
+            let source = fnl.toLua(p)
+            let began = getMonoTime()
+            let stack = evaluateLua(fnl.vm, source, locals)
+            fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
+          fnl.errors.push 0.0
+          # score a resultant value if one was produced
+          if not stack.isNil:
+            result = stack.value
+    except LuaError as e:
+      when greadSemanticErrorsAreFatal:
+        debugEcho $p
+        debugEcho e.msg
+        quit 1
+      else:
+        discard e
+      fnl.errors.push 1.0
 
-  # any failure to produce a scorable value
-  fnl.nans.push:
-    if result.isValid:
-      0.0
-    else:
-      p.zombie = true
-      1.0
+    # any failure to produce a scorable value
+    fnl.nans.push:
+      if result.isValid:
+        0.0
+      else:
+        p.zombie = true
+        1.0
 
 proc injectLocals*(p: FProg; locals: Locals): string =
   result = "(let ["
@@ -692,24 +694,23 @@ when compileOption"threads":
       coop() # give other evolvers a chance
 
       # messages from other threads
-      var transport = pop args.io.input
-      if not transport.isNil:
-        case transport.kind
-        of ctControl:
-          case transport.control
-          of ckWorkerQuit:
-            info "terminating on request"
-            break
+      block:
+        var transport = pop args.io.input
+        if not transport.isNil:
+          case transport.kind
+          of ctControl:
+            case transport.control
+            of ckWorkerQuit:
+              info "terminating on request"
+              break
+            else:
+              warn "ignoring control: " & $transport.control
           else:
-            warn "ignoring control: " & $transport.control
-        else:
-          for program in programs(transport):
-            evo.introduce program
-      reset transport  # free memory
+            for program in programs(transport):
+              evo.introduce program
 
-      memoryAudit "sharing a random member":
-        let stale = randomMember(evo.population, evo.rng)
-        share(args, stale.program)
+      let stale = randomMember(evo.population, evo.rng)
+      share(args, stale.program)
 
       # share any new winner
       if evo.fittest.isSome:
@@ -717,25 +718,25 @@ when compileOption"threads":
           finest = evo.fittest
           # NOTE: clone the finest so that we don't have to
           #       worry about the reference counter across threads
-          forceShare(args, clone get(finest))
+          forceShare(args, get(finest))
 
-      memoryAudit "generational iteration":
-        for discovery in evo.generation():
-          discard
+      for discovery in evo.generation():
+        discard
 
       if args.stats > 0:
         if evo.generation mod args.stats == 0:
           dumpStats(evo, evoTime)
-          if defined(debug) and evo.generation > 10_000:
-            debug fmt"memory consumption for evolver: {memoryGraphSize(evo)}"
-            debug fmt"memory consumption for aslua: {memoryGraphSize(evo.platform.aslua)}"
-            when defined(greadLargeCache):
-              when defined(greadSlowTable):
-                debug fmt"aslua (table) capacity: {rightSize(len evo.platform.aslua)}"
+          when false:
+            if defined(debug) and evo.generation > 10_000:
+              debug fmt"memory consumption for evolver: {memoryGraphSize(evo)}"
+              debug fmt"memory consumption for aslua: {memoryGraphSize(evo.platform.aslua)}"
+              when defined(greadLargeCache):
+                when defined(greadSlowTable):
+                  debug fmt"aslua (table) capacity: {rightSize(len evo.platform.aslua)}"
+                else:
+                  debug fmt"aslua (table) capacity: {getCap evo.platform.aslua}"
               else:
-                debug fmt"aslua (table) capacity: {getCap evo.platform.aslua}"
-            else:
-              debug fmt"aslua (lru) capacity: {capacity evo.platform.aslua}"
+                debug fmt"aslua (lru) capacity: {capacity evo.platform.aslua}"
           clearStats evo
 
     let shared = evo.population
