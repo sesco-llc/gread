@@ -149,7 +149,7 @@ suite "simulation":
     ## ran until we can average two numbers
     var seen: PackedSet[Hash]
     while evo.generation < tab.maxGenerations:
-      if best >= goodEnough:
+      if best > goodEnough or best.almostEqual(goodEnough):
         break
       for discovery in evo.generation():
         discard
