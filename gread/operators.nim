@@ -104,11 +104,9 @@ macro composeNoise(n: static string): untyped =
             g.add g
             g.add g
           for x in iter[T](evo.rng, evo.grammar, g):
+            evo.shortGenome x.isNone
             if x.isSome:
-              evo.shortGenome false
               rs.add newProgram(x.get.ast, x.get.genome)
-            else:
-              evo.shortGenome true
 
 composeNoise("0.25")
 composeNoise("0.5")
