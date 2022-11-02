@@ -95,8 +95,8 @@ type
 # may not recommend more than (cores) concurrency
 let processors* = max(1, countProcessors())
 var
-  threads: seq[Thread[CQ]]
-  shelf: seq[CQ]
+  threads*: seq[Thread[CQ]]
+  shelf*: seq[CQ]
 
 proc push*[T, V](tq: TransportQ[T, V]; control: ControlKind;
                  argument: JsonNode = newJNull()) =
@@ -156,13 +156,14 @@ proc continuationRunner*(queue: CQ) {.thread.} =
             error fmt"{e.name}: {e.msg}"
             error "dismissing continuation..."
 
+setLen(threads, processors)
+setLen(shelf, processors)
+
 for core in 0..<processors:
-  setLen(threads, threads.len + 1)
-  setLen(shelf, shelf.len + 1)
-  shelf[^1] = newLoonyQueue[C]()
-  createThread(threads[^1], continuationRunner, shelf[^1])
+  shelf[core] = newLoonyQueue[C]()
+  createThread(threads[core], continuationRunner, shelf[core])
   when defined(greadPin):
-    pinToCpu(threads[^1], core)
+    pinToCpu(threads[core], core)
 
 proc sendToCore(c: C; core: Natural) =
   shelf[core mod shelf.len].push c
@@ -216,7 +217,7 @@ proc share*(work: Work; p: Program) =
   for copies in 0..<max(0, sharing):
     forceShare(work, p)
 
-iterator programs*[T, V](transport: ClusterTransport[T, V]): Program[T] =
+iterator programs*[T, V](transport: ClusterTransport[T, V]): var Program[T] =
   ## iterate over programs passed in a transport envelope
   if transport.isNil:
     raise Defect.newException "attempt to iterate nil transport"
@@ -225,10 +226,10 @@ iterator programs*[T, V](transport: ClusterTransport[T, V]): Program[T] =
     of ctProgram:
       yield transport.program
     of ctPrograms:
-      for program in transport.programs.items:
+      for program in transport.programs.mitems:
         yield program
     of ctPopulation:
-      for program in transport.population.items:
+      for program in transport.population.mitems:
         yield program
     else:
       raise Defect.newException "programs iterator called on " & $transport.kind
