@@ -24,7 +24,7 @@ import pkg/adix/lptabz
 const
   greadSeed {.intdefine.} = 0
   cores =
-    when not defined(release) or greadSeed != 0:
+    when not defined(release) and greadSeed != 0:
       1
     else:
       max(1, getNumTotalCores())
@@ -184,11 +184,12 @@ when isMainModule:
            strength = fennel.strength, stats = statFrequency)
 
   for core in 1..cores:
-    when not defined(release) or greadSeed != 0:
-      args.rng = some: initRand(greadSeed)
-      args.tableau.sharingRate = 0.0
-    else:
+    when greadSeed == 0:
       args.rng = some: initRand()
+    else:
+      args.rng = some: initRand(greadSeed)
+    when cores == 1:
+      args.tableau.sharingRate = 0.0
     clump.boot(whelp worker(args), args.core)
     clump.redress args
 
