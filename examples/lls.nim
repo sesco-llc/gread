@@ -154,7 +154,7 @@ when isMainModule:
 
           # sharing
           when cores > 1:
-            push(outputs, clone p)
+            push(outputs, p)
 
           p.score = Score NaN
           evo.makeRoom()

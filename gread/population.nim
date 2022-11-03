@@ -363,10 +363,8 @@ func clone*[T](population: Population[T]; core = none CoreId): Population[T] =
   ## create a copy of the population
   result = newPopulation[T](size = population.programs.len, core = core)
   for program in population.items:
-    let cloned = clone program
-    result.programs.add cloned
-    when populationCache:
-      result.cache.incl cloned.hash
+    result.add program
+  paintMetrics(result.ken, result)
 
 proc sort*(population: Population; order = SortOrder.Ascending) =
   sort(population.programs, order = order)

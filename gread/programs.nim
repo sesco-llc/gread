@@ -119,24 +119,22 @@ proc `<=`*[T](a, b: Program[T]): bool =
   ## a < b or a == b
   a < b or a == b
 
-proc newProgram*[T](a: Ast[T]; geno: Genome): Program[T] =
+proc initProgram*[T](result: var Program[T]; ast: Ast[T]; genome: Genome) =
+  ## initialize a new program from the given ast and genome
+  result.score = NaN.Score
+  result.genome = genome
+  result.ast = ast
+  result.hash = hash result.ast
+  when programCache:
+    init(result.cache, initialSize = 2)
+
+proc newProgram*[T](ast: Ast[T]; genome: Genome): Program[T] =
   ## instantiate a new program from the given ast and genome
-  result = Program[T](ast: a, hash: hash a, score: NaN, genome: geno)
-  when programCache:
-    init(result.cache, initialSize = 2)
+  result.initProgram(ast, genome)
 
-proc newProgram*[T](a: Ast[T]): Program[T] =
+proc newProgram*[T](ast: Ast[T]): Program[T] =
   ## instantiate a new program from the given ast
-  result = newProgram(a, EmptyGenome)
-
-proc clone*[T](p: Program[T]): Program[T] =
-  ## it's not a clone if it's different
-  result =
-    Program[T](ast: p.ast, hash: p.hash, score: p.score, source: p.source,
-               code: p.code, flags: p.flags, core: p.core, genome: p.genome,
-               scores: p.scores, generation: p.generation)
-  when programCache:
-    init(result.cache, initialSize = 2)
+  result.initProgram(ast, EmptyGenome)
 
 proc isValid*(p: Program): bool =
   ## true if the program is known to yield valid output; this will raise
