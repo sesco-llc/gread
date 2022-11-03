@@ -28,7 +28,7 @@ suite "trees":
 
   block:
     ## dig them spinners
-    for i, p in trees.pairs:
+    for i, p in trees.mpairs:
       checkpoint $p
       if i == 10:
         break

@@ -250,14 +250,15 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   vm.checkLua vm.doString s.cstring:
     result = popStack vm
 
-proc evaluate*(lua: Lua; p: LProg; locals: Locals): LuaValue =
+proc evaluate*(lua: Lua; p: var LProg; locals: Locals): LuaValue =
   # prepare to run the vm
   result = LuaValue(kind: TInvalid)
   inc lua.runs
   try:
     # pass the program and the training inputs
+    let source = render p
     let began = getMonoTime()
-    let stack = evaluate(lua.vm, $p, locals)
+    let stack = evaluate(lua.vm, source, locals)
     lua.runtime.push (getMonoTime() - began).inNanoseconds.float
     lua.errors.push 0.0
     # score a resultant value if one was produced
@@ -280,54 +281,17 @@ proc evaluate*(lua: Lua; p: LProg; locals: Locals): LuaValue =
       p.zombie = true
       1.0
 
-proc dumpScore*(lua: Lua; p: LProg) =
-  var s = fmt"{p.score}[{p.len}]: "
+proc `$`*(program: LProg): string =
+  if Rendered in program.flags:
+    programs.`$`(program)
+  else:
+    warn "had to render an immutable program"
+    render program.ast
+
+proc dumpScore*(p: LProg) =
+  var s = fmt"{p.score} {p.core}/{p.generation}[{p.len}]: "
   s.add $p
   checkpoint s
-
-proc dumpPerformance*(lua: Lua; p: LProg; training: seq[Locals];
-                      samples = 8) =
-  ## dumps the performance of a program across `samples` training inputs;
-  ## the stddev and sum of squares are provided
-  if not p.isNil:
-    var results = newSeqOfCap[float](training.len)
-    for index, value in training.pairs:
-      let s = evaluate(lua, p, value)
-      if index < samples or index == training.high:
-        checkpoint $value, "->", s
-      if s.isValid:
-        results.add s.toFloat
-    checkpoint "  stddev:", Score stddev(results)
-    checkpoint "      ss: ", Score ss(results)
-    lua.dumpScore p
-
-proc dumpPerformance*(lua: Lua; p: LProg; training: seq[(Locals, LuaValue)];
-                      samples = 8) =
-  ## as in the prior overload, but consumes training data with associated
-  ## ideal result values for each set of symbolic inputs; correlation is
-  ## additionally provided
-  if not p.isNil:
-    var results: seq[float]
-    var ideals: seq[float]
-    for index, value in training.pairs:
-      let s = evaluate(lua, p, value[0])
-      if not s.isValid:
-        return
-      if 0 == index mod samples or index == training.high:
-        let delta = s.float
-        if delta in [0.0, -0.0]:
-          checkpoint fmt"{float(value[1]):>7.2f}"
-        else:
-          checkpoint fmt"{float(value[1]):>7.2f} -> {delta:>7.2f}     -> {sum(results):>7.2f}    {index}"
-      if s.isValid and s.kind == TNumber:
-        results.add s.toFloat
-        ideals.add abs(value[1].float)
-    if results.len > 0:
-      checkpoint "stddev:", stddev(results),
-                 "corr:", correlation(results, ideals).percent,
-                 "ss:", ss(results, ideals),
-                 "of ideal:", (sum(results) / sum(ideals)).percent
-    lua.dumpScore p
 
 proc dumpStats*(evo: Evolver; evoTime: Time) =
   ## a threadsafe echo of some statistics regarding the vm and population
@@ -416,20 +380,6 @@ proc isFunctionSymbol*[T: Lua](a: Ast[T]; index: int): bool {.deprecated: "nonse
   if index > 0 and index < a.high:
     if not a[index].isParent:
       result = a[index].isSymbol and a[index-1].kind == luaFunctionCall
-
-when false:
-  proc toAst[T: Lua](prod: Production[T]): Ast[T] =
-    ## map a grammatical production to matching ast
-    result.nodes = newSeqOfCap[AstNode[T]](prod.len)
-    for component in prod.items:
-      result.nodes.add:
-        case component.kind
-        of ckRule:
-          emptyNode[T](result)
-        of ckToken:
-          AstNode[T](kind: component.token)
-        of ckTerminal:
-          terminalNode[T](result, component.term)
 
 proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
   case node.kind

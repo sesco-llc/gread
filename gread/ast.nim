@@ -258,9 +258,8 @@ iterator children*[T](a: Ast[T]; index: int): Ast[T] =
 
 template copyAst[T](a, b: typed; size: int) =
   ## sugar around copying ast of `size` nodes
-  template nodeSize: int = sizeof AstNode[T]
   if size > 0:
-    copyMem(addr a, unsafeAddr b, nodeSize*size)
+    copyMem(addr a, unsafeAddr b, sizeof(AstNode[T])*size)
 
 when false:
   proc learnString*(a: var Ast; s: string): LitId =
