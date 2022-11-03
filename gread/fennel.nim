@@ -486,7 +486,7 @@ proc getStats*(evo: Evolver; evoTime: Time): string =
     if m.size == 0:
       raise ValueError.newException "empty population"
   result = fmt"""
-               core and thread: {m.core.threadName} -- {evo.name}
+               thread and core: {m.core.threadName} -- {evo.name}
                   dataset size: {evo.dataset.len}
           virtual machine runs: {fnl.runs} (never reset)
          lua compilation cache: {fnl.aslua.len}
