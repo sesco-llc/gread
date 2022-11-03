@@ -39,7 +39,7 @@ initFennelGrammar(gram, averageGrammar)
 
 # no point in slowing down this simple example
 var tab = defaultTableau
-tab += {UseParsimony}
+tab -= {UseParsimony}
 tab -= {RequireValid}
 tab.seedProgramSize = 50
 tab.seedPopulation = 400
@@ -97,7 +97,7 @@ for (js, ideal) in inputData.items:
   training.add:
     initLocals paired
 
-proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[LuaValue] =
+proc fitone(fnl: Fennel; locals: Locals; p: var FProg): Option[LuaValue] =
   ## convenience capture
   let s = evaluate(fnl, p, locals)
   if s.isValid:
@@ -118,12 +118,6 @@ proc fitmany(fnl: Fennel; iter: iterator(): (ptr Locals, ptr LuaValue);
     if s.isValid:
       result = some s
 
-template dumpStats() {.dirty.} =
-  dumpStats(evo, et)
-
-template dumpPerformance(p: FProg) {.dirty.} =
-  dumpPerformance(fnl, p, training, samples = 1)
-
 suite "simulation":
   var et = getTime()
   block:
@@ -140,11 +134,10 @@ suite "simulation":
 
   block:
     ## dumped some statistics
-    dumpStats()
+    dumpStats(evo, et)
 
   et = getTime()
   var best = NaN
-  var lastGeneration: int
   block:
     ## ran until we can average two numbers
     var seen: PackedSet[Hash]
@@ -160,11 +153,10 @@ suite "simulation":
             let s = p.score
             if s > best or best.isNaN:
               best = s
-              dumpPerformance p
+              dumpScore p
 
       if evo.generation mod statFrequency == 0:
-        dumpStats()
-    lastGeneration = evo.generation
+        dumpStats(evo, et)
 
   block:
     ## showed the top-10 programs
@@ -176,10 +168,4 @@ suite "simulation":
 
   block:
     ## dumped some statistics
-    dumpStats()
-
-  block:
-    ## performance of best program
-    if evo.fittest.isSome:
-      dumpPerformance get(evo.fittest)
-    checkpoint "last generation: ", lastGeneration
+    dumpStats(evo, et)

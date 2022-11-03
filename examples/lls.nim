@@ -15,7 +15,7 @@ import std/times
 import gread
 import gread/fennel except variance
 
-import pkg/sysinfo
+#import pkg/sysinfo
 import pkg/cps
 import pkg/lunacy
 import pkg/loony
@@ -64,7 +64,7 @@ for (x, y) in data.items:
   dataset.add:
     initLocals [("x", x.toLuaValue), ("y", y.toLuaValue)]
 
-proc fitone(fnl: Fennel; locals: Locals; p: FProg): Option[LuaValue] =
+proc fitone(fnl: Fennel; locals: Locals; p: var FProg): Option[LuaValue] =
   ## given a datapoint, run the program and return the residual
   let s = evaluate(fnl, p, locals)
   if s.isValid:
@@ -115,7 +115,7 @@ when isMainModule:
     let fnl = newFennel()
     var workerCount = work.clusterSize
     var monitor = tab
-    monitor.maxPopulation = 10
+    monitor.maxPopulation = 2
     var evo: Evolver[Fennel, LuaValue]
     initEvolver(evo, fnl, monitor)
     evo.strength = strength
@@ -127,10 +127,9 @@ when isMainModule:
     evo.population =
       newPopulation[Fennel](monitor.maxPopulation, core = evo.core)
 
-    var seen: PackedSet[Hash]
     let et = getTime()
     while true:
-      let transport: ClusterTransport[Fennel, LuaValue] = pop inputs
+      let transport = pop inputs
       if transport.isNil:
         sleep 250
       else:
@@ -142,36 +141,38 @@ when isMainModule:
             debug fmt"cluster has {workerCount} workers"
             if workerCount == 0:
               break
-          else:
-            discard
+          #else:
+          #  discard
         of ctPopulation:
           # thread shut-down
           discard
         of ctProgram:
-          let p = transport.program
-          if p.isValid:
-            # sharing
-            when cores > 1:
-              push(outputs, clone p)
+          var p = transport.program
+          if not p.isValid:
+            continue
 
-            # auditing
-            if not seen.containsOrIncl(p.hash):
-              p.score = strength(evo)(get evo.score(p))
-              # it should not be invalid
-              if not p.isValid:
-                raise
-              evo.makeRoom()
-              evo.population.add p
-              evo.maybeResetFittest(p)
-              let best = evo.fittest
-              if best.isSome and best.get.hash == p.hash:
-                dumpScore p
-                if p.score > goodEnough:
-                  notice fmt"winner, winner, chicken dinner: {p.score}"
-                  notice fmt"last generation: {p.generation} secs: {(getTime() - et).inSeconds}"
-                  for index in 1..workerCount:
-                    debug "shutting down worker " & $index
-                    push(inputs, ckWorkerQuit)
+          # sharing
+          when cores > 1:
+            push(outputs, clone p)
+
+          if FinestKnown notin p.flags:
+            continue
+
+          p.score = Score NaN
+          evo.makeRoom()
+          evo.add p
+          dumpScore p
+
+          if p.score < goodEnough:
+            continue
+
+          notice fmt"winner, winner, chicken dinner: {p.score}"
+          notice fmt"last generation: {p.generation} secs: {(getTime() - et).inSeconds}"
+
+          for index in 1..workerCount:
+            debug "shutting down worker " & $index
+            push(inputs, ckWorkerQuit)
+
         else:
           raise Defect.newException "unsupported transport: " & $transport.kind
 
