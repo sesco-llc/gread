@@ -1,12 +1,14 @@
 when not compileOption"threads":
   {.error: "cluster support requires threads".}
 
+import std/atomics
 import std/deques
 import std/json
 import std/logging
 import std/options
 import std/os
 import std/osproc
+import std/packedsets
 import std/random
 import std/sequtils
 import std/strformat
@@ -66,9 +68,8 @@ type
 
   Cluster*[T, V] = ref object
     name: string
-    cores: seq[CoreId]
-    io: IO[T, V]           ## how we move data between threads
-    nextId: CoreId         ## the value of the next core identity
+    cores: PackedSet[CoreId]
+    io: IO[T, V]                   ## how we move data between threads
 
   Worker*[T, V] = proc(w: Work[T, V]) {.thread.}
 
@@ -255,15 +256,16 @@ proc clusterSize*(work: Work): int =
   ## exposes the size of the parent cluster
   work.cluster.size
 
-proc nextCore*(cluster: Cluster): Option[CoreId] =
-  ## returns the next CoreId which will be used by the cluster
-  result = some cluster.nextId
-  inc cluster.nextId
+var nextId: Atomic[CoreId]         ## the value of the next core identity
+
+proc nextCore*(): CoreId =
+  ## returns a new CoreId which may be used by a cluster
+  nextId.fetchAdd(1)
 
 proc redress*[T, V](cluster: Cluster[T, V]; work: var Work[T, V]) =
   ## freshen a work object with a new core and i/o channels, etc.
   work.io = cluster.io
-  work.core = cluster.nextCore
+  work.core = some nextCore()
   work.cluster = cluster
 
 proc initWork*[T, V](cluster: Cluster[T, V]): Work[T, V] =
@@ -273,12 +275,19 @@ proc initWork*[T, V](cluster: Cluster[T, V]): Work[T, V] =
 proc boot*[T, V](cluster: Cluster[T, V]; worker: C; core: CoreSpec) =
   ## boot a cluster with a worker continuation
   sendToCore(worker, get core)
-  cluster.cores.add: get core
+  cluster.cores.incl(get core)
 
-proc halt*(cluster: Cluster; core = none CoreId) =
-  ## halt a cluster or a particular core
-  for i, thread in threads.mitems:
-    joinThread thread
+proc boot*[T, V](cluster: Cluster[T, V]; worker: C) =
+  ## boot a cluster with a worker continuation
+  let core = nextCore()
+  sendToCore(worker, core)
+  cluster.cores.incl(core)
+
+when false:
+  proc halt*(cluster: Cluster; core = none CoreId) =
+    ## halt a cluster or a particular core
+    for i, thread in threads.mitems:
+      joinThread thread
 
 proc newTransportQ*[T, V](): TransportQ[T, V] =
   ## create a new transport queue for messaging between threads
@@ -286,13 +295,13 @@ proc newTransportQ*[T, V](): TransportQ[T, V] =
 
 proc newCluster*[T, V](name = ""): Cluster[T, V] =
   ## create a new cluster
-  result = Cluster[T, V](name: name,
+  result = Cluster[T, V](name: name, cores: initPackedSet[CoreId](),
                          io: (input: newTransportQ[T, V](),
                               output: newTransportQ[T, V]()))
 
 proc name*(cluster: Cluster): string =
   ## name a cluster
   if cluster.name == "":
-    "cores " & cluster.cores.map(`$`).join(",")
+    "gread cluster"
   else:
     cluster.name
