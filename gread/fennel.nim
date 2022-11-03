@@ -1,4 +1,5 @@
 import std/hashes
+import std/packedsets
 import std/json
 import std/logging
 import std/math
@@ -680,9 +681,33 @@ when compileOption"threads":
       if args.stats > 0:
         if evo.generation mod args.stats == 0:
           dumpStats(evo, evoTime)
+          echo fmt"memory consumption for evolver: {memoryGraphSize(evo)}"
+          echo fmt"memory consumption for population: {memoryGraphSize(evo.population)}"
+          echo fmt"memory consumption difference: {memoryGraphSize(evo)-memoryGraphSize(evo.population)}"
+          when true:
+            var astmem, codemem, statsmem, genesmem = 0
+            var length = 0
+            for p in evo.population.items:
+              length += p.len
+              astmem += memoryGraphSize(p.ast)
+              codemem += memoryGraphSize($p)
+              statsmem += memoryGraphSize(p.scores)
+              statsmem += memoryGraphSize(p.runtime)
+              genesmem += memoryGraphSize(p.genome)
+            let kenmem = memoryGraphSize(evo.population.ken)
+            when false:
+              echo fmt"memory consumption ast: {astmem}"
+              echo fmt"memory consumption code: {codemem}"
+              echo fmt"memory consumption stats: {statsmem}"
+              echo fmt"memory consumption genes: {genesmem}"
+              echo fmt"memory consumption metrics: {kenmem}"
+            echo fmt"memory consumption per ast node: {memoryGraphSize(evo.population) div length}"
+          #let cachemem = memoryGraphSize(evo.population.cache)
+          #echo fmt"memory consumption cache: {cachemem}"
+          #echo fmt"memory consumption minus cache: {memoryGraphSize(evo)-cachemem}"
+          #echo fmt"cache cardinality: {len(evo.population.cache)}"
           when false:
             if defined(debug) and evo.generation > 10_000:
-              debug fmt"memory consumption for evolver: {memoryGraphSize(evo)}"
               debug fmt"memory consumption for aslua: {memoryGraphSize(evo.platform.aslua)}"
               when defined(greadLargeCache):
                 when defined(greadSlowTable):

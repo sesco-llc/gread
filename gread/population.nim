@@ -26,7 +26,7 @@ const
   larger populations more valuable.
 
   ]#
-  populationCache = true
+  populationCache = false
 
 type
   PopMetrics* = object
@@ -52,10 +52,9 @@ type
 
   Population*[T: ref] = ref object
     programs: seq[Program[T]]
-    fittest: Program[T]
-    ken: PopMetrics
+    ken*: PopMetrics
     when populationCache:
-      cache: PackedSet[Hash]
+      cache*: PackedSet[Hash]
 
   PopLike*[T] = concept c
     c[int] is Program[T]
@@ -233,17 +232,18 @@ proc `[]`*[T](pop: Population[T]; index: int): Program[T] =
   ## retrieve a program via (unstable?) index
   pop.programs[index]
 
-proc randomMember*[T](pop: Population[T]; rng: var Rand): IndexedProgram[T] =
+proc randomMember*[T](population: Population[T];
+                      rng: var Rand): IndexedProgram[T] =
   ## return a random member of the population
-  withPopulated pop:
-    let index = rng.rand pop.programs.high
-    result = (index: index, program: pop.programs[index])
+  withPopulated population:
+    let index = rng.rand population.programs.high
+    result = (index: index, program: population.programs[index])
 
-proc del*[T](pop: Population[T]; index: int) =
+proc del*[T](population: Population[T]; index: int) =
   ## remove a specific member of the population
-  withPopulated pop:
-    pop.forget(pop.programs[index], index)
-    del(pop.programs, index)
+  withPopulated population:
+    population.forget(population.programs[index], index)
+    del(population.programs, index)
 
 proc pop*[T](population: Population[T]): Program[T] =
   ## remove and return a member of the population;
@@ -253,13 +253,13 @@ proc pop*[T](population: Population[T]): Program[T] =
     result = population.programs[index]
     del(population, index)
 
-proc randomRemoval*[T](pop: Population[T]; rng: var Rand): Program[T] =
+proc randomRemoval*[T](population: Population[T]; rng: var Rand): Program[T] =
   ## remove and return a random member of the population;
   ## this does not reset population metrics
-  withPopulated pop:
-    let query = pop.randomMember(rng)
+  withPopulated population:
+    let query = population.randomMember(rng)
     result = query.program
-    del(pop, query.index)
+    del(population, query.index)
 
 proc parsimony*(population: Population): float =
   ## compute parsimony for valid members of the population
@@ -354,10 +354,10 @@ func paintFittest*(metrics: var PopMetrics; fittest: Program) =
     metrics.staleness = NaN
     metrics.usurper = fittest.core
 
-func metrics*(pop: Population): PopMetrics =
+func metrics*(population: Population): PopMetrics =
   ## returns a copy of the population's metrics
-  result = pop.ken
-  result.paintMetrics(pop)
+  result = population.ken
+  result.paintMetrics(population)
 
 func clone*[T](population: Population[T]; core = none CoreId): Population[T] =
   ## create a copy of the population
