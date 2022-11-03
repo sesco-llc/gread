@@ -23,7 +23,7 @@ task test, "run tests for ci":
   when defined(windows):
     exec "balls.cmd --define:useMalloc --threads:on --gc:arc"
   else:
-    exec "balls --define:useMalloc --threads:on --gc:arc --define:greadTreeSitter"
+    exec "balls --define:useMalloc --define:cpsNoCallOperator --threads:on --gc:arc --define:greadTreeSitter"
 
 task demo, "produce a demo":
   exec """demo docs/demo.svg "nim c --define:release --out=\$1 tests/test.nim""""

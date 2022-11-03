@@ -301,7 +301,7 @@ proc dumpStats*(evo: Evolver; evoTime: Time) =
   let m = pop.metrics
   let threaded = when compileOption"threads": $getThreadId() else: "-"
   if not evo.fittest.isNone:
-    lua.dumpScore get(evo.fittest)
+    dumpScore get(evo.fittest)
 
   var dumb = m.lengths.variance.int  # work around nim bug
   # program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
@@ -469,22 +469,22 @@ when compileOption"threads":
     evo.fitone = args.fitone
     evo.fitmany = args.fitmany
     evo.population = evo.randomPop()
-    resetParsimony evo
+    discard resetParsimony evo
 
     var leader: Hash
     var evoTime = getTime()
-    while evo.population.generations.int <= evo.tableau.maxGenerations:
+    while evo.generation.int <= evo.tableau.maxGenerations:
       noop() # give other evolvers a chance
 
-      search(args, evo.population)   # fresh meat from other threads
+      search(args, evo)   # fresh meat from other threads
 
       let stale = randomMember(evo.population, evo.rng)
       share(args, stale.program)
 
-      for discovery in evo.generation():
+      for discovery in generation evo:
         discard
 
-      if evo.population.generations.int mod args.stats == 0:
+      if evo.generation.int mod args.stats == 0:
         dumpStats(evo, evoTime)
         clearStats evo
 
