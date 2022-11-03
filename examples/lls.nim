@@ -15,7 +15,7 @@ import std/times
 import gread
 import gread/fennel except variance
 
-#import pkg/sysinfo
+import pkg/sysinfo
 import pkg/cps
 import pkg/lunacy
 import pkg/loony
@@ -100,7 +100,7 @@ when isMainModule:
 
   # define the parameters for the evolvers
   var tab = defaultTableau
-  tab += {UseParsimony}
+  tab -= {UseParsimony}
   tab -= {RequireValid, EqualWeight}
   tab.seedProgramSize = 400
   tab.seedPopulation = 400
@@ -128,6 +128,7 @@ when isMainModule:
       newPopulation[Fennel](monitor.maxPopulation, core = evo.core)
 
     let et = getTime()
+    var fittest: Program[Fennel]
     while true:
       let transport = pop inputs
       if transport.isNil:
@@ -155,19 +156,18 @@ when isMainModule:
           when cores > 1:
             push(outputs, clone p)
 
-          if FinestKnown notin p.flags:
-            continue
-
           p.score = Score NaN
           evo.makeRoom()
           evo.add p
-          dumpScore p
+          if fittest != get(evo.fittest):
+            fittest = get(evo.fittest)
+            dumpScore fittest
 
-          if p.score < goodEnough:
+          if fittest.score < goodEnough:
             continue
 
-          notice fmt"winner, winner, chicken dinner: {p.score}"
-          notice fmt"last generation: {p.generation} secs: {(getTime() - et).inSeconds}"
+          notice fmt"winner, winner, chicken dinner: {fittest.score}"
+          notice fmt"last generation: {fittest.generation} secs: {(getTime() - et).inSeconds}"
 
           for index in 1..workerCount:
             debug "shutting down worker " & $index

@@ -36,15 +36,16 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
   try:
     while discoveries == 0:
       let operator = evo.randomOperator()
-      for p in operator(evo).items:
-        p.generation = gen
-        p.core = evo.core
+      var programs = operator evo
+      for program in programs.mitems:
+        program.generation = gen
+        program.core = evo.core
         if RequireValid in evo.tableau:
-          discard evo.paintScore(p, inPop=false)
-          if p.isValid:
-            addIt p
+          discard evo.paintScore(program, inPop=false)
+          if program.isValid:
+            addIt program
         else:
-          addIt p
+          addIt program
 
   finally:
     if discoveries > 2:

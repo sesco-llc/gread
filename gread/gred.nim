@@ -54,7 +54,7 @@ proc store*(r: var Redis; key: ScoredMapNames; programs: var openArray[Program])
   if programs.len == 0:
     return 0
   var members = newSeq[(string, float)](programs.len)
-  for index, program in programs.pairs:
+  for index, program in programs.mpairs:
     let data =
       when key is ScoredGenomeMapName:
         $(program.genome)
@@ -102,10 +102,10 @@ proc clear*(r: var Redis; key: ScoredGenomeMapName; genomes: openArray[Genome]) 
     members.add $genome
   discard r.zrem($key, @members)
 
-proc clear*[T](r: var Redis; key: ScoredGenomeMapName; programs: openArray[Program[T]]) =
+proc clear*[T](r: var Redis; key: ScoredGenomeMapName; programs: var openArray[Program[T]]) =
   ## remove programs from the redis sorted set
   var genomes = newSeqOfCap[Genome](programs.len)
-  for program in programs.items:
+  for program in programs.mitems:
     genomes.add program.genome
     program.flags.excl Cached
   clear(r, key, genomes)

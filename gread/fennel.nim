@@ -298,6 +298,13 @@ proc render*(a: Ast[Fennel]): string =
     closer()
   stripSpace()
 
+proc `$`*(program: FProg): string =
+  if Rendered in program.flags:
+    programs.`$`(program)
+  else:
+    warn "had to render an immutable program"
+    render program.ast
+
 proc compileFennel(vm: PState; source: string): string =
   vm.pushGlobal("result", term false)
   let fennel = """
@@ -317,13 +324,13 @@ proc compileFennel(vm: PState; source: string): string =
     writeStackTrace()
     raise
 
-proc toLua(fnl: Fennel; p: FProg): string =
-  if p.hash in fnl.aslua:
-    result = fnl.aslua[p.hash]
+proc toLua(fnl: Fennel; index: Hash; source: string): string =
+  if index in fnl.aslua:
+    result = fnl.aslua[index]
   else:
     inc fnl.runs
-    result = compileFennel(fnl.vm, $p)
-    fnl.aslua[p.hash] = result
+    result = compileFennel(fnl.vm, source)
+    fnl.aslua[index] = result
 
 proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
   ## compile and evaluate the program as fennel; the result of
@@ -370,7 +377,8 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
     writeStackTrace()
     raise
 
-proc evaluate*(fnl: Fennel; p: FProg; locals: Locals): LuaValue =
+proc evaluate*(fnl: Fennel; p: var FProg; locals: Locals): LuaValue =
+  mixin render
   # prepare to run the vm
   memoryAudit "evaluate fennel all-in":
     result = LuaValue(kind: TInvalid)
@@ -384,7 +392,7 @@ proc evaluate*(fnl: Fennel; p: FProg; locals: Locals): LuaValue =
             let stack = evaluate(fnl.vm, $p, locals)
             fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
           else:
-            let source = fnl.toLua(p)
+            let source = fnl.toLua(hash p, render p)
             let began = getMonoTime()
             let stack = evaluateLua(fnl.vm, source, locals)
             fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
@@ -441,10 +449,6 @@ proc getStats*(evo: Evolver; evoTime: Time): string =
   template genTime: FennelStat = evo.generationTime
   var m: PopMetrics
   m.paintMetrics(evo)
-  if evo.fittest.isSome:
-    dumpScore get(evo.fittest)
-  elif evo.generation > 1000:
-    raise
 
   var dumb = m.lengths.variance.int  # work around nim bug
   # program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
@@ -518,7 +522,7 @@ proc getStats*(evo: Evolver; evoTime: Time): string =
     result &= threadStats
   clearStats fnl
 
-proc dumpStats*(evo: Evolver; evoTime: Time) {.deprecated.} =
+proc dumpStats*(evo: Evolver; evoTime: Time) =
   ## a threadsafe echo of some statistics regarding the vm and population
   checkpoint getStats(evo, evoTime) & "\n"
 
@@ -653,8 +657,8 @@ when compileOption"threads":
             of ckWorkerQuit:
               info "terminating on request"
               break
-            else:
-              warn "ignoring control: " & $transport.control
+            #else:
+            #  warn "ignoring control: " & $transport.control
           else:
             for program in programs(transport):
               evo.introduce program
@@ -739,8 +743,8 @@ when compileOption"threads":
           of ckWorkerQuit:
             info "terminating on request"
             break
-          else:
-            warn "ignoring control: " & $transport.control
+          #else:
+          #  warn "ignoring control: " & $transport.control
         else:
           for transit in programs(transport):
             transit.source = getThreadId()
@@ -799,8 +803,8 @@ when compileOption"threads":
           of ckWorkerQuit:
             info "terminating on request"
             break
-          else:
-            warn "ignoring control: " & $transport.control
+          #else:
+          #  warn "ignoring control: " & $transport.control
         else:
           for transit in programs(transport):
             let s = evo.score(transit)
@@ -848,8 +852,8 @@ when compileOption"threads":
             case transport.control
             of ckWorkerQuit:
               debug "worker terminated"
-            else:
-              warn "ignoring control: " & $transport.control
+            #else:
+            #  warn "ignoring control: " & $transport.control
           else:
             for program in programs(transport):
               result.add program
@@ -882,8 +886,8 @@ when compileOption"threads":
             of ckWorkerQuit:
               info "terminating on request"
               break
-            else:
-              warn "ignoring control: " & $transport.control
+            #else:
+            #  warn "ignoring control: " & $transport.control
           of ctEvalResult:
             result[transport.result.program] = transport.result.results
             break
@@ -930,7 +934,7 @@ proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Gramm
   proc strong(score: LuaValue): float =
     -jaccard(toSeq $score, codeAsCharacters)
 
-  proc fitter(d: T; data: SymbolSet[T, G]; p: Program[T]): Option[G] =
+  proc fitter(d: T; data: SymbolSet[T, G]; p: var Program[T]): Option[G] =
     #result = some (repr p.ast).toLuaValue
     #result = some (freeze p.ast).toLuaValue
     result = some ($p).toLuaValue

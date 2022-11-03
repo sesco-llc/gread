@@ -192,9 +192,9 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
   if work.core.isNone:
     work.core = core
 
-proc forceShare*(work: Work; p: Program) =
+proc forceShare*(work: Work; program: Program) =
   ## send a better program to other threads
-  var transit = clone p
+  var transit = program
   transit.source = getThreadId()
   transit.core = work.core         # set the core to help define origin
   push(work.io.output, transit)

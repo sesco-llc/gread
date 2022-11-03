@@ -22,9 +22,9 @@ type
     FinestKnown
     Cached
     DeadCode
+    Rendered
 
-  #Program*[T] = ref object
-  ProgramObj[T] = object
+  Program*[T] = object
     genome: Genome            ## the genome used to construct the program
     code: Option[string]      ## cache of the rendered source code
     core*: Option[int]        ## ideally holds the core where we were invented
@@ -39,9 +39,14 @@ type
     scores*: MovingStat[float64, uint32] ## statistics around valid scores
     when programCache:
       cache: GreadCache[Hash, Option[Score]] ## cache of score given symbol set hash
-  Program*[T] = ref ProgramObj[T]
 
-proc push*(p: Program; s: Score) =
+func isInitialized*(program: Program): bool {.inline.} =
+  program.hash != default Hash
+
+template isNil*(program: Program): bool {.deprecated: "use isInitialized/1".} =
+  not program.isInitialized
+
+proc push*(p: var Program; s: Score) =
   ## record a valid score for statistics purposes
   p.scores.push s
 
@@ -53,36 +58,39 @@ proc zombie*(p: Program): bool {.inline.} =
   ## true if the program is invalid and may only be used for genetic data
   DeadCode in p.flags
 
-proc `zombie=`*(p: Program; b: bool) =
+proc `zombie=`*(p: var Program; b: bool) =
   ## mark a program as invalid; idempotent
   if b:
     incl(p.flags, DeadCode)
   elif DeadCode in p.flags:
-    raise Defect.newException:
-      when compileOption"threads":
-        let rc = atomicRC(p)
-        "the undead must never live again; rc " & $rc
-      else:
-        "the undead must never live again"
+    raise Defect.newException "the undead must never live again"
 
 func len*(p: Program): int =
   ## some objective measurement of the program; ast length
   p.ast.len
 
-proc render*(p: Program): string =
+proc render*(p: var Program): string =
   mixin render
-  if p.code.isSome:
+  if Rendered in p.flags:
     result = get p.code
   else:
     result = render p.ast
     p.code = some result
+    p.flags.incl Rendered
+
+proc `$`*(p: var Program): string =
+  ## renders the program as source code if possible; else raw ast
+  if Rendered in p.flags:
+    get p.code
+  else:
+    render p
 
 proc `$`*(p: Program): string =
   ## renders the program as source code if possible; else raw ast
-  if p.code.isSome:
-    p.code.get
+  if Rendered in p.flags:
+    result = get p.code
   else:
-    render p
+    raise Defect.newException "program has not been rendered"
 
 proc `<`*[T](a, b: Program[T]): bool =
   ## some objective measurement of two programs; score
@@ -100,9 +108,9 @@ proc `==`*[T](a, b: Program[T]): bool =
   ## some objective measurement of two programs; score
   # this silliness works around a nim bug with our
   # `==`() leaking into system/arc's reference counting
-  if a.isNil != b.isNil:
+  if a.isInitialized != b.isInitialized:
     false
-  elif a.isNil:
+  elif not a.isInitialized:
     true
   else:
     almostEqual(a.score, b.score)
@@ -133,8 +141,8 @@ proc clone*[T](p: Program[T]): Program[T] =
 proc isValid*(p: Program): bool =
   ## true if the program is known to yield valid output; this will raise
   ## a defect if we have not scored the program yet
-  if p.isNil:
-    raise ValueError.newException "caught a nil program"
+  if not p.isInitialized:
+    raise ValueError.newException "caught an uninitialized program"
   elif p.zombie:
     false
   else:

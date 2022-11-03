@@ -195,7 +195,7 @@ proc introduce*[T](population: Population[T]; p: Program[T]) =
 proc add*[T](pop: Population[T]; p: Program[T]) =
   ## add a new program to the population
   withInitialized pop:
-    if p.isNil:
+    if not p.isInitialized:
       raise Defect.newException "nil program"
     elif pop.isNil:
       raise Defect.newException "nil pop"
@@ -213,7 +213,7 @@ iterator items*[T](pop: Population[T]): Program[T] =
     for p in pop.programs.items:
       yield p
 
-iterator mitems*[T](pop: Population[T]): var Program[T] {.deprecated.} =
+iterator mitems*[T](pop: Population[T]): var Program[T] =
   withInitialized pop:
     for p in pop.programs.mitems:
       yield p
@@ -290,7 +290,7 @@ proc nextGeneration*(ken: var PopMetrics): Generation =
   inc ken.generation
   result = ken.generation
 
-proc scoreChanged*(pop: Population; p: Program; s: Option[float]; index: int) =
+proc scoreChanged*(pop: Population; p: var Program; s: Option[float]; index: int) =
   ## inform the population of a change to the score of `p` at `index`; this
   ## is used to update metrics and parsimony
   withInitialized pop:

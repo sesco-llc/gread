@@ -31,23 +31,21 @@ macro composeNoise(n: static string): untyped =
     iter = postfix(iter, "*")
     let n = parseFloat(n) * 0.01
     let assign = bindSym "[]="
-    result = newStmtList()
-    result.add:
-      genAstOpt({}, n, assign, name = iter):
-        iterator name[T](rng: var Rand; gram: Grammar;
-                                 a: Genome): ResultForm[T] =
-          ## apply noise
-          if a.len == 0:
-            raise Defect.newException "received empty input genome"
-          var g = a
-          for i in g.low..g.high:
-            if rng.rand(1.0) < n:
-              # g[i] = rng.rand(int char.high).char
-              assign(g, i, rng.rand(int char.high).char)
-          try:
-            yield some πFilling[T](gram, g)
-          except ShortGenome:
-            yield none Invention[T]
+    genAstOpt({}, n, assign, name = iter):
+      iterator name[T](rng: var Rand; gram: Grammar;
+                       a: Genome): ResultForm[T] =
+        ## apply noise
+        if a.len == 0:
+          raise Defect.newException "received empty input genome"
+        var g = a
+        for i in g.low..g.high:
+          if rng.rand(1.0) < n:
+            # g[i] = rng.rand(int char.high).char
+            assign(g, i, rng.rand(int char.high).char)
+        try:
+          yield some πFilling[T](gram, g)
+        except ShortGenome:
+          yield none Invention[T]
 
 composeNoise("0.25")
 composeNoise("0.5")
