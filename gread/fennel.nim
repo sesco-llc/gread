@@ -435,56 +435,6 @@ proc dumpScore*(p: FProg) =
 proc dumpScore*(fnl: Fennel; p: FProg) {.deprecated: "use dumpScore/1".} =
   dumpScore p
 
-proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[Locals];
-                      samples = 8) =
-  ## dumps the performance of a program across `samples` training inputs;
-  ## the stddev and sum of squares are provided
-  if not p.isNil:
-    var results = newSeqOfCap[float](training.len)
-    for index, value in training.pairs:
-      let s = evaluate(fnl, p, value)
-      if index < samples or index == training.high:
-        checkpoint "ideal: ", $value, "-> gp: ", s
-      if s.isValid and s.kind == TNumber:
-        results.add s.toFloat
-    if results.len > 0:
-      checkpoint "  stddev:", ff stddev(results)
-      checkpoint "      ss: ", ff ss(results)
-    dumpScore p
-
-proc dumpPerformance*(fnl: Fennel; p: FProg; training: seq[(Locals, LuaValue)];
-                      samples = 8) =
-  ## as in the prior overload, but consumes training data with associated
-  ## ideal result values for each set of symbolic inputs; correlation is
-  ## additionally provided
-  if not p.isNil:
-    var results: seq[float]
-    var ideals: seq[float]
-    var deltas: seq[float]
-    for index, value in training.pairs:
-      let s = evaluate(fnl, p, value[0])
-      var sf, vf: float
-      if s.isValid and s.kind == TNumber:
-        sf = s.toFloat
-        vf = value[1].toFloat
-        results.add sf
-        ideals.add vf
-        deltas.add abs(vf - sf)
-      else:
-        break
-      if 0 == index mod samples or index == training.high:
-        let delta = abs(vf - sf)
-        if delta in [0.0, -0.0]:
-          checkpoint fmt"{vf:>7.2f}"
-        else:
-          checkpoint fmt"ideal: {vf:>7.2f} -> gp: {sf:>7.2f}     -> {sum(deltas):>7.2f}    {index}"
-    if results.len > 0:
-      checkpoint "stddev:", stddev(results),
-                 "corr:", correlation(results, ideals).percent,
-                 "ss:", ss(results, ideals),
-                 "of ideal:", (sum(results) / sum(ideals)).percent
-    dumpScore p
-
 proc getStats*(evo: Evolver; evoTime: Time): string =
   ## compose a report of some statistics regarding the vm and population
   let fnl = evo.platform

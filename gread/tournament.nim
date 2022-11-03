@@ -13,12 +13,3 @@ type
     len: int                 # program length
     index: int
     program: Program[T]
-
-when debugging:
-  import std/os
-  template think*(final: untyped): untyped =
-    debug final.program
-    #sleep 4_000
-else:
-  template think*(final: untyped): untyped = discard
-

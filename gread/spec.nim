@@ -120,24 +120,15 @@ when defined(greadProfile):
 else:
   template profile*(s: string; logic: untyped): untyped = logic
 
-when true:
-  proc demandValid*[T](s: T) =
-    mixin isValid
-    if not s.isValid:
-      raise Defect.newException "score of `{s}` is invalid"
-  proc demandValid*[T](s: Option[T]) =
-    mixin isValid
-    if s.isSome:
-      demandValid(get s)
-else:
-  template demandValid*(s: untyped): untyped =
-    mixin isValid
-    if not s.isValid:
-      raise Defect.newException "score of `{s}` is invalid"
-  template demandValid*[T](s: Option[T]): untyped =
-    mixin isValid
-    if s.isSome:
-      demandValid(get s)
+template demandValid*[T](s: T) =
+  mixin isValid
+  if not s.isValid:
+    raise Defect.newException "score of `{s}` is invalid"
+
+template demandValid*[T](s: Option[T]) =
+  mixin isValid
+  if s.isSome:
+    demandValid(get s)
 
 when defined(greadMemoryAudit):
   import std/logging

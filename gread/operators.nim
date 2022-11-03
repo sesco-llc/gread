@@ -20,11 +20,9 @@ proc geCrossover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
     raise ValueError.newException:
       "population contains programs without genomes"
   for x in geCrossover[T](evo.rng, evo.grammar, a.genome, b.genome):
+    evo.shortGenome(x.isNone)
     if x.isSome:
-      evo.shortGenome false
       result.add newProgram(x.get.ast, x.get.genome)
-    else:
-      evo.shortGenome true
 
 proc randomCrossover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
   ## perform GE crossover with a random genome to form new children
@@ -35,11 +33,9 @@ proc randomCrossover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
       "population contains programs without genomes"
   for x in randomCrossover[T](evo.rng, evo.grammar, a.genome,
                               size = evo.tableau.seedProgramSize):
+    evo.shortGenome(x.isNone)
     if x.isSome:
-      evo.shortGenome false
       result.add newProgram(x.get.ast, x.get.genome)
-    else:
-      evo.shortGenome true
 
 proc subtreeXover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
   ## perform GE crossover between two parents to form a new child
@@ -50,11 +46,9 @@ proc subtreeXover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
     raise ValueError.newException:
       "population contains programs without genomes"
   for x in subtreeXover[T](evo.rng, evo.grammar, a.genome, b.genome):
+    evo.shortGenome(x.isNone)
     if x.isSome:
-      evo.shortGenome false
       result.add newProgram(x.get.ast, x.get.genome)
-    else:
-      evo.shortGenome true
 
 proc randomSubtreeXover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
   ## perform GE crossover with a random genome to form a new child
@@ -64,11 +58,9 @@ proc randomSubtreeXover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
     raise ValueError.newException:
       "population contains programs without genomes"
   for x in randomSubtreeXover[T](evo.rng, evo.grammar, a.genome):
+    evo.shortGenome(x.isNone)
     if x.isSome:
-      evo.shortGenome false
       result.add newProgram(x.get.ast, x.get.genome)
-    else:
-      evo.shortGenome true
 
 proc geMutation*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
   ## perform GE mutation of a program to create novel offspring
@@ -80,33 +72,29 @@ proc geMutation*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
     g.add g
     g.add g
   for x in geMutation[T](evo.rng, evo.grammar, g):
+    evo.shortGenome(x.isNone)
     if x.isSome:
-      evo.shortGenome false
       result.add newProgram(x.get.ast, x.get.genome)
-    else:
-      evo.shortGenome true
 
 macro composeNoise(n: static string): untyped =
     let it = n.replace(".", "pt")
     var name = nnkAccQuoted.newTree(ident(fmt"geNoise{it}"))
     var iter = nnkAccQuoted.newTree(ident(fmt"geNoisy{it}"))
     name = postfix(name, "*")
-    result = newStmtList()
-    result.add:
-      genAstOpt({}, name, iter, rs=ident"result"):
-        proc name[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
-          ## perform noisy GE mutation of a program to create novel offspring
-          template size: int = evo.tableau.tournamentSize
-          let a = tournament(evo, size).program
-          var g = a.genome
-          when greadWrapping:
-            g.add g
-            g.add g
-            g.add g
-          for x in iter[T](evo.rng, evo.grammar, g):
-            evo.shortGenome x.isNone
-            if x.isSome:
-              rs.add newProgram(x.get.ast, x.get.genome)
+    genAstOpt({}, name, iter, rs=ident"result"):
+      proc name[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
+        ## perform noisy GE mutation of a program to create novel offspring
+        template size: int = evo.tableau.tournamentSize
+        let a = tournament(evo, size).program
+        var g = a.genome
+        when greadWrapping:
+          g.add g
+          g.add g
+          g.add g
+        for x in iter[T](evo.rng, evo.grammar, g):
+          evo.shortGenome(x.isNone)
+          if x.isSome:
+            rs.add newProgram(x.get.ast, x.get.genome)
 
 composeNoise("0.25")
 composeNoise("0.5")
