@@ -35,7 +35,20 @@ type
 proc `$`*(store: ScoredGenomeMapName): string {.borrow.}
 proc `$`*(store: ScoredSourceMapName): string {.borrow.}
 
-proc store*(r: var Redis; key: ScoredMapNames; programs: openArray[Program]): BiggestInt =
+proc store*(r: var Redis; key: ScoredMapNames; program: var Program): bool =
+  ## store a program to a given redis sorted set with the program's score.
+  ## returns true if the program was stored.
+  let data =
+    when key is ScoredGenomeMapName:
+      $(program.genome)
+    elif key is ScoredSourceMapName:
+      $program
+    else:
+      {.error: "not implemented".}
+  program.flags.incl Cached
+  result = 1 == r.zadd($key, [(data, program.score.float)], nan="-inf")
+
+proc store*(r: var Redis; key: ScoredMapNames; programs: var openArray[Program]): BiggestInt =
   ## store programs to a given redis sorted set with the program's score.
   ## returns the number of stored programs.
   if programs.len == 0:
