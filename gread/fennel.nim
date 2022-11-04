@@ -14,7 +14,6 @@ import std/times
 
 import pkg/lunacy except Integer
 import pkg/lunacy/json as luajs
-import pkg/adix/lptabz
 import pkg/adix/stat except Option
 import pkg/balls
 import pkg/cps
@@ -35,7 +34,6 @@ import gread/grammar
 import gread/tableau
 import gread/decompile
 
-export lptabz
 export lunacy
 export lrucache
 export stat except Option  # nim bug workaround
@@ -93,9 +91,9 @@ proc deserialize*[S](input: var S; output: var LuaValue) =
 proc memoryGraphSize[T](thing: T): int =
   freeze(thing).len
 
-proc asTable*[T](locals: SymbolSet[Fennel, LuaValue]): LPTab[string, T] =
+proc asTable*[T](locals: SymbolSet[Fennel, LuaValue]): GreadTable[string, T] =
   ## given locals, select values of the given type into a table
-  init(result, initialSize = locals.len)
+  initGreadTable(result, initialSize = locals.len)
   for point in locals.items:
     template name: string = point.name
     template value: LuaValue = point.value
@@ -681,42 +679,44 @@ when compileOption"threads":
       if args.stats > 0:
         if evo.generation mod args.stats == 0:
           dumpStats(evo, evoTime)
-          evo.audit
-          when false:
-            echo fmt"memory consumption for evolver: {memoryGraphSize(evo)}"
-            echo fmt"memory consumption for population: {memoryGraphSize(evo.population)}"
-            echo fmt"memory consumption difference: {memoryGraphSize(evo)-memoryGraphSize(evo.population)}"
-            var astmem, codemem, statsmem, genesmem = 0
-            var length = 0
-            for p in evo.population.items:
-              length += p.len
-              astmem += memoryGraphSize(p.ast)
-              codemem += memoryGraphSize($p)
-              statsmem += memoryGraphSize(p.scores)
-              statsmem += memoryGraphSize(p.runtime)
-              genesmem += memoryGraphSize(p.genome)
-            let kenmem = memoryGraphSize(evo.population.ken)
+          when defined(greadMemoryAudit):
+            echo fmt"memory consumption for platform: {memoryGraphSize(evo.platform)}"
+            evo.audit
             when false:
-              echo fmt"memory consumption ast: {astmem}"
-              echo fmt"memory consumption code: {codemem}"
-              echo fmt"memory consumption stats: {statsmem}"
-              echo fmt"memory consumption genes: {genesmem}"
-              echo fmt"memory consumption metrics: {kenmem}"
-            echo fmt"memory consumption per ast node: {memoryGraphSize(evo.population) div length}"
-          #let cachemem = memoryGraphSize(evo.population.cache)
-          #echo fmt"memory consumption cache: {cachemem}"
-          #echo fmt"memory consumption minus cache: {memoryGraphSize(evo)-cachemem}"
-          #echo fmt"cache cardinality: {len(evo.population.cache)}"
-          when false:
-            if defined(debug) and evo.generation > 10_000:
-              debug fmt"memory consumption for aslua: {memoryGraphSize(evo.platform.aslua)}"
-              when defined(greadLargeCache):
-                when defined(greadSlowTable):
-                  debug fmt"aslua (table) capacity: {rightSize(len evo.platform.aslua)}"
+              echo fmt"memory consumption for evolver: {memoryGraphSize(evo)}"
+              echo fmt"memory consumption for population: {memoryGraphSize(evo.population)}"
+              echo fmt"memory consumption difference: {memoryGraphSize(evo)-memoryGraphSize(evo.population)}"
+              var astmem, codemem, statsmem, genesmem = 0
+              var length = 0
+              for p in evo.population.items:
+                length += p.len
+                astmem += memoryGraphSize(p.ast)
+                codemem += memoryGraphSize($p)
+                statsmem += memoryGraphSize(p.scores)
+                statsmem += memoryGraphSize(p.runtime)
+                genesmem += memoryGraphSize(p.genome)
+              let kenmem = memoryGraphSize(evo.population.ken)
+              when false:
+                echo fmt"memory consumption ast: {astmem}"
+                echo fmt"memory consumption code: {codemem}"
+                echo fmt"memory consumption stats: {statsmem}"
+                echo fmt"memory consumption genes: {genesmem}"
+                echo fmt"memory consumption metrics: {kenmem}"
+              echo fmt"memory consumption per ast node: {memoryGraphSize(evo.population) div length}"
+            #let cachemem = memoryGraphSize(evo.population.cache)
+            #echo fmt"memory consumption cache: {cachemem}"
+            #echo fmt"memory consumption minus cache: {memoryGraphSize(evo)-cachemem}"
+            #echo fmt"cache cardinality: {len(evo.population.cache)}"
+            when false:
+              if defined(debug) and evo.generation > 10_000:
+                debug fmt"memory consumption for aslua: {memoryGraphSize(evo.platform.aslua)}"
+                when defined(greadLargeCache):
+                  when defined(greadSlowTable):
+                    debug fmt"aslua (table) capacity: {rightSize(len evo.platform.aslua)}"
+                  else:
+                    debug fmt"aslua (table) capacity: {getCap evo.platform.aslua}"
                 else:
-                  debug fmt"aslua (table) capacity: {getCap evo.platform.aslua}"
-              else:
-                debug fmt"aslua (lru) capacity: {capacity evo.platform.aslua}"
+                  debug fmt"aslua (lru) capacity: {capacity evo.platform.aslua}"
           clearStats evo
 
     let shared = evo.population
@@ -863,7 +863,7 @@ when compileOption"threads":
 
     for core in 1..processors:
       args.rng = some initRand()
-      clump.boot(whelp scorer(args), args.core)
+      clump.boot(whelp scorer(args))
       clump.redress args
 
     result = newPopulation[T](population.len)
@@ -885,9 +885,9 @@ when compileOption"threads":
               result.add program
             break
 
-  proc threadedEvaluate*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]): LPTab[Program[T], seq[Option[V]]] =
+  proc threadedEvaluate*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]): GreadTable[Program[T], seq[Option[V]]] =
     ## evaluate programs in the population using multiple threads
-    init result
+    initGreadTable result
     let clump = newCluster[T, V]()
     clump.redress args
 
@@ -897,7 +897,7 @@ when compileOption"threads":
 
     for core in 1..processors:
       args.rng = some initRand()
-      clump.boot(whelp runner(args), args.core)
+      clump.boot(whelp runner(args))
       clump.redress args
 
     maybeProgressBar(1..population.len):
@@ -910,10 +910,7 @@ when compileOption"threads":
           of ctControl:
             case transport.control
             of ckWorkerQuit:
-              info "terminating on request"
-              break
-            #else:
-            #  warn "ignoring control: " & $transport.control
+              debug "worker terminated"
           of ctEvalResult:
             result[transport.result.program] = transport.result.results
             break
