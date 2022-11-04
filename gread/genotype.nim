@@ -24,9 +24,18 @@ proc len*(geno: Genome): int {.borrow.}
 proc add(geno: var Genome; c: char) {.borrow.}     # nim bug;
 proc add*(geno: var Genome; g: Genome) {.borrow.}  # the above is exported!
 proc `&`*(a, b: Genome): Genome {.borrow.}
-proc `[]`*[T, U: Ordinal](geno: Genome; hs: HSlice[T, U]): Genome =
+proc `[]`*[T, U: Ordinal](genome: Genome; hs: HSlice[T, U]): Genome =
   ## essentially a `.borrow.` which works around a nim bug
-  Genome geno.string[hs]
+  let size = hs.b.ord - hs.a.ord
+  if hs.b.ord < hs.a.ord:
+    raise Defect.newException "bad range: " & repr(hs)
+  if size == 0:
+    return EmptyGenome
+  when false:
+    result = newString(size)
+    copyMem(addr result.string[0], unsafeAddr genome.string[hs.a.ord], size)
+  else:
+    result = Genome genome.string[hs]
 
 proc `[]=`*(geno: var Genome; index: int; ch: char) =
   geno.string[index] = ch
