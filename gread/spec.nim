@@ -9,6 +9,21 @@ when compileOption"threads":
   when not defined(useMalloc):
     {.warning: "--define:useMalloc or suffer slow allocator performance".}
 
+when defined(greadLeakySet):
+  import std/packedsets
+  export packedsets
+  type GreadSet*[K] = PackedSet[K]
+  func initGreadSet*[K](into: var GreadSet[K]; initialSize = 2) =
+    ## (re)initialize a set; initial size is unused
+    into = initPackedSet[K]()
+else:
+  import std/sets
+  export sets
+  type GreadSet*[K] = HashSet[K]
+  func initGreadSet*[K](into: var GreadSet[K]; initialSize = 2) =
+    ## (re)initialize a set; initial size is used
+    init(into, initialSize)
+
 when defined(greadSlowTable):
   import std/tables
   export tables

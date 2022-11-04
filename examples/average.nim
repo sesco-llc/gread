@@ -3,7 +3,6 @@ import std/hashes
 import std/json
 import std/math
 import std/options
-import std/packedsets
 import std/random
 import std/sequtils
 import std/times
@@ -140,7 +139,8 @@ suite "simulation":
   var best = NaN
   block:
     ## ran until we can average two numbers
-    var seen: PackedSet[Hash]
+    var seen: GreadSet[Hash]
+    initGreadSet seen
     while evo.generation < tab.maxGenerations:
       if best > goodEnough or best.almostEqual(goodEnough):
         break

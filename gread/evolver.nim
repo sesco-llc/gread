@@ -4,7 +4,6 @@ import std/logging
 import std/math
 import std/monotimes
 import std/options
-import std/packedsets
 import std/random
 import std/sequtils
 import std/strformat
@@ -62,12 +61,40 @@ type
     shorties: MovingStat[float32, uint32]
     cache: GreadTable[Hash, seq[V]]
     cacheCounter: int
-    indexes: PackedSet[int]
+    indexes: GreadSet[int]
     generations: Generation
     fittest: Option[Program[T]]
-    unnovel: GreadTable[Hash, PackedSet[int]]
+    unnovel: GreadTable[Hash, GreadSet[int]]
     ken: PopMetrics
     scoreCache: GreadTable[Hash, Option[float]]
+
+import frosty/streams as brrr
+
+proc memoryGraphSize[T](thing: T): int =
+  mixin freeze
+  mixin deserialize
+  mixin serialize
+  freeze(thing).len
+
+proc audit*(evo: Evolver) =
+
+  let evomem = memoryGraphSize(evo)
+  let datamem = memoryGraphSize(evo.dataset)
+  let popmem = memoryGraphSize(evo.population)
+  let cachemem = memoryGraphSize(evo.cache)
+  let indexmem = memoryGraphSize(evo.indexes)
+  let unnovelmem = memoryGraphSize(evo.unnovel)
+  let scoremem = memoryGraphSize(evo.scoreCache)
+
+  echo fmt"evo mem: {evomem}"
+  echo fmt"data mem: {datamem}"
+  echo fmt"pop mem: {popmem}"
+  echo fmt"cache mem: {cachemem}"
+  echo fmt"index mem: {indexmem}"
+  echo fmt"noob mem: {unnovelmem}"
+  echo fmt"score mem: {scoremem}"
+  echo fmt"memory consumption minus suspects: {evomem-indexmem-unnovelmem}"
+  echo fmt"memory consumption per ast node: {popmem div evo.population.len}"
 
 proc paintScore*(evo: var Evolver; program: var Program; inPop = false): Score =
   ## do the score assignment dance
@@ -255,9 +282,11 @@ proc hasSampled(evo: Evolver; p: Program; index: int): bool =
   except KeyError:
     result = false
 
-iterator sampleSets(evo: var Evolver; a, b: Program): PackedSet[int] =
+iterator sampleSets(evo: var Evolver; a, b: Program): GreadSet[int] =
   ## produce unordered sets of symbol set indices we should test
-  var x, y: PackedSet[int]
+  var x, y: GreadSet[int]
+  initGreadSet x
+  initGreadSet y
   x = evo.unnovel.mgetOrPut(a.hash, x)
   y = evo.unnovel.mgetOrPut(b.hash, y)
 
@@ -295,7 +324,9 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: var Program; index: int;
   ## store score using dataset[index] (symbol set)
   demandValid score
   if p.hash notin evo.unnovel:
-    evo.unnovel[p.hash] = initPackedSet[int]()
+    var value: GreadSet[int]
+    initGreadSet value
+    evo.unnovel[p.hash] = value
   if not evo.unnovel[p.hash].containsOrIncl(index):
     inc evo.cacheCounter
     try:
@@ -380,7 +411,7 @@ proc score[T, V](evo: Evolver[T, V]; ss: ptr SymbolSet[T, V];
     demandValid result
     p.runtime.push (getTime() - began).inMilliseconds.float
 
-proc score*[T, V](evo: var Evolver[T, V]; indices: ptr PackedSet[int];
+proc score*[T, V](evo: var Evolver[T, V]; indices: ptr GreadSet[int];
                   p: var Program[T]): Option[V] =
   ## score a program against a subset of symbol sets from the evolver
   mixin isValid
@@ -512,7 +543,9 @@ proc confidentComparison*(evo: var Evolver; a, b: var Program; p = defaultP): in
     if a.isValid: return 1 else: return -1
   elif not a.isValid: return 0
 
-  var x, y: PackedSet[int]
+  var x, y: GreadSet[int]
+  initGreadSet x
+  initGreadSet y
   x = evo.unnovel.mgetOrPut(a.hash, x)
   y = evo.unnovel.mgetOrPut(b.hash, y)
   when not defined(release):
@@ -612,7 +645,8 @@ proc tournament*[T, V](evo: var Evolver[T, V]; size: int;
 
   # the winner of each bout fights again
   var victim: Competitor[T]
-  var seen: PackedSet[int]           # de-dupe fighters by index;
+  var seen: GreadSet[int]           # de-dupe fighters by index;
+  initGreadSet seen
   # we're counting unique programs, not unique members!
   while seen.len < size:
     {.warning: "work around https://github.com/nim-lang/Nim/issues/19364".}

@@ -8,7 +8,6 @@ import std/logging
 import std/options
 import std/os
 import std/osproc
-import std/packedsets
 import std/random
 import std/sequtils
 import std/strformat
@@ -68,7 +67,7 @@ type
 
   Cluster*[T, V] = ref object
     name: string
-    cores: PackedSet[CoreId]
+    cores: GreadSet[CoreId]
     io: IO[T, V]                   ## how we move data between threads
 
   Worker*[T, V] = proc(w: Work[T, V]) {.thread.}
@@ -295,7 +294,9 @@ proc newTransportQ*[T, V](): TransportQ[T, V] =
 
 proc newCluster*[T, V](name = ""): Cluster[T, V] =
   ## create a new cluster
-  result = Cluster[T, V](name: name, cores: initPackedSet[CoreId](),
+  var cores: GreadSet[CoreId]
+  initGreadSet cores
+  result = Cluster[T, V](name: name, cores: cores,
                          io: (input: newTransportQ[T, V](),
                               output: newTransportQ[T, V]()))
 

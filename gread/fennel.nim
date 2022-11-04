@@ -681,10 +681,11 @@ when compileOption"threads":
       if args.stats > 0:
         if evo.generation mod args.stats == 0:
           dumpStats(evo, evoTime)
-          echo fmt"memory consumption for evolver: {memoryGraphSize(evo)}"
-          echo fmt"memory consumption for population: {memoryGraphSize(evo.population)}"
-          echo fmt"memory consumption difference: {memoryGraphSize(evo)-memoryGraphSize(evo.population)}"
-          when true:
+          evo.audit
+          when false:
+            echo fmt"memory consumption for evolver: {memoryGraphSize(evo)}"
+            echo fmt"memory consumption for population: {memoryGraphSize(evo.population)}"
+            echo fmt"memory consumption difference: {memoryGraphSize(evo)-memoryGraphSize(evo.population)}"
             var astmem, codemem, statsmem, genesmem = 0
             var length = 0
             for p in evo.population.items:

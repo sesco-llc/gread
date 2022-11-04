@@ -26,7 +26,7 @@ const
   larger populations more valuable.
 
   ]#
-  populationCache = false
+  populationCache = true
 
 type
   PopMetrics* = object
@@ -54,7 +54,7 @@ type
     programs: seq[Program[T]]
     ken*: PopMetrics
     when populationCache:
-      cache*: PackedSet[Hash]
+      cache*: GreadSet[Hash]
 
   PopLike*[T] = concept c
     c[int] is Program[T]
@@ -125,6 +125,8 @@ proc newPopulation*[T](size = 0; core = none int): Population[T] =
   result = Population[T](programs: newSeqOfCap[Program[T]](size))
   result.ken.core = core
   result.ken.parsimony = NaN
+  when populationCache:
+    initGreadSet result.cache
 
 func len*[T](p: Population[T]): int =
   ## the number of programs in the population
