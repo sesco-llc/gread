@@ -121,7 +121,7 @@ proc `<=`*[T](a, b: Program[T]): bool =
 
 proc initProgram*[T](result: var Program[T]; ast: Ast[T]; genome: Genome) =
   ## initialize a new program from the given ast and genome
-  result.score = NaN.Score
+  result.score = Score NaN
   result.genome = genome
   result.ast = ast
   result.hash = hash result.ast
