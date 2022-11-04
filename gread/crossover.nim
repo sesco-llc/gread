@@ -14,13 +14,17 @@ type
 proc subtreeXoverImpl[T](rng: var Rand; gram: Grammar;
                          a, b: Genome): ResultForm[T] =
   # ensure the first crossover point occurs in mutual coding space
-  let x = rng.rand(0..min(a.high, b.high))
-  # the second point can exceed the length of the shorter genome
-  let y = rng.rand((x+1)..b.len)
-  var g = a[0..<x]
-  g.add b[x..<y]
-  if y < a.high:
-    g.add a[y..a.high]
+  let coding = min(a.high, b.high)
+  let x = rng.rand(0..coding)
+  let l = rng.rand(x..b.high) + 1
+  # the second point can exceed the length of a shorter genome
+  var g =
+    if x > 0:
+      a[0..<x] & b[x..<l]
+    else:
+      b[x..<l]
+  if l <= a.high:
+    g.add a[l..a.high]
   when greadWrapping:
     g.add g
     g.add g
@@ -35,10 +39,13 @@ iterator crossoverImpl[T](rng: var Rand; gram: Grammar;
                           a, b: Genome): ResultForm[T] =
   # ensure the crossover point occurs in mutual coding space
   let coding = min(a.high, b.high)
+  if coding == 0:
+    raise Defect.newException "attempt to crossover program lacking genome"
   let n = rng.rand(0..coding)
   for (x, y, i) in [(a, b, n), (b, a, coding-n)].items:
-    var g = x[0..<i]                                    # start with the head
-    g.add y[i..y.high]                                  # add an opposite tail
+    var g = x[0..i]                                     # start with the head
+    if i < y.high:                                      # there's a tail?
+      g.add y[i..y.high]                                # add the tail
     when greadWrapping:
       g.add g                                           # double it
       g.add g                                           # again!
