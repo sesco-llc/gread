@@ -32,7 +32,7 @@ type
     ## tracks the runtime for this program
     source*: int              ## usually the threadId where we were invented
     generation*: Generation   ## the generation number in which we arrived
-    hash: Hash                ## pre-generated hash for the program's ast
+    hash: Hash                ## pre-generated hash for the program
     score*: Score             ## the score of this program when last evaluated
     flags*: set[ProgramFlag]  ## flag enums associated with the program
     ast*: Ast[T]              ## the ast of the program itself
@@ -113,7 +113,7 @@ proc `==`*[T](a, b: Program[T]): bool =
   elif not a.isInitialized:
     true
   else:
-    almostEqual(a.score, b.score)
+    a.hash == b.hash
 
 proc `<=`*[T](a, b: Program[T]): bool =
   ## a < b or a == b
@@ -124,7 +124,11 @@ proc initProgram*[T](result: var Program[T]; ast: Ast[T]; genome: Genome) =
   result.score = Score NaN
   result.genome = genome
   result.ast = ast
-  result.hash = hash result.ast
+  result.hash =
+    if result.genome == EmptyGenome:
+      hash result.ast
+    else:
+      hash result.genome
   when programCache:
     init(result.cache, initialSize = 2)
 
@@ -166,7 +170,7 @@ proc cacheSize*(p: Program): int {.deprecated.} =
     result = p.cache.len
 
 func hash*(p: Program): Hash {.inline.} =
-  ## hash() symbol for LPTabz purposes
+  ## hash() symbol for table purposes
   p.hash
 
 when false:
