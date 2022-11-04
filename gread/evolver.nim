@@ -93,8 +93,8 @@ proc audit*(evo: Evolver) =
   echo fmt"index mem: {indexmem}"
   echo fmt"noob mem: {unnovelmem}"
   echo fmt"score mem: {scoremem}"
-  echo fmt"memory consumption minus suspects: {evomem-indexmem-unnovelmem}"
-  echo fmt"memory consumption per ast node: {popmem div evo.population.len}"
+  echo fmt"memory consumption minus suspects: {evomem-cachemem-unnovelmem}"
+  echo fmt"memory consumption per ast node: {evomem div evo.population.len}"
 
 proc paintScore*(evo: var Evolver; program: var Program; inPop = false): Score =
   ## do the score assignment dance
