@@ -5,6 +5,7 @@ import std/hashes
 import std/logging
 import std/options
 import std/os
+import std/osproc
 import std/packedsets
 import std/random
 import std/sets
@@ -23,11 +24,6 @@ import pkg/adix/lptabz
 
 const
   greadSeed {.intdefine.} = 0
-  cores =
-    when not defined(release) and greadSeed != 0:
-      1
-    else:
-      max(1, getNumTotalCores())
   goodEnough = -0.01     # termination condition
   manyGenerations = 1_000_000
   statFrequency = 10000  # report after this many generations
@@ -40,6 +36,13 @@ const
     <value>        ::= "1.0" | "0.5" | "0.1" | "2.0"
     <value>        ::= "x"
   """
+let
+  cores =
+    when not defined(release) and greadSeed != 0:
+      1
+    else:
+      max(1, countProcessors())
+      #max(1, getNumTotalCores())
 
 var gram: Grammar
 initFennelGrammar(gram, llsGrammar)
@@ -106,7 +109,7 @@ when isMainModule:
   tab.seedPopulation = 400
   tab.maxPopulation = tab.seedPopulation
   tab.tournamentSize = int(0.03 * tab.maxPopulation.float)
-  tab.sharingRate = 0.015
+  tab.sharingRate = 0.005
   tab.maxGenerations = manyGenerations
 
   # the main loop monitors inventions
@@ -153,7 +156,7 @@ when isMainModule:
             continue
 
           # sharing
-          when cores > 1:
+          if cores > 1:
             push(outputs, p)
 
           p.score = Score NaN
@@ -188,7 +191,7 @@ when isMainModule:
       args.rng = some: initRand()
     else:
       args.rng = some: initRand(greadSeed)
-    when cores == 1:
+    if cores == 1:
       args.tableau.sharingRate = 0.0
     clump.boot(whelp worker(args), args.core)
     clump.redress args
