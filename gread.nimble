@@ -18,13 +18,7 @@ requires "https://github.com/treeform/sysinfo >= 0.2.1 & < 1.0.0"
 requires "https://github.com/jackhftang/lrucache.nim.git < 2.0.0"
 
 when not defined(release):
-  requires "https://github.com/disruptek/balls >= 2.0.0 & < 4.0.0"
-
-task test, "run tests for ci":
-  when defined(windows):
-    exec "balls.cmd --define:useMalloc --threads:on --gc:arc"
-  else:
-    exec "balls --define:useMalloc --threads:on --gc:arc"
+  requires "https://github.com/disruptek/balls >= 3.9.0 & < 4.0.0"
 
 task demo, "produce a demo":
   exec """demo docs/demo.svg "nim c --define:release --out=\$1 tests/test.nim""""
