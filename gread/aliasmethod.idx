@@ -1,0 +1,6 @@
+AliasMethod	gread/aliasmethod.html#AliasMethod	aliasmethod: AliasMethod	
+initAliasMethod	gread/aliasmethod.html#initAliasMethod,AliasMethod,openArray[]	aliasmethod: initAliasMethod[T](am: var AliasMethod; input: openArray[(T, float or float64)])	
+choose	gread/aliasmethod.html#choose,AliasMethod[T]	aliasmethod: choose[T](am: AliasMethod[T]): T	
+choose	gread/aliasmethod.html#choose,AliasMethod[T],Rand	aliasmethod: choose[T](am: AliasMethod[T]; rng: var Rand): T	
+choose	gread/aliasmethod.html#choose,AliasMethod[T],	aliasmethod: choose[T](am: AliasMethod[T]; number: uint8 | uint16 | uint32): T	
+len	gread/aliasmethod.html#len,AliasMethod	aliasmethod: len(am: AliasMethod): int	

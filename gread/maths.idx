@@ -1,0 +1,11 @@
+avg	gread/maths.html#avg,openArray[T]	maths: avg[T: SomeOrdinal](a: openArray[T]): T	
+avg	gread/maths.html#avg,openArray[T]_2	maths: avg[T: not SomeOrdinal](a: openArray[T]): T	
+covariance	gread/maths.html#covariance,openArray[float],openArray[float]	maths: covariance(a, b: openArray[float]): float	
+variance	gread/maths.html#variance,openArray[T]	maths: variance[T](a: openArray[T]): T	
+stddev	gread/maths.html#stddev,openArray[T]	maths: stddev[T](a: openArray[T]): T	
+correlation	gread/maths.html#correlation,openArray[float],openArray[float]	maths: correlation(a, b: openArray[float]): float	
+ss	gread/maths.html#ss,openArray[T]	maths: ss[T](a: openArray[T]): T	
+ss	gread/maths.html#ss,openArray[T],openArray[T]	maths: ss[T](a, b: openArray[T]): T	
+hoeffding	gread/maths.html#hoeffding,int,T	maths: hoeffding[T](n: int; e: T): T	
+normal	gread/maths.html#normal,T,T,T	maths: normal[T](x: T; mean: T; deviation: T): T	
+normal	gread/maths.html#normal.t,openArray[T],T	maths: normal[T](a: openArray[T]; x: T): T	

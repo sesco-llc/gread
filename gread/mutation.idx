@@ -1,0 +1,6 @@
+geMutation	gread/mutation.html#geMutation.i,Rand,Grammar,Genome	mutation: geMutation[T](rng: var Rand; gram: Grammar; a: Genome): ResultForm[T]	
+geNoisy0pt25	gread/mutation.html#geNoisy0pt25.i,Rand,Grammar,Genome	mutation: geNoisy0pt25[T](rng`gensym4: var Rand; gram`gensym4: Grammar; a`gensym4: Genome): ResultForm[\n    T]	
+geNoisy0pt5	gread/mutation.html#geNoisy0pt5.i,Rand,Grammar,Genome	mutation: geNoisy0pt5[T](rng`gensym5: var Rand; gram`gensym5: Grammar; a`gensym5: Genome): ResultForm[\n    T]	
+geNoisy1pt0	gread/mutation.html#geNoisy1pt0.i,Rand,Grammar,Genome	mutation: geNoisy1pt0[T](rng`gensym6: var Rand; gram`gensym6: Grammar; a`gensym6: Genome): ResultForm[\n    T]	
+geNoisy2pt0	gread/mutation.html#geNoisy2pt0.i,Rand,Grammar,Genome	mutation: geNoisy2pt0[T](rng`gensym7: var Rand; gram`gensym7: Grammar; a`gensym7: Genome): ResultForm[\n    T]	
+geNoisy4pt0	gread/mutation.html#geNoisy4pt0.i,Rand,Grammar,Genome	mutation: geNoisy4pt0[T](rng`gensym8: var Rand; gram`gensym8: Grammar; a`gensym8: Genome): ResultForm[\n    T]	

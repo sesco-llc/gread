@@ -1,0 +1,2 @@
+makeRoom	gread/generation.html#makeRoom,Evolver[T,V],int	generation: makeRoom[T, V](evo: var Evolver[T, V]; space = 1)	
+generation	gread/generation.html#generation.i,Evolver[T,V]	generation: generation[T, V](evo: var Evolver[T, V]): Program[T]	

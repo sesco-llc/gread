@@ -1,0 +1,57 @@
+Function	gread/ast.html#Function	ast: Function	
+Symbol	gread/ast.html#Symbol	TerminalKind.Symbol	
+Boolean	gread/ast.html#Boolean	TerminalKind.Boolean	
+Integer	gread/ast.html#Integer	TerminalKind.Integer	
+Float	gread/ast.html#Float	TerminalKind.Float	
+String	gread/ast.html#String	TerminalKind.String	
+None	gread/ast.html#None	TerminalKind.None	
+Token	gread/ast.html#Token	TerminalKind.Token	
+TerminalKind	gread/ast.html#TerminalKind	ast: TerminalKind	
+Terminal	gread/ast.html#Terminal	ast: Terminal	
+Dead	gread/ast.html#Dead	NodeFlag.Dead	
+NodeFlag	gread/ast.html#NodeFlag	ast: NodeFlag	
+NodeFlags	gread/ast.html#NodeFlags	ast: NodeFlags	
+AstNode	gread/ast.html#AstNode	ast: AstNode	
+Ast	gread/ast.html#Ast	ast: Ast	
+`$`	gread/ast.html#$,AstNode[T]	ast: `$`[T](n: AstNode[T]): string	
+`$`	gread/ast.html#$,Ast[T]	ast: `$`[T](a: Ast[T]): string	
+audit	gread/ast.html#audit.t,Ast[T],untyped	ast: audit[T](a: Ast[T]; logic: untyped)	
+len	gread/ast.html#len,AstNode[T]	ast: len[T](n: AstNode[T]): int	
+len	gread/ast.html#len,Ast	ast: len(a: Ast): int	
+len=	gread/ast.html#len=,Ast,Natural	ast: len=(a: var Ast; n: Natural)	
+hash	gread/ast.html#hash,Function	ast: hash(a: Function): Hash	
+hash	gread/ast.html#hash,Terminal	ast: hash(a: Terminal): Hash	
+`&lt;`	gread/ast.html#<,Terminal,Terminal	ast: `&lt;`(a, b: Terminal): bool	
+`==`	gread/ast.html#==,Terminal,Terminal	ast: `==`(a, b: Terminal): bool	
+high	gread/ast.html#high,Ast	ast: high(a: Ast): int	
+low	gread/ast.html#low,Ast	ast: low(a: Ast): int	
+`[]`	gread/ast.html#[],Ast[T],Natural	ast: `[]`[T](a: var Ast[T]; n: Natural): var AstNode[T]	
+`[]`	gread/ast.html#[],Ast[T],Natural_2	ast: `[]`[T](a: Ast[T]; n: Natural): AstNode[T]	
+`[]`	gread/ast.html#[],Ast[T],Slice[int]	ast: `[]`[T](a: Ast[T]; s: Slice[int]): Ast[T]	
+`@`	gread/ast.html#@,Ast[T]	ast: `@`[T](a: Ast[T]): seq[AstNode[T]]	
+peer	gread/ast.html#peer,Ast[T],int	ast: peer[T](a: Ast[T]; index = 0): int	
+numberOfChildren	gread/ast.html#numberOfChildren,AstNode[T]	ast: numberOfChildren[T](n: AstNode[T]): int	
+sizeOfSubtree	gread/ast.html#sizeOfSubtree,Ast[T],int	ast: sizeOfSubtree[T](a: Ast[T]; index = 0): int	
+countAsChildren	gread/ast.html#countAsChildren,openArray[AstNode[T]]	ast: countAsChildren[T](a: openArray[AstNode[T]]): int	
+subtree	gread/ast.html#subtree,Ast,int	ast: subtree(a: Ast; index: int): Ast	
+parentOf	gread/ast.html#parentOf,Ast[T],int	ast: parentOf[T](a: Ast[T]; index: int): Option[int]	
+countChildren	gread/ast.html#countChildren,Ast,int	ast: countChildren(a: Ast; index: int): int	
+countParents	gread/ast.html#countParents,Ast	ast: countParents(a: Ast): int	
+children	gread/ast.html#children.i,Ast[T],int	ast: children[T](a: Ast[T]; index: int): Ast[T]	
+learnString	gread/ast.html#learnString.t,Ast,string	ast: learnString(a: var Ast; s: string): LitId	
+learnNumber	gread/ast.html#learnNumber.t,Ast,SomeOrdinal	ast: learnNumber(a: var Ast; n: SomeOrdinal): LitId	
+learnNumber	gread/ast.html#learnNumber.t,Ast,SomeFloat	ast: learnNumber(a: var Ast; n: SomeFloat): LitId	
+stringOp	gread/ast.html#stringOp.t,Ast,	ast: stringOp(a: Ast; op: int32 | LitId): string	
+numberOp	gread/ast.html#numberOp.t,Ast,	ast: numberOp(a: Ast; op: int32 | LitId): BiggestInt	
+stringOp	gread/ast.html#stringOp.t,Ast,AstNode	ast: stringOp(a: Ast; node: AstNode): string	
+numberOp	gread/ast.html#numberOp.t,Ast,AstNode	ast: numberOp(a: Ast; node: AstNode): BiggestInt	
+delete	gread/ast.html#delete,Ast[T],int	ast: delete[T](a: Ast[T]; index: int): Ast[T]	
+insert	gread/ast.html#insert,Ast[T],int,Ast[T],int	ast: insert[T](a: Ast[T]; index: int; values: Ast[T]; parent = -1): Ast[T]	
+append	gread/ast.html#append,Ast[T],Ast[T],int	ast: append[T](a: Ast[T]; values: Ast[T]; parent = -1): Ast[T]	
+append	gread/ast.html#append,Ast[T],Terminal,int	ast: append[T](a: Ast[T]; term: Terminal; parent = -1): Ast[T]	
+append	gread/ast.html#append,Ast[T],Function[T],int	ast: append[T](a: Ast[T]; fun: Function[T]; parent = -1): Ast[T]	
+replace	gread/ast.html#replace,Ast[T],int,Ast[T]	ast: replace[T](a: Ast[T]; index: int; values: Ast[T]): Ast[T]	
+hash	gread/ast.html#hash,Ast	ast: hash(a: Ast): Hash	
+`$`	gread/ast.html#$,Terminal	ast: `$`(t: Terminal): string	
+tokenNode	gread/ast.html#tokenNode,Ast[T],int16,string	ast: tokenNode[T](a: var Ast[T]; token: int16; text = &quot;&quot;): AstNode[T]	
+name	gread/ast.html#name,Ast[T],int	ast: name[T](a: Ast[T]; index: int): string	

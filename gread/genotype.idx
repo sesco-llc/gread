@@ -1,0 +1,21 @@
+greadWrapping	gread/genotype.html#greadWrapping	genotype: greadWrapping	
+ShortGenome	gread/genotype.html#ShortGenome	genotype: ShortGenome	
+Genome	gread/genotype.html#Genome	genotype: Genome	
+PC	gread/genotype.html#PC	genotype: PC	
+EmptyGenome	gread/genotype.html#EmptyGenome	genotype: EmptyGenome	
+`$`	gread/genotype.html#$,PC	genotype: `$`(pc: PC): string	
+`==`	gread/genotype.html#==,PC,PC	genotype: `==`(a, b: PC): bool	
+`$`	gread/genotype.html#$,Genome	genotype: `$`(geno: Genome): string	
+low	gread/genotype.html#low,Genome	genotype: low(geno: Genome): int	
+high	gread/genotype.html#high,Genome	genotype: high(geno: Genome): int	
+len	gread/genotype.html#len,Genome	genotype: len(geno: Genome): int	
+add	gread/genotype.html#add,Genome,Genome	genotype: add(geno: var Genome; g: Genome)	
+`&amp;`	gread/genotype.html#&,Genome,Genome	genotype: `&amp;`(a, b: Genome): Genome	
+`[]`	gread/genotype.html#[],Genome,HSlice[T: Ordinal,U: Ordinal]	genotype: `[]`[T, U: Ordinal](genome: Genome; hs: HSlice[T, U]): Genome	
+`[]=`	gread/genotype.html#[]=,Genome,int,char	genotype: `[]=`(geno: var Genome; index: int; ch: char)	
+canRead	gread/genotype.html#canRead,Genome,PC,int	genotype: canRead[T: Genes](geno: Genome; pc: PC; count = 1): bool	
+read	gread/genotype.html#read,Genome,PC,T	genotype: read[T: Genes](geno: Genome; pc: var PC; into: var T)	
+read	gread/genotype.html#read,Genome,PC	genotype: read[T: Genes](geno: Genome; pc: var PC): T	
+randomGenome	gread/genotype.html#randomGenome,Rand,int	genotype: randomGenome(rng: var Rand; size: int): Genome	
+toString	gread/genotype.html#toString.c,Genome	genotype: toString(geno: Genome): string	
+fromString	gread/genotype.html#fromString.c,string	genotype: fromString(str: string): Genome	

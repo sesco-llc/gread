@@ -1,0 +1,30 @@
+PopMetrics	gread/population.html#PopMetrics	population: PopMetrics	
+Population	gread/population.html#Population	population: Population	
+PopLike	gread/population.html#PopLike	population: PopLike	
+items	gread/population.html#items.i,HeapQueue[T]	population: items[T](q: HeapQueue[T]): T	
+withInitialized	gread/population.html#withInitialized.t,Population,untyped	population: withInitialized(pop: Population; logic: untyped): untyped	
+withPopulated	gread/population.html#withPopulated.t,Population,untyped	population: withPopulated(pop: Population; logic: untyped): untyped	
+newPopulation	gread/population.html#newPopulation,int	population: newPopulation[T](size = 0; core = none int): Population[T]	
+len	gread/population.html#len,Population[T]	population: len[T](p: Population[T]): int	
+score	gread/population.html#score,PopMetrics,Score,int	population: score(ken: PopMetrics; score: Score; length: int): Score	
+score	gread/population.html#score,PopMetrics,Program	population: score(ken: PopMetrics; p: Program): Score	
+contains	gread/population.html#contains,Population,Program	population: contains(population: Population; program: Program): bool	
+introduce	gread/population.html#introduce,Population[T],Program[T]	population: introduce[T](population: Population[T]; p: Program[T])	
+add	gread/population.html#add,Population[T],Program[T]	population: add[T](pop: Population[T]; p: Program[T])	
+items	gread/population.html#items.i,Population[T]	population: items[T](pop: Population[T]): Program[T]	
+mitems	gread/population.html#mitems.i,Population[T]	population: mitems[T](pop: Population[T]): var Program[T]	
+pairs	gread/population.html#pairs.i,Population[T]	population: pairs[T](pop: Population[T]): (int, Program[T])	
+`[]`	gread/population.html#[],Population[T],int	population: `[]`[T](pop: Population[T]; index: int): Program[T]	
+randomMember	gread/population.html#randomMember,Population[T],Rand	population: randomMember[T](population: Population[T]; rng: var Rand): IndexedProgram[T]	
+del	gread/population.html#del,Population[T],int	population: del[T](population: Population[T]; index: int)	
+pop	gread/population.html#pop,Population[T]	population: pop[T](population: Population[T]): Program[T]	
+randomRemoval	gread/population.html#randomRemoval,Population[T],Rand	population: randomRemoval[T](population: Population[T]; rng: var Rand): Program[T]	
+parsimony	gread/population.html#parsimony,Population	population: parsimony(population: Population): float	
+parsimony	gread/population.html#parsimony,PopMetrics,Population	population: parsimony(ken: PopMetrics; pop: Population): float	
+nextGeneration	gread/population.html#nextGeneration,PopMetrics	population: nextGeneration(ken: var PopMetrics): Generation	
+scoreChanged	gread/population.html#scoreChanged,Population,Program,Option[float],int	population: scoreChanged(pop: Population; p: var Program; s: Option[float]; index: int)	
+paintMetrics	gread/population.html#paintMetrics,PopMetrics,Population	population: paintMetrics(metrics: var PopMetrics; population: Population)	
+paintFittest	gread/population.html#paintFittest,PopMetrics,Program	population: paintFittest(metrics: var PopMetrics; fittest: Program)	
+metrics	gread/population.html#metrics,Population	population: metrics(population: Population): PopMetrics	
+clone	gread/population.html#clone,Population[T]	population: clone[T](population: Population[T]; core = none CoreId): Population[T]	
+sort	gread/population.html#sort,Population	population: sort(population: Population; order = SortOrder.Ascending)	

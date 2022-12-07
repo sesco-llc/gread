@@ -1,0 +1,33 @@
+GreadSet	gread/spec.html#GreadSet	spec: GreadSet	
+initGreadSet	gread/spec.html#initGreadSet,GreadSet[K],int	spec: initGreadSet[K](into: var GreadSet[K]; initialSize = 2)	
+GreadTable	gread/spec.html#GreadTable	spec: GreadTable	
+initGreadTable	gread/spec.html#initGreadTable,GreadTable[K,V]	spec: initGreadTable[K, V](table: var GreadTable[K, V];\n                     initialSize = defaultInitialSize)	
+GreadCache	gread/spec.html#GreadCache	spec: GreadCache	
+initGreadCache	gread/spec.html#initGreadCache,GreadCache[K,V]	spec: initGreadCache[K, V](cache: var GreadCache[K, V];\n                     initialSize = defaultInitialSize)	
+Score	gread/spec.html#Score	spec: Score	
+CoreSpec	gread/spec.html#CoreSpec	spec: CoreSpec	
+CoreId	gread/spec.html#CoreId	spec: CoreId	
+Generation	gread/spec.html#Generation	spec: Generation	
+C	gread/spec.html#C	spec: C	
+toFloat	gread/spec.html#toFloat.c,Score	spec: toFloat(s: Score): float	
+toScore	gread/spec.html#toScore.c,T	spec: toScore[T: float or float64](f: T): Score	
+`+`	gread/spec.html#+,Score,Score	spec: `+`(a, b: Score): Score	
+`-`	gread/spec.html#-,Score,Score	spec: `-`(a, b: Score): Score	
+`*`	gread/spec.html#*,Score,Score	spec: `*`(a, b: Score): Score	
+`/`	gread/spec.html#/,Score,Score	spec: `/`(a, b: Score): Score	
+`$`	gread/spec.html#$,Score	spec: `$`(s: Score): string	
+ff	gread/spec.html#ff,float	spec: ff(s: float): string	
+percent	gread/spec.html#percent,float	spec: percent(f: float): string	
+isValid	gread/spec.html#isValid,Score	spec: isValid(s: Score): bool	
+`$`	gread/spec.html#$,Generation	spec: `$`(g: Generation): string	
+`&lt;`	gread/spec.html#<,Generation,Generation	spec: `&lt;`(a, b: Generation): bool	
+`==`	gread/spec.html#==,Generation,Generation	spec: `==`(a, b: Generation): bool	
+inc	gread/spec.html#inc,Generation,int	spec: inc(g: var Generation; n: int = 1)	
+`mod`	gread/spec.html#mod,Generation,int	spec: `mod`(a: Generation; b: int): int	
+toInt	gread/spec.html#toInt.c,Generation	spec: toInt(g: Generation): int	
+`$`	gread/spec.html#$,CoreSpec	spec: `$`(cs: CoreSpec): string	
+debugging	gread/spec.html#debugging	spec: debugging	
+profile	gread/spec.html#profile.t,string,untyped	spec: profile(s: string; logic: untyped): untyped	
+demandValid	gread/spec.html#demandValid.t,T	spec: demandValid[T](s: T)	
+demandValid	gread/spec.html#demandValid.t,Option[T]	spec: demandValid[T](s: Option[T])	
+memoryAudit	gread/spec.html#memoryAudit.t,string,untyped	spec: memoryAudit(stage: string; logic: untyped): untyped	

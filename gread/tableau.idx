@@ -1,0 +1,14 @@
+UseParsimony	gread/tableau.html#UseParsimony	TableauFlag.UseParsimony	
+RequireValid	gread/tableau.html#RequireValid	TableauFlag.RequireValid	
+EqualWeight	gread/tableau.html#EqualWeight	TableauFlag.EqualWeight	
+TableauFlag	gread/tableau.html#TableauFlag	tableau: TableauFlag	
+Tableau	gread/tableau.html#Tableau	tableau: Tableau	
+defaultTableau	gread/tableau.html#defaultTableau	tableau: defaultTableau	
+contains	gread/tableau.html#contains,Tableau,TableauFlag	tableau: contains(tab: Tableau; flag: TableauFlag): bool	
+useParsimony	gread/tableau.html#useParsimony,Tableau	tableau: useParsimony(tab: Tableau): bool	
+requireValid	gread/tableau.html#requireValid,Tableau	tableau: requireValid(tab: Tableau): bool	
+equalWeight	gread/tableau.html#equalWeight,Tableau	tableau: equalWeight(tab: Tableau): bool	
+`+=`	gread/tableau.html#+=,Tableau,set[TableauFlag]	tableau: `+=`(tab: var Tableau; value: set[TableauFlag])	
+`-=`	gread/tableau.html#-=,Tableau,set[TableauFlag]	tableau: `-=`(tab: var Tableau; value: set[TableauFlag])	
+toggle	gread/tableau.html#toggle,Tableau,TableauFlag	tableau: toggle(tab: var Tableau; flag: TableauFlag)	
+toggle	gread/tableau.html#toggle,Tableau,TableauFlag,bool	tableau: toggle(tab: var Tableau; flag: TableauFlag; included: bool)	

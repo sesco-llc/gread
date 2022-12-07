@@ -1,0 +1,19 @@
+ckToken	gread/grammar.html#ckToken	ComponentKind.ckToken	
+ckRule	gread/grammar.html#ckRule	ComponentKind.ckRule	
+ckTerminal	gread/grammar.html#ckTerminal	ComponentKind.ckTerminal	
+ComponentKind	gread/grammar.html#ComponentKind	grammar: ComponentKind	
+Component	gread/grammar.html#Component	grammar: Component	
+Production	gread/grammar.html#Production	grammar: Production	
+Grammar	gread/grammar.html#Grammar	grammar: Grammar	
+hash	gread/grammar.html#hash,Grammar	grammar: hash(gram: Grammar): Hash	
+start	gread/grammar.html#start,Grammar	grammar: start[T](gram: Grammar): Component	
+terminals	gread/grammar.html#terminals.i,Grammar	grammar: terminals(gram: Grammar): Terminal	
+productions	gread/grammar.html#productions.i,Grammar,string	grammar: productions(gram: Grammar; rule: string): Production	
+pairs	gread/grammar.html#pairs.i,Grammar	grammar: pairs(gram: Grammar): (string, Production)	
+πGE	gread/grammar.html#πGE,Grammar,Genome	grammar: πGE[T](gram: Grammar; geno: Genome): tuple[pc: PC, ast: Ast[T]]	
+isInitialized	gread/grammar.html#isInitialized,Grammar	grammar: isInitialized(gram: Grammar): bool	
+initGrammar	gread/grammar.html#initGrammar,Grammar	grammar: initGrammar(gram: var Grammar)	
+`$`	gread/grammar.html#$,Grammar	grammar: `$`(gram: Grammar): string	
+initGrammar	gread/grammar.html#initGrammar,Grammar,proc(string),string	grammar: initGrammar(gram: var Grammar; parseToken: proc (s: string): int16;\n            syntax: string)	
+πFilling	gread/grammar.html#πFilling,Grammar,Genome	grammar: πFilling[T](grammar: Grammar; genome: Genome): tuple[ast: Ast[T],\n    genome: Genome]	
+πMap	gread/grammar.html#πMap,Grammar,Genome	grammar: πMap[T](grammar: Grammar; genome: Genome): Program[T]	

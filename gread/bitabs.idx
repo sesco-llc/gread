@@ -1,0 +1,15 @@
+LitId	gread/bitabs.html#LitId	bitabs: LitId	
+BiTable	gread/bitabs.html#BiTable	bitabs: BiTable	
+toInt32	gread/bitabs.html#toInt32.c,LitId	bitabs: toInt32(n: LitId): int32	
+`$`	gread/bitabs.html#$,LitId	bitabs: `$`(x: LitId): string	
+`&lt;`	gread/bitabs.html#<,LitId,LitId	bitabs: `&lt;`(x, y: LitId): bool	
+`&lt;=`	gread/bitabs.html#<=,LitId,LitId	bitabs: `&lt;=`(x, y: LitId): bool	
+`==`	gread/bitabs.html#==,LitId,LitId	bitabs: `==`(x, y: LitId): bool	
+hash	gread/bitabs.html#hash,LitId	bitabs: hash(x: LitId): Hash	
+len	gread/bitabs.html#len,BiTable[T]	bitabs: len[T](t: BiTable[T]): int	
+clone	gread/bitabs.html#clone,BiTable[T]	bitabs: clone[T](t: BiTable[T]): BiTable[T]	
+`[]`	gread/bitabs.html#[],BiTable[T],T	bitabs: `[]`[T](t: BiTable[T]; v: T): LitId	
+getOrIncl	gread/bitabs.html#getOrIncl,BiTable[T],T	bitabs: getOrIncl[T](t: var BiTable[T]; v: T): LitId	
+`[]`	gread/bitabs.html#[],BiTable[T],LitId	bitabs: `[]`[T](t: var BiTable[T]; id: LitId): var T	
+`[]`	gread/bitabs.html#[],BiTable[T],LitId_2	bitabs: `[]`[T](t: BiTable[T]; id: LitId): lent T	
+hash	gread/bitabs.html#hash,BiTable[T]	bitabs: hash[T](t: BiTable[T]): Hash	

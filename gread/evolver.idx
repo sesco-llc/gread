@@ -1,0 +1,64 @@
+greadHoeffding	gread/evolver.html#greadHoeffding	evolver: greadHoeffding	
+defaultP	gread/evolver.html#defaultP	evolver: defaultP	
+UnfitError	gread/evolver.html#UnfitError	evolver: UnfitError	
+FitOne	gread/evolver.html#FitOne	evolver: FitOne	
+FitMany	gread/evolver.html#FitMany	evolver: FitMany	
+Operator	gread/evolver.html#Operator	evolver: Operator	
+OperatorWeight	gread/evolver.html#OperatorWeight	evolver: OperatorWeight	
+Strength	gread/evolver.html#Strength	evolver: Strength	
+Evolver	gread/evolver.html#Evolver	evolver: Evolver	
+audit	gread/evolver.html#audit,Evolver	evolver: audit(evo: Evolver)	
+paintScore	gread/evolver.html#paintScore,Evolver,Program	evolver: paintScore(evo: var Evolver; program: var Program; inPop = false): Score	
+nextGeneration	gread/evolver.html#nextGeneration,Evolver	evolver: nextGeneration(evo: var Evolver): Generation	
+generation	gread/evolver.html#generation,Evolver	evolver: generation(evo: Evolver): Generation	
+platform	gread/evolver.html#platform,Evolver[T,V]	evolver: platform[T, V](evo: Evolver[T, V]): T	
+cacheUsage	gread/evolver.html#cacheUsage,Evolver	evolver: cacheUsage(evo: Evolver): float	
+cacheSize	gread/evolver.html#cacheSize,Evolver[T,V]	evolver: cacheSize[T, V](evo: Evolver[T, V]): int	
+cacheSize	gread/evolver.html#cacheSize,Evolver[T,V],Program[T]	evolver: cacheSize[T, V](evo: Evolver[T, V]; p: Program[T]): int	
+del	gread/evolver.html#del,Evolver[T,V],Program[T]	evolver: del[T, V](evo: var Evolver[T, V]; p: Program[T])	
+shortGenome	gread/evolver.html#shortGenome,Evolver	evolver: shortGenome(evo: Evolver): MovingStat[float32, uint32]	
+shortGenome	gread/evolver.html#shortGenome,Evolver,bool	evolver: shortGenome(evo: var Evolver; tooShort: bool)	
+generationTime	gread/evolver.html#generationTime,Evolver	evolver: generationTime(evo: Evolver): MovingStat[float32, uint32]	
+generationTime	gread/evolver.html#generationTime,Evolver,float	evolver: generationTime(evo: var Evolver; ms: float)	
+clearStats	gread/evolver.html#clearStats,Evolver	evolver: clearStats(evo: var Evolver)	
+maybeResetFittest	gread/evolver.html#maybeResetFittest,Evolver,Program	evolver: maybeResetFittest(evo: var Evolver; program: var Program)	
+resetFittest	gread/evolver.html#resetFittest,Evolver	evolver: resetFittest(evo: var Evolver)	
+operators=	gread/evolver.html#operators=,Evolver[T,V],openArray[]	evolver: operators=[T, V](evo: var Evolver[T, V];\n                 weighted: openArray[(Operator[T, V], float64)])	
+population=	gread/evolver.html#population=,Evolver[T,V],Population[T]	evolver: population=[T, V](evo: var Evolver[T, V]; population: Population[T])	
+population	gread/evolver.html#population,Evolver[T,V]	evolver: population[T, V](evo: Evolver[T, V]): Population[T]	
+grammar=	gread/evolver.html#grammar=,Evolver[T,V],Grammar	evolver: grammar=[T, V](evo: var Evolver[T, V]; grammar: Grammar)	
+grammar	gread/evolver.html#grammar,Evolver[T,V]	evolver: grammar[T, V](evo: Evolver[T, V]): Grammar	
+resetCache	gread/evolver.html#resetCache,Evolver	evolver: resetCache(evo: var Evolver)	
+dataset=	gread/evolver.html#dataset=,Evolver[T,V],seq[SymbolSet[T,V]]	evolver: dataset=[T, V](evo: var Evolver[T, V]; dataset: seq[SymbolSet[T, V]])	
+dataset	gread/evolver.html#dataset,Evolver[T,V]	evolver: dataset[T, V](evo: Evolver[T, V]): lent seq[SymbolSet[T, V]]	
+initEvolver	gread/evolver.html#initEvolver,Evolver[T,V],T,Tableau,Rand	evolver: initEvolver[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau;\n                  rng: Rand = randState())	
+isEqualWeight	gread/evolver.html#isEqualWeight,Evolver	evolver: isEqualWeight(evo: Evolver): bool	
+randomOperator	gread/evolver.html#randomOperator,Evolver[T,V]	evolver: randomOperator[T, V](evo: var Evolver[T, V]): Operator[T, V]	
+score	gread/evolver.html#score,Evolver[T,V],int,Program[T]	evolver: score[T, V](evo: var Evolver[T, V]; index: int; p: var Program[T]): Option[V]	
+score	gread/evolver.html#score,Evolver[T,V],ptr.GreadSet[int],Program[T]	evolver: score[T, V](evo: var Evolver[T, V]; indices: ptr GreadSet[int];\n            p: var Program[T]): Option[V]	
+score	gread/evolver.html#score,Evolver[T,V],Program[T]	evolver: score[T, V](evo: var Evolver[T, V]; p: var Program[T]): Option[V]	
+scoreRandomly	gread/evolver.html#scoreRandomly,Evolver[T,V],Program[T]	evolver: scoreRandomly[T, V](evo: var Evolver[T, V]; p: var Program[T]): Option[V]	
+fitone=	gread/evolver.html#fitone=,Evolver[T,V],FitOne[T,V]	evolver: fitone=[T, V](evo: var Evolver[T, V]; fitter: FitOne[T, V])	
+fitone	gread/evolver.html#fitone,Evolver[T,V]	evolver: fitone[T, V](evo: Evolver[T, V]): FitOne[T, V]	
+fitmany=	gread/evolver.html#fitmany=,Evolver[T,V],FitMany[T,V]	evolver: fitmany=[T, V](evo: var Evolver[T, V]; fitter: FitMany[T, V])	
+fitmany	gread/evolver.html#fitmany,Evolver[T,V]	evolver: fitmany[T, V](evo: Evolver[T, V]): FitMany[T, V]	
+randomSymbols	gread/evolver.html#randomSymbols,Evolver[T,V]	evolver: randomSymbols[T, V](evo: Evolver[T, V]): SymbolSet[T, V]	
+randomPop	gread/evolver.html#randomPop,Evolver[T,V]	evolver: randomPop[T, V](evo: var Evolver[T, V]): Population[T]	
+randomDataIndexes	gread/evolver.html#randomDataIndexes,Evolver	evolver: randomDataIndexes(evo: var Evolver): seq[int]	
+confidentComparison	gread/evolver.html#confidentComparison,Evolver,Program,Program	evolver: confidentComparison(evo: var Evolver; a, b: var Program; p = defaultP): int	
+tournament	gread/evolver.html#tournament,Evolver[T,V],int	evolver: tournament[T, V](evo: var Evolver[T, V]; size: int; order = Descending): Competitor[\n    T]	
+trim	gread/evolver.html#trim.i,Evolver[T,V]	evolver: trim[T, V](evo: var Evolver[T, V]): Program[T]	
+paintMetrics	gread/evolver.html#paintMetrics,PopMetrics,Evolver	evolver: paintMetrics(ken: var PopMetrics; evo: Evolver)	
+resetParsimony	gread/evolver.html#resetParsimony,Evolver	evolver: resetParsimony(evo: var Evolver): PopMetrics	
+strength=	gread/evolver.html#strength=,Evolver[T,V],Strength[V]	evolver: strength=[T, V](evo: var Evolver[T, V]; strong: Strength[V])	
+strength	gread/evolver.html#strength,Evolver[T,V]	evolver: strength[T, V](evo: Evolver[T, V]): Strength[V]	
+fittest	gread/evolver.html#fittest,Evolver[T,V]	evolver: fittest[T, V](evo: var Evolver[T, V]): var Option[Program[T]]	
+fittest	gread/evolver.html#fittest,Evolver[T,V]_2	evolver: fittest[T, V](evo: Evolver[T, V]): Option[Program[T]]	
+resetMetrics	gread/evolver.html#resetMetrics,Evolver	evolver: resetMetrics(evo: var Evolver): PopMetrics	
+toggleParsimony	gread/evolver.html#toggleParsimony,Evolver	evolver: toggleParsimony(evo: var Evolver; value = on)	
+introduce	gread/evolver.html#introduce,Evolver,Program	evolver: introduce(evo: var Evolver; program: Program)	
+add	gread/evolver.html#add,Evolver,Program	evolver: add(evo: var Evolver; program: var Program)	
+discover	gread/evolver.html#discover,Evolver,Program	evolver: discover(evo: var Evolver; program: Program)	
+tableau	gread/evolver.html#tableau,Evolver	evolver: tableau(evo: Evolver): Tableau	
+core=	gread/evolver.html#core=,Evolver,CoreSpec	evolver: core=(evo: var Evolver; core: CoreSpec)	
+core	gread/evolver.html#core,Evolver	evolver: core(evo: var Evolver): CoreSpec	
