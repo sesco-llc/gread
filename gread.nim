@@ -27,3 +27,7 @@ export data
 export evolver
 export grammar
 export genotype
+
+when compileOption"threads":
+  import gread/cluster
+  export cluster
