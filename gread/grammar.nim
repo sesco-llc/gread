@@ -42,7 +42,7 @@ type
     s: Component
     p: OrderedProductions
     #w: WeightedProductions
-    t: HashSet[Terminal]
+    t: GreadSet[Terminal]
     h: MD5Digest
     strings: BiTable[string]
     numbers: BiTable[BiggestInt]
