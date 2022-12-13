@@ -5,10 +5,6 @@ import std/tables
 
 import pkg/cps
 
-when compileOption"threads":
-  when not defined(useMalloc):
-    {.warning: "--define:useMalloc or suffer slow allocator performance".}
-
 when defined(greadLeakySet):
   import std/packedsets
   export packedsets
