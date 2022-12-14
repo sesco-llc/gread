@@ -33,6 +33,7 @@ import gread/evolver
 import gread/grammar
 import gread/tableau
 import gread/decompile
+import gread/audit
 
 export lunacy
 export lrucache
@@ -231,30 +232,39 @@ func isNumberLit*(n: AstNode[Fennel]): bool {.inline.} =
 func isEmpty*(n: AstNode[Fennel]): bool {.inline.} =
   fnk(n.kind) == fennelNil
 
+proc composeMultiSymbol[T](a: Ast[T]; i = 0): string =
+  var syms: seq[string]
+  for sym in children(a, i):
+    syms.add sym.name(0)
+  result = syms.join(".")
+
+proc composeStringLiteral[T](a: Ast[T]; n: AstNode[T]): string =
+  escapeJson(a.stringOp(n), result)
+
 proc render[T](a: Ast[T]; n: AstNode[T]; i = 0): string =
   ## render a fennel node from Ast `a`
   if n.isParent:
     case fnk(n.kind)
     of fennelMultiSymbol:
-      var syms: seq[string]
-      for sym in children(a, i):
-        syms.add sym.name(0)
-      syms.join(".")
+      result = composeMultiSymbol(a, i)
     of fennelProgram:
-      ""
+      result = ""
     else:
-      $n
+      result = $n
   elif n.isSymbol:
-    a.stringOp(n)
+    result = a.stringOp(n)
   elif n.isStringLit:
-    escapeJson(a.stringOp(n), result)
-    result
+    result = composeStringLiteral(a, n)
   elif fnk(n.kind) == fennelBoolean:
-    $(bool a.numberOp(n))
+    var number: bool
+    number = cast[bool](a.numberOp(n))
+    result = $number
   elif fnk(n.kind) in fennelTokenKinds:
-    strRepr fnk(n.kind)
+    result = strRepr fnk(n.kind)
   elif n.isNumberLit:
-    $cast[BiggestFloat](a.numberOp(n))
+    var number: BiggestFloat
+    number = cast[BiggestFloat](a.numberOp(n))
+    result = $number
   else:
     raise Defect.newException:
       "unimpl node kind: $# ($#)" % [ strRepr(fnk n.kind), $n.kind ]
@@ -296,6 +306,7 @@ proc render*(a: Ast[Fennel]): string =
       inc i
     closer()
   stripSpace()
+  compact result
 
 proc `$`*(program: FProg): string =
   if Rendered in program.flags:
@@ -309,8 +320,9 @@ proc compileFennel(vm: PState; source: string): string =
   let fennel = """
     result = fennel.compileString([==[$#]==], {compilerEnv=_G})
   """ % [ source ]
+  let code: cstring = fennel
   try:
-    vm.checkLua vm.doString fennel.cstring:
+    vm.checkLua vm.doString code:
       vm.getGlobal "result"
       result = vm.popStack.value.strung
   except LuaError as e:
@@ -391,7 +403,8 @@ proc evaluate*(fnl: Fennel; p: var FProg; locals: Locals): LuaValue =
             let stack = evaluate(fnl.vm, $p, locals)
             fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
           else:
-            let source = fnl.toLua(hash p, render p)
+            var source: string
+            source = fnl.toLua(hash p, render p)
             let began = getMonoTime()
             let stack = evaluateLua(fnl.vm, source, locals)
             fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
@@ -460,22 +473,17 @@ proc getStats*(evo: Evolver; evoTime: Time): string =
       fmt"{get(evo.fittest).runtime.mean / 1_000_000.0:>8.4f} ms"
     else:
       "nan"
-  when compileOption"threads":
-    var threadStats: string
-    var process: ProcessResources
-    var thread: ThreadResources
-    sample thread
-    sample process
-    threadStats.add "\n" & """
-                process memory: {Kute(process.maxResidentBytes)}""".fmt
-    threadStats.add "\n" & """
-                 thread memory: {Kute(thread.maxResidentBytes)}""".fmt
-    threadStats.add "\n" & """
-    voluntary context switches: {thread.voluntaryContextSwitches}""".fmt
-    threadStats.add "\n" & """
-  involuntary context switches: {thread.involuntaryContextSwitches}""".fmt
-  else:
-    const threadStats = "\n"
+  var threadStats: string
+  var process: ProcessResources
+  sample process
+  threadStats.add "\n" & """
+    voluntary context switches: {process.voluntaryContextSwitches}""".fmt
+  threadStats.add "\n" & """
+  involuntary context switches: {process.involuntaryContextSwitches}""".fmt
+  threadStats.add "\n" & """
+                   memory used: {Kute memoryUsed()} of {Kute memoryArena()}""".fmt
+  threadStats.add "\n" & """
+                process memory: {Kute process.maxResidentBytes}""".fmt
   when false:
     if m.generation.int == 0:
       raise ValueError.newException "no generations yet"
@@ -607,8 +615,6 @@ proc newFennelProgram*(s: string): Program[Fennel] =
     tsTreeDelete node.TSNode.tree
 
 when compileOption"threads":
-  import pkg/loony
-
   const hasSuru = compiles do: import suru
   when hasSuru:
     import suru
