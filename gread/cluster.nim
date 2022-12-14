@@ -12,9 +12,9 @@ import std/random
 import std/sequtils
 import std/strformat
 
-import pkg/loony
 import pkg/cps
 import pkg/sysinfo
+import pkg/insideout
 
 import gread/spec
 import gread/programs
@@ -62,7 +62,7 @@ type
       control*: ControlKind
       argument*: JsonNode
 
-  TransportQ*[T, V] = LoonyQueue[ClusterTransport[T, V]]
+  TransportQ*[T, V] = Mailbox[ClusterTransport[T, V]]
   IO[T, V] = tuple[input, output: TransportQ[T, V]]
 
   Cluster*[T, V] = ref object
@@ -89,14 +89,14 @@ type
     io*: IO[T, V]                          ## how we move data between threads
     cluster: Cluster[T, V]
 
-  CQ = LoonyQueue[C]
+proc push*[T, V](tq: TransportQ[T, V]; item: sink ClusterTransport[T, V]) {.inline.} =
+  tq.send item
 
-# we'll run as many as (processors) threads, though we
-# may not recommend more than (cores) concurrency
-let processors* = max(1, countProcessors())
-var
-  threads*: seq[Thread[CQ]]
-  shelf*: seq[CQ]
+proc pop*[T, V](tq: TransportQ[T, V]): ClusterTransport[T, V] {.deprecated.} =
+  discard tryRecv(tq, result)
+
+proc recv*[T, V](tq: TransportQ[T, V]): ClusterTransport[T, V] {.deprecated.} =
+  result = insideout.recv tq
 
 proc push*[T, V](tq: TransportQ[T, V]; control: ControlKind;
                  argument: JsonNode = newJNull()) =
@@ -131,42 +131,58 @@ proc push*[T, V](tq: TransportQ[T, V]; evaluated: sink EvalResult[T, V]) =
 template push*(cluster: Cluster; thing: untyped): untyped =
   push(cluster.io.input, thing)
 
-proc continuationRunner*(queue: CQ) {.thread.} =
+proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
   ## continuation worker
-  var work: Deque[C]
+  var work: Deque[Continuation]
   {.gcsafe.}:
     while true:
-      var c = pop queue
-      if not c.isNil:
-        work.addLast c
+      var c: Continuation
       if work.len == 0:
-        when not defined(greadBenchmark):
-          sleep 10
+        c = queue.recv()
+        if dismissed c:
+          break
+        work.addLast c
       else:
         # trampoline that tolerates errors and coops
         var o: Continuation = work.popFirst()
         if o.running:
           var prior = o  # hold on to the prior continuation pointer
           try:
-            # run a single leg at a time
-            o = o.fn(o)
-            work.addLast o.C
+            o = trampoline o
+            work.addLast o.Continuation
           except Exception as e:
             writeStackFrames prior  # recover the stack from the prior pointer
             error fmt"{e.name}: {e.msg}"
             error "dismissing continuation..."
 
-setLen(threads, processors)
-setLen(shelf, processors)
+        if queue.tryRecv c:
+          if dismissed c:
+            break
+          work.addLast c
 
+
+# we'll run as many as (processors) threads, though we
+# may not recommend more than (cores) concurrency
+const greadCores {.intdefine.}: int = 0  ## zero means "auto-detect"
+let processors* =
+  when greadCores == 0:
+    max(1, countProcessors())
+  else:
+    max(1, greadCores)
+
+var threads*: ContinuationPool[Continuation]
+var shelf*: seq[Mailbox[Continuation]]
+
+const ContinuationRunner = whelp continuationRunner
 for core in 0..<processors:
-  shelf[core] = newLoonyQueue[C]()
-  createThread(threads[core], continuationRunner, shelf[core])
+  shelf.add newMailbox[Continuation]()
   when defined(greadPin):
-    pinToCpu(threads[core], core)
+    pinToCpu(threads.spawn(ContinuationRunner, shelf[^1]), core)
+  else:
+    threads.spawn(ContinuationRunner, shelf[^1])
 
-proc sendToCore(c: C; core: Natural) =
-  shelf[core mod shelf.len].push c
+proc sendToCore(c: Continuation; core: Natural) =
+  shelf[core mod shelf.len].send c
 
 proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
                      grammar: Grammar = nil;
@@ -290,7 +306,7 @@ when false:
 
 proc newTransportQ*[T, V](): TransportQ[T, V] =
   ## create a new transport queue for messaging between threads
-  newLoonyQueue[ClusterTransport[T, V]]()
+  newMailbox[ClusterTransport[T, V]](256)
 
 proc newCluster*[T, V](name = ""): Cluster[T, V] =
   ## create a new cluster
