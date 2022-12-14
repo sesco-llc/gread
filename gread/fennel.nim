@@ -44,7 +44,7 @@ const
   greadLuaCacheSize {.intdefine.} = 2048
 
 type
-  Fennel* = ref object
+  FennelObj = object
     core*: Option[int]
     vm*: PState
     runs*: uint
@@ -52,6 +52,7 @@ type
     errors*: FennelStat
     runtime*: FennelStat
     aslua: GreadCache[Hash, string]
+  Fennel* = ref FennelObj
 
   FennelStat* = MovingStat[float32, uint32]
 
@@ -62,6 +63,12 @@ type
   FEvo* = Evolver[Fennel, LuaValue]
 
   Locals* = SymbolSet[Fennel, LuaValue]
+
+proc `=destroy`(dest: var FennelObj) =
+  if not dest.vm.isNil:
+    close dest.vm
+  for key, value in dest.fieldPairs:
+    reset value
 
 func isValid*(score: LuaValue): bool {.inline.} =
   unlikely score.kind != TInvalid
