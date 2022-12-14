@@ -37,9 +37,25 @@ proc mustRehash(length, counter: int): bool {.inline.} =
   assert length > counter
   result = (length * 2 < counter * 3) or (length - counter < 4)
 
+when defined(greadParanoid):
+  import std/rlocks
+  var L: RLock
+  initRLock L
+else:
+  template withRLock(n: untyped; logic: untyped): untyped = logic
+
 proc clone*[T](t: BiTable[T]): BiTable[T] =
   ## returns a shrunken table
-  BiTable[T](keys: t.keys, vals: t.vals)
+  withRLock L:
+    when true:
+      result.keys = newSeqOfCap[LitId](t.keys.len)
+      for key in t.keys.items:
+        result.keys.add key
+      result.vals = newSeqOfCap[T](t.vals.len)
+      for val in t.vals.items:
+        result.vals.add val
+    else:
+      result = BiTable[T](keys: t.keys, vals: t.vals)
 
 when false:
   #[
@@ -52,69 +68,80 @@ when false:
     result = idx >= 0 and idx <= t.vals.high
 
 proc `[]`*[T](t: BiTable[T]; v: T): LitId =
-  let origH = hash(v)
-  var h = origH and maxHash(t)
-  if t.keys.len != 0:
-    while true:
-      let litId = t.keys[h]
-      if not isFilled(litId):
-        break
-      if t.vals[idToIdx t.keys[h]] == v:
-        return litId
-      h = nextTry(h, maxHash(t))
-  raise KeyError.newException "key not found"
+  withRLock L:
+    let origH = hash(v)
+    var h = origH and maxHash(t)
+    if t.keys.len != 0:
+      while true:
+        let litId = t.keys[h]
+        if not isFilled(litId):
+          break
+        if t.vals[idToIdx t.keys[h]] == v:
+          return litId
+        h = nextTry(h, maxHash(t))
+    raise KeyError.newException "key not found"
 
 proc enlarge[T](t: var BiTable[T]) =
-  var n: seq[LitId]
-  newSeq(n, len(t.keys) * 2)
-  swap(t.keys, n)
-  for i in 0..high(n):
-    let eh = n[i]
-    if isFilled(eh):
-      var j = hash(t.vals[idToIdx eh]) and maxHash(t)
-      while isFilled(t.keys[j]):
-        j = nextTry(j, maxHash(t))
-      t.keys[j] = move n[i]
+  withRLock L:
+    var n: seq[LitId]
+    newSeq(n, len(t.keys) * 2)
+    swap(t.keys, n)
+    for i in 0..high(n):
+      let eh = n[i]
+      if isFilled(eh):
+        var j = hash(t.vals[idToIdx eh]) and maxHash(t)
+        while isFilled(t.keys[j]):
+          j = nextTry(j, maxHash(t))
+        t.keys[j] = move n[i]
 
 proc getOrIncl*[T](t: var BiTable[T]; v: T): LitId =
-  let origH = hash(v)
-  var h = origH and maxHash(t)
-  if t.keys.len != 0:
-    while true:
-      let litId = t.keys[h]
-      if not isFilled(litId): break
-      if t.vals[idToIdx t.keys[h]] == v: return litId
-      h = nextTry(h, maxHash(t))
-    # not found, we need to insert it:
-    if mustRehash(t.keys.len, t.vals.len):
-      enlarge(t)
-      # recompute where to insert:
-      h = origH and maxHash(t)
+  withRLock L:
+    let origH = hash(v)
+    var h = origH and maxHash(t)
+    if t.keys.len != 0:
       while true:
         let litId = t.keys[h]
         if not isFilled(litId): break
+        if t.vals[idToIdx t.keys[h]] == v: return litId
         h = nextTry(h, maxHash(t))
-  else:
-    setLen(t.keys, 16)
-    h = origH and maxHash(t)
+      # not found, we need to insert it:
+      if mustRehash(t.keys.len, t.vals.len):
+        enlarge(t)
+        # recompute where to insert:
+        h = origH and maxHash(t)
+        while true:
+          let litId = t.keys[h]
+          if not isFilled(litId): break
+          h = nextTry(h, maxHash(t))
+    else:
+      setLen(t.keys, 16)
+      h = origH and maxHash(t)
 
-  result = LitId(t.vals.len + idStart)
-  t.keys[h] = result
-  t.vals.add v
+    result = LitId(t.vals.len + idStart)
+    t.keys[h] = result
+    t.vals.add v
 
 proc `[]`*[T](t: var BiTable[T]; id: LitId): var T {.inline.} =
-  let idx = idToIdx id
-  assert idx <= t.vals.high, "idx " & $idx
-  result = t.vals[idx]
+  withRLock L:
+    let idx = idToIdx id
+    assert idx <= t.vals.high, "idx " & $idx
+    result = t.vals[idx]
 
 proc `[]`*[T](t: BiTable[T]; id: LitId): lent T {.inline.} =
-  let idx = idToIdx id
-  assert idx <= t.vals.high, "idx " & $idx
-  result = t.vals[idx]
+  withRLock L:
+    let idx = idToIdx id
+    assert idx <= t.vals.high, "idx " & $idx
+    when T is string:
+      # strings will probably require heap growth of 32/48
+      result = t.vals[idx]
+    else:
+      # numbers don't require an alloc
+      result = t.vals[idx]
 
 proc hash*[T](t: BiTable[T]): Hash =
   ## as the keys are hashes of the values, we simply use them instead
-  var h: Hash = 0
-  for i, n in t.keys.pairs:
-    h = h !& hash (i, n)
-  result = !$h
+  withRLock L:
+    var h: Hash = 0
+    for i, n in t.keys.pairs:
+      h = h !& hash (i, n)
+    result = !$h
