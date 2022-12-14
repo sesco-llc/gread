@@ -389,7 +389,7 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
       let began = getMonoTime()
       result = evo.fitone(evo.platform, evo.dataset[index], p)
       demandValid result
-      p.runtime.push (getMonoTime() - began).inNanoseconds.float
+      p.pushRuntime (getMonoTime() - began).inNanoseconds.float
       if result.isSome:
         evo.addScoreToCache(p, index, get result)
 
@@ -406,10 +406,10 @@ proc score[T, V](evo: Evolver[T, V]; ss: ptr SymbolSet[T, V];
   elif p.zombie:
     return none V
   else:
-    let began = getTime()
+    let began = getMonoTime()
     result = evo.fitone(evo.platform, ss[], p)
     demandValid result
-    p.runtime.push (getTime() - began).inMilliseconds.float
+    p.pushRuntime (getMonoTime() - began).inNanoseconds.float
 
 proc score*[T, V](evo: var Evolver[T, V]; indices: ptr GreadSet[int];
                   p: var Program[T]): Option[V] =

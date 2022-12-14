@@ -13,6 +13,7 @@ when compileOption"threads":
 import gread/ast
 import gread/genotype
 import gread/spec
+import gread/audit
 
 const
   programCache* = false
@@ -28,7 +29,7 @@ type
     genome: Genome            ## the genome used to construct the program
     code: Option[string]      ## cache of the rendered source code
     core*: Option[int]        ## ideally holds the core where we were invented
-    runtime*: MovingStat[float32, uint32]  ##
+    runtime: MovingStat[float32, uint32]  ##
     ## tracks the runtime for this program
     source*: int              ## usually the threadId where we were invented
     generation*: Generation   ## the generation number in which we arrived
@@ -46,9 +47,16 @@ func isInitialized*(program: Program): bool {.inline.} =
 template isNil*(program: Program): bool {.deprecated: "use isInitialized/1".} =
   not program.isInitialized
 
+proc pushRuntime*(p: var Program; nanoseconds: float) =
+  discard
+
+proc runtime*(p: Program): MovingStat[float32, uint32] =
+  discard
+
 proc push*(p: var Program; s: Score) =
   ## record a valid score for statistics purposes
-  p.scores.push s
+  #p.scores.push s
+  discard
 
 proc genome*(p: Program): Genome {.inline.} =
   ## the program's source genome
