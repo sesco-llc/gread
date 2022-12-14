@@ -15,6 +15,7 @@ import std/strformat
 import pkg/cps
 import pkg/sysinfo
 import pkg/insideout
+import pkg/grok/kute
 
 import gread/spec
 import gread/programs
@@ -23,6 +24,7 @@ import gread/tableau
 import gread/data
 import gread/evolver
 import gread/grammar
+import gread/audit
 
 type
   EvalResult*[T, V] = object
@@ -69,8 +71,6 @@ type
     name: string
     cores: GreadSet[CoreId]
     io: IO[T, V]                   ## how we move data between threads
-
-  Worker*[T, V] = proc(w: Work[T, V]) {.thread.}
 
   Work*[T, V] = object
     name*: string                          ## for reporting purposes
@@ -159,6 +159,7 @@ proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
           if dismissed c:
             break
           work.addLast c
+  echo fmt"thread exit; {Kute memoryUsed()} of {Kute memoryArena()}"
 
 
 # we'll run as many as (processors) threads, though we
