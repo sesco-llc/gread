@@ -47,7 +47,7 @@ else:
 proc clone*[T](t: BiTable[T]): BiTable[T] =
   ## returns a shrunken table
   withRLock L:
-    when true:
+    when false:
       result.keys = newSeqOfCap[LitId](t.keys.len)
       for key in t.keys.items:
         result.keys.add key
