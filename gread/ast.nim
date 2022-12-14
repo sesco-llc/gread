@@ -188,7 +188,7 @@ func numberOfChildren*[T](n: AstNode[T]): int =
   else:
     0
 
-proc sizeOfSubtree*[T](a: Ast[T]; index = 0): int =
+func sizeOfSubtree*[T](a: Ast[T]; index = 0): int =
   ## the size, in nodes, of the tree at the given index
   mixin isParent
   audit a: debug "sizeof subtree: ", $a
