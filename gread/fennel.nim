@@ -126,17 +126,6 @@ proc initLocals*[V](values: openArray[(string, V)]): SymbolSet[Fennel, V] =
   ## suitable for evaluate()
   initSymbolSet[Fennel, V](values)
 
-proc clearStats*(fnl: Fennel) =
-  ## reset the MovingStat values in the Fennel object
-  clear fnl.nans
-  clear fnl.errors
-  #clear fnl.runtime
-  when false:
-    let began = getTime()
-    fnl.vm.checkLua fnl.vm.gc(GcCollect, 0):
-      discard
-    notice fmt"collected in {(getTime() - began).inMilliseconds} µs"
-
 const
   #[
     (global randp
@@ -165,19 +154,39 @@ const
     )
   """
 
-proc newFennel*(core = none int): Fennel =
-  ## reset a Fennel instance and prepare it for running programs
-  result = Fennel(vm: newState(), core: core)
-  initGreadCache(result.aslua, initialSize=greadLuaCacheSize)
-  clearStats result
-
+proc setupVM(vm: PState) =
   # setup the lua vm with the fennel compiler and any shims
-  result.vm.openLibs()
-  result.vm.checkLua result.vm.doString """fennel = require("fennel")""":
+  vm.openLibs()
+  vm.checkLua vm.doString """fennel = require("fennel")""":
     let sham =
       """fennel.eval([==[$#]==], {compilerEnv=_G})""" % shims
-    result.vm.checkLua result.vm.doString sham.cstring:
+    vm.checkLua vm.doString sham.cstring:
       discard
+
+proc newVM(): PState =
+  result = newState()
+  setupVM result
+
+proc clearStats*(fnl: Fennel) =
+  ## reset the MovingStat values in the Fennel object
+  clear fnl.nans
+  clear fnl.errors
+  clear fnl.runtime
+  let began = getMonoTime()
+  when true:
+    close fnl.vm
+    fnl.vm = newVM()
+    echo fmt"reboot vm in {(getMonoTime() - began).inMilliseconds} ms"
+  else:
+    fnl.vm.checkLua fnl.vm.gc(GcCollect, 0):
+      discard
+    echo fmt"gccollect in {(getMonoTime() - began).inMilliseconds} ms"
+
+proc newFennel*(core = none int): Fennel =
+  ## reset a Fennel instance and prepare it for running programs
+  result = Fennel(vm: newVM(), core: core)
+  initGreadCache(result.aslua, initialSize=greadLuaCacheSize)
+  clearStats result
 
 proc clearCache*(fnl: Fennel) {.deprecated.} =
   ## clear the execution cache of the Fennel instance;
@@ -490,7 +499,7 @@ proc getStats*(evo: Evolver; evoTime: Time): string =
   threadStats.add "\n" & """
                    memory used: {Kute memoryUsed()} of {Kute memoryArena()}""".fmt
   threadStats.add "\n" & """
-                process memory: {Kute process.maxResidentBytes}""".fmt
+                process memory: {Kute process.maxResidentBytes} ({processors} threads)""".fmt
   when false:
     if m.generation.int == 0:
       raise ValueError.newException "no generations yet"
@@ -532,8 +541,7 @@ proc getStats*(evo: Evolver; evoTime: Time): string =
                generation time: {ff genTime.mean} ms
         generations per second: {ff(1000.0 * m.generation.float / totalMs)}
                 evolution time: {ff(totalMs / 1000.0)} sec"""
-  when compileOption"threads":
-    result &= threadStats
+  result &= threadStats
   clearStats fnl
 
 proc dumpStats*(evo: Evolver; evoTime: Time) =
@@ -611,7 +619,7 @@ proc parseFennelString(str: string): TsFennelNode =
     tsParserDelete parser.PtsParser
 
 proc newFennelProgram*(s: string): Program[Fennel] =
-  ## working around cps `()` operator shenanigans
+  ## create a program from fennel source code
   let node = parseFennelString s
   try:
     if node.kind != fennelProgram:
