@@ -40,7 +40,7 @@ initFennelGrammar(gram, averageGrammar)
 var tab = defaultTableau
 tab -= {UseParsimony}
 tab -= {RequireValid}
-tab.seedProgramSize = 50
+tab.seedProgramSize = 400
 tab.seedPopulation = 400
 tab.maxPopulation = 400
 tab.tournamentSize = 12
