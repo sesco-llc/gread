@@ -588,13 +588,23 @@ proc toAst[T: Fennel](node: TsFennelNode; s: string): Ast[T] =
   else:
     raise Defect.newException "unimplemented node: " & $node.kind
 
+proc parseFennelString(str: string): TsFennelNode =
+  let parser = newTsFennelParser()
+  try:
+    result = parseString(parser, str)
+  finally:
+    tsParserDelete parser.PtsParser
+
 proc newFennelProgram*(s: string): Program[Fennel] =
   ## working around cps `()` operator shenanigans
-  let tree = parseTsFennelString s
-  if tree.kind != fennelProgram:
-    raise ValueError.newException "expected a program; got " & $tree.kind
-  else:
-    result = newProgram toAst[Fennel](tree, s)
+  let node = parseFennelString s
+  try:
+    if node.kind != fennelProgram:
+      raise ValueError.newException "expected a program; got " & $node.kind
+    else:
+      result = newProgram toAst[Fennel](node, s)
+  finally:
+    tsTreeDelete node.TSNode.tree
 
 when compileOption"threads":
   import pkg/loony
