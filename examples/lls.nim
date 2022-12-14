@@ -19,14 +19,14 @@ import gread/fennel except variance
 import pkg/sysinfo
 import pkg/cps
 import pkg/lunacy
-import pkg/loony
 import pkg/adix/lptabz
 
 const
   greadSeed {.intdefine.} = 0
   goodEnough = -0.01     # termination condition
-  manyGenerations = 1_000_000
-  statFrequency = 10000  # report after this many generations
+  llsMany {.intdefine.} = 50_000
+  manyGenerations = llsMany
+  statFrequency = 1000  # report after this many generations
   llsGrammar = """
     <start>        ::= <numexpr>
     <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
@@ -41,7 +41,7 @@ let
     when not defined(release) and greadSeed != 0:
       1
     else:
-      max(1, countProcessors())
+      processors
       #max(1, getNumTotalCores())
 
 var gram: Grammar

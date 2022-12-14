@@ -117,8 +117,14 @@ proc fitmany(fnl: Fennel; iter: iterator(): (ptr Locals, ptr LuaValue);
     if s.isValid:
       result = some s
 
+import pkg/insideout
+
 suite "simulation":
   var et = getTime()
+  block:
+    ## kill threads
+    drain threads
+
   block:
     ## created a random population of programs
     checkpoint "creating", tab.seedPopulation, "random programs..."
