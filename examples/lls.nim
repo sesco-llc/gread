@@ -26,7 +26,12 @@ const
   goodEnough = -0.01     # termination condition
   llsMany {.intdefine.} = 50_000
   manyGenerations = llsMany
-  statFrequency = 1000  # report after this many generations
+  statFrequency =
+    # report after this many generations
+    when defined(useMalloc):
+      1_000
+    else:
+      10_000
   llsGrammar = """
     <start>        ::= <numexpr>
     <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
