@@ -146,12 +146,10 @@ proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
         # trampoline that tolerates errors and coops
         var o: Continuation = work.popFirst()
         if o.running:
-          var prior = o  # hold on to the prior continuation pointer
           try:
             o = trampoline o
             work.addLast o.Continuation
           except Exception as e:
-            writeStackFrames prior  # recover the stack from the prior pointer
             error fmt"{e.name}: {e.msg}"
             error "dismissing continuation..."
 
