@@ -175,10 +175,10 @@ var shelf*: seq[Mailbox[Continuation]]
 const ContinuationRunner = whelp continuationRunner
 for core in 0..<processors:
   shelf.add newMailbox[Continuation]()
-  when false and defined(greadPin):
-    pinToCpu(threads.spawn(ContinuationRunner, shelf[^1]), core)
-  else:
-    threads.spawn(ContinuationRunner, shelf[^1])
+  var runtime = spawn(ContinuationRunner, shelf[^1])
+  when defined(greadPin):
+    pinToCpu(runtime, core)
+  threads.add runtime
 
 proc sendToCore(c: Continuation; core: Natural) =
   shelf[core mod shelf.len].send c
