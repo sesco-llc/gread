@@ -2,6 +2,7 @@ import std/sequtils
 import std/hashes
 
 import gread/ast
+import gread/audit
 
 type
   SymbolSet*[T, V] = object       ## group of symbolName=value associations
@@ -31,12 +32,15 @@ proc `$`*(ss: SymbolSet): string =
 
 proc initDataPoint*[T, V](name: string; value: V): DataPoint[T, V] =
   ## initialize a datapoint using symbol name and value
-  DataPoint[T, V](name: name, value: value)
+  result = DataPoint[T, V](name: name, value: value)
+  compact result.name
+  doAssert result.name.capacity == name.len
 
 proc initSymbolSet*[T, V](values: openArray[DataPoint[T, V]]): SymbolSet[T, V] =
   ## convert an openArray of DataPoints into a suitable SymbolSet
   result.values = @values
   result.hash = hash result.values
+  doAssert result.values.capacity == values.len
 
 proc initSymbolSet*[T, V](values: openArray[(string, V)]): SymbolSet[T, V] =
   ## convert an openArray of (name, value) pairs into a suitable SymbolSet
