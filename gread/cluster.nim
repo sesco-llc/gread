@@ -185,7 +185,7 @@ proc sendToCore(c: Continuation; core: Natural) =
   shelf[core mod shelf.len].send c
 
 proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
-                     grammar: Grammar = nil;
+                     grammar: Grammar;
                      operators: openArray[OperatorWeight[T, V]] = @[];
                      dataset: seq[SymbolSet[T, V]] = @[];
                      fitone: FitOne[T, V] = nil; fitmany: FitMany[T, V] = nil;

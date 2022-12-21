@@ -7,8 +7,9 @@ import std/sets
 import std/strformat
 import std/strutils
 
-import pkg/adix/lptabz
 import pkg/npeg
+import pkg/insideout/atomic/refs
+export refs
 
 import gread/spec
 import gread/aliasmethod
@@ -22,7 +23,7 @@ import std/locks
 
 type
   HeatMap = GreadTable[string, int]
-  OrderedProductions = LPTabz[string, Production, int8, 0]
+  OrderedProductions = GreadOrderedTable[string, Production]
   ComponentKind* = enum ckToken, ckRule, ckTerminal
   Component* = object
     case kind*: ComponentKind
@@ -36,24 +37,24 @@ type
       term: Terminal
 
   Production* = seq[Component]
-  WeightedProductions = LPTabz[string, AliasMethod[Production], int8, 0]
+  WeightedProductions = GreadOrderedTable[string, AliasMethod[Production]]
 
   GrammarObj = object
     s: Component
     p: OrderedProductions
     #w: WeightedProductions
-    t: GreadSet[Terminal]
+    t: HashSet[Terminal]
     h: MD5Digest
     strings: BiTable[string]
     numbers: BiTable[BiggestInt]
     when defined(greadGrammarHeatMap):
       m: HeatMap
       mlock: Lock
-  Grammar* = ptr GrammarObj
+  Grammar* = AtomicRef[GrammarObj]
 
 template withHeatMap(gram: Grammar; body: untyped): untyped =
-  when compiles(gram.mlock):
-    withLock gram.mlock:
+  when compiles(gram[].mlock):
+    withLock gram[].mlock:
       body
 
 proc cmp(a, b: Component): int =
@@ -76,26 +77,22 @@ proc `==`(a, b: Component): bool =
   cmp(a, b) == 0
 
 proc hash*(gram: Grammar): Hash =
-  hash gram.h
+  hash gram[].h
 
-proc start*[T](gram: Grammar): Component = gram.s
+proc start*[T](gram: Grammar): Component =
+  gram[].s
 
 iterator terminals*(gram: Grammar): Terminal =
-  for t in gram.t.items:
+  for t in gram[].t.items:
     yield t
 
-when false:
-  iterator functions*[T](gram: Grammar[T]): Function[T] =
-    for n in gram.n.items:
-      yield n
-
-iterator productions*(gram: Grammar; rule: string): Production =
-  for key, value in gram.p.pairs:
+proc productions*(gram: Grammar; rule: string): seq[Production] =
+  for key, value in gram[].p.pairs:
     if key == rule:
-      yield value
+      result.add value
 
 iterator pairs*(gram: Grammar): (string, Production) =
-  for key, value in gram.p.pairs:
+  for key, value in gram[].p.pairs:
     yield (key, value)
 
 proc toAst[T](gram: Grammar; prod: Production): Ast[T] =
@@ -103,8 +100,8 @@ proc toAst[T](gram: Grammar; prod: Production): Ast[T] =
   mixin emptyNode
   mixin terminalNode
   result.nodes = newSeqOfCap[AstNode[T]](prod.len)
-  result.strings = gram.strings
-  result.numbers = gram.numbers
+  result.strings = gram[].strings
+  result.numbers = gram[].numbers
   for component in prod.items:
     result.nodes.add:
       case component.kind
@@ -162,13 +159,18 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
         let name = result.ast.name(chose)       # resolve the nt name
         withHeatMap gram:
           inc gram.m[name]
-        toSeq gram.productions(name)            # RHS production choices
+        gram.productions(name)                  # RHS production choices
       else:
         raise Defect.newException "bug.  bad indices in nts queue"
 
+    # guard a grammar defect
+    if options.len == 0:
+      raise Defect.newException:
+        "bug.  no productions for " & result.ast.name(chose)
+
     # content points to the production index from the `chose`n options
-    let content = codon.int mod options.len     # choose content index
-    let rule = options[content]                 # select the content production
+    let content = codon mod options.len.uint16  # choose content index
+    let rule = options[int content]             # select the content production
     let rhs = toAst[T](gram, rule)              # convert rule to nodes
     doAssert rule.len == rhs.len, "not yet supported"
 
@@ -279,15 +281,14 @@ proc isInitialized*(gram: Grammar): bool =
 
 proc initGrammar*(gram: var Grammar) =
   ## initialize a grammar
-  if not gram.isNil:
-    dealloc gram
-  gram = createShared(GrammarObj)
+  new gram
   if gram.isNil:
     raise ValueError.newException "unable to create grammar"
-  init gram.p
-  #init gram.w
+  init gram[].t
+  initGreadOrderedTable gram[].p
+  #initGreadOrderedTable gram.w
   withHeatMap gram:
-    initGreadTable gram.m
+    initGreadTable gram[].m
 
 proc `$`*(gram: Grammar): string =
   withHeatMap gram:
@@ -298,13 +299,13 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
                   syntax: string) =
   ## initialize a grammar with the provided bnf syntax specification
   initGrammar gram
-  gram.h = toMD5(syntax)
+  gram[].h = toMD5(syntax)
   var rules = bnf(syntax)
   var nonterminals = 0
   template learnString(s: string) =
-    discard gram.strings.getOrIncl s
+    discard gram[].strings.getOrIncl s
   template learnNumber(n: SomeInteger) =
-    discard gram.numbers.getOrIncl n
+    discard gram[].numbers.getOrIncl n
   for r in rules.mitems:
     learnString r.name
     for c in r.rule.mitems:
@@ -319,7 +320,7 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
           learnString c.term.text
           learnNumber c.term.token
         else:
-          gram.t.incl c.term
+          gram[].t.incl c.term
           case c.term.kind
           of Integer:
             learnNumber c.term.intVal.BiggestInt
@@ -340,15 +341,15 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
         else:
           raise ValueError.newException "unexpected rule definition"
     withHeatMap gram:
-      gram.m[r.name] = 0
-    gram.p.add(r.name, r.rule)
+      gram[].m[r.name] = 0
+    gram[].p.add(r.name, r.rule)
     # shrink them
-    gram.strings = clone gram.strings
-    gram.numbers = clone gram.numbers
+    gram[].strings = clone gram[].strings
+    gram[].numbers = clone gram[].numbers
   info fmt"nonterminal references: {nonterminals}"
-  info fmt"       total terminals: {gram.t.card}"
-  debug fmt"{gram.strings.len} strings = {gram.strings}"
-  debug fmt"{gram.numbers.len} numbers = {gram.numbers}"
+  info fmt"       total terminals: {gram[].t.card}"
+  debug fmt"{gram[].strings.len} strings = {gram[].strings}"
+  debug fmt"{gram[].numbers.len} numbers = {gram[].numbers}"
 
 proc πFilling*[T](grammar: Grammar; genome: Genome): tuple[ast: Ast[T]; genome: Genome] {.inline.} =
   {.warning: "work around https://github.com/nim-lang/Nim/issues/19364".}
