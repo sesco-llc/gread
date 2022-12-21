@@ -23,14 +23,30 @@ else:
 when defined(greadSlowTable):
   import std/tables
   export tables
-  type GreadTable*[K, V] = Table[K, V]
+
+  type
+    GreadTable*[K, V] = Table[K, V]
+    GreadOrderedTable*[K, V] = OrderedTable[K, V]
+
   func initGreadTable*[K, V](table: var GreadTable[K, V]; initialSize = defaultInitialSize) =
     table = initTable[K, V](initialSize=initialSize)
+
+  func initGreadOrderedTable*[K, V](table: var GreadOrderedTable[K, V]; initialSize = defaultInitialSize) =
+    table = initOrderedTable[K, V](initialSize=initialSize)
+
 else:
   import pkg/adix/lptabz
   export lptabz
-  type GreadTable*[K, V] = LPTabz[K, V, void, 0]
+
+  type
+    GreadTable*[K, V] = LPTabz[K, V, void, 0]
+    GreadOrderedTable*[K, V] = LPTabz[K, V, int8, 0]
+
   proc initGreadTable*[K, V](table: var GreadTable[K, V]; initialSize = defaultInitialSize) =
+    table.init(initialSize=initialSize)
+    table.clear()
+
+  proc initGreadOrderedTable*[K, V](table: var GreadOrderedTable[K, V]; initialSize = defaultInitialSize) =
     table.init(initialSize=initialSize)
     table.clear()
 
