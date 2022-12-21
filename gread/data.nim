@@ -40,7 +40,7 @@ proc initSymbolSet*[T, V](values: openArray[DataPoint[T, V]]): SymbolSet[T, V] =
   ## convert an openArray of DataPoints into a suitable SymbolSet
   result.values = @values
   result.hash = hash result.values
-  doAssert result.values.capacity == values.len
+  #doAssert result.values.capacity == values.len
 
 proc initSymbolSet*[T, V](values: openArray[(string, V)]): SymbolSet[T, V] =
   ## convert an openArray of (name, value) pairs into a suitable SymbolSet
