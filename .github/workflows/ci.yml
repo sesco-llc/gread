@@ -66,7 +66,8 @@ jobs:
         run: |
           cd ci
           nimble --accept develop
-          balls --define:release --define:danger --gc:arc --backend:c --threads:on
+          nimble --accept install "https://github.com/disruptek/balls@#4.0.8"
+          balls --define:release --define:danger --mm:arc --backend:c
 
       - name: Build docs
         if: ${{ matrix.docs }} == 'true'
