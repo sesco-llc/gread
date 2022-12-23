@@ -11,11 +11,12 @@ import pkg/npeg
 import pkg/insideout/atomic/refs
 export refs
 
-import gread/spec
 import gread/aliasmethod
 import gread/ast
+import gread/audit
 import gread/genotype
 import gread/programs
+import gread/spec
 
 export ShortGenome
 
@@ -23,7 +24,7 @@ import std/locks
 
 type
   HeatMap = GreadTable[string, int]
-  OrderedProductions = GreadOrderedTable[string, Production]
+  OrderedProductions = GreadTable[string, seq[Production]]
   ComponentKind* = enum ckToken, ckRule, ckTerminal
   Component* = object
     case kind*: ComponentKind
@@ -91,10 +92,6 @@ proc productions*(gram: Grammar; rule: string): seq[Production] =
     if key == rule:
       result.add value
 
-iterator pairs*(gram: Grammar): (string, Production) =
-  for key, value in gram[].p.pairs:
-    yield (key, value)
-
 proc toAst[T](gram: Grammar; prod: Production): Ast[T] =
   ## map a production to matching ast
   mixin emptyNode
@@ -115,17 +112,6 @@ proc toAst[T](gram: Grammar; prod: Production): Ast[T] =
         AstNode[T](kind: component.token)
       of ckTerminal:
         terminalNode[T](result, component.term)
-
-proc `[]`(tab: OrderedProductions; index: int): seq[Production] =
-  ## find satisfying rules by index
-  var i = index
-  for key in tab.keys:
-    if i == 0:
-      for many, value in tab.pairs:
-        if many == key:
-          result.add value
-      return result
-    dec i
 
 proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
   ## map a genotype using the given grammar
@@ -159,7 +145,7 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
         let name = result.ast.name(chose)       # resolve the nt name
         withHeatMap gram:
           inc gram.m[name]
-        gram.productions(name)                  # RHS production choices
+        gram[].p[name]                          # RHS production choices
       else:
         raise Defect.newException "bug.  bad indices in nts queue"
 
@@ -285,7 +271,7 @@ proc initGrammar*(gram: var Grammar) =
   if gram.isNil:
     raise ValueError.newException "unable to create grammar"
   init gram[].t
-  initGreadOrderedTable gram[].p
+  initGreadTable gram[].p
   #initGreadOrderedTable gram.w
   withHeatMap gram:
     initGreadTable gram[].m
@@ -342,10 +328,13 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
           raise ValueError.newException "unexpected rule definition"
     withHeatMap gram:
       gram[].m[r.name] = 0
-    gram[].p.add(r.name, r.rule)
-    # shrink them
-    gram[].strings = clone gram[].strings
-    gram[].numbers = clone gram[].numbers
+    try:
+      gram[].p[r.name].add r.rule
+    except KeyError:
+      gram[].p[r.name] = @[r.rule]
+  # shrink them
+  gram[].strings = clone gram[].strings
+  gram[].numbers = clone gram[].numbers
   info fmt"nonterminal references: {nonterminals}"
   info fmt"       total terminals: {gram[].t.card}"
   debug fmt"{gram[].strings.len} strings = {gram[].strings}"
@@ -356,6 +345,7 @@ proc πFilling*[T](grammar: Grammar; genome: Genome): tuple[ast: Ast[T]; genome:
   let bug = πGE[T](grammar, genome)
   var genes = newStringOfCap(bug.pc.int)
   genes = string genome[0..<bug.pc.int]
+  compact genes
   result = (ast: bug.ast, genome: Genome genes)
 
 proc πMap*[T](grammar: Grammar; genome: Genome): Program[T] {.inline.} =

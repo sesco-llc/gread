@@ -34,9 +34,6 @@ suite "grammar":
     var gram: Grammar
     initGrammar(gram, parseToken, example)
     var seen: HashSet[string]
-    for name, production in gram.pairs:
-      check name != ""
-      check production.len > 0
     for term in gram.terminals:
       case term.kind
       of String:
@@ -56,7 +53,3 @@ suite "grammar":
     ## parse glang grammar
     var gram: Grammar
     initGrammar(gram, parseToken, glangGrammar)
-    for name, production in gram.pairs:
-      checkpoint name, " ", production
-      if name == "terminate":
-        checkpoint production

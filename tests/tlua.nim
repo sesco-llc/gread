@@ -108,9 +108,6 @@ suite "basic lua stuff":
     ## parse lua grammar
     var gram: Grammar
     initGrammar(gram, parseLuaToken, luaGrammar)
-    for name, production in gram.pairs:
-      if name == "terminate":
-        checkpoint production
     proc run_test() =
       let geno = randomGenome(randState(), 4000)
       let (pc, ast) = πGE[Lua](gram, geno)

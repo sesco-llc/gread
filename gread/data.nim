@@ -34,13 +34,13 @@ proc initDataPoint*[T, V](name: string; value: V): DataPoint[T, V] =
   ## initialize a datapoint using symbol name and value
   result = DataPoint[T, V](name: name, value: value)
   compact result.name
-  doAssert result.name.capacity == name.len
+  doAssert result.name.cap == name.len
 
 proc initSymbolSet*[T, V](values: openArray[DataPoint[T, V]]): SymbolSet[T, V] =
   ## convert an openArray of DataPoints into a suitable SymbolSet
   result.values = @values
   result.hash = hash result.values
-  #doAssert result.values.capacity == values.len
+  #doAssert result.values.cap == values.len
 
 proc initSymbolSet*[T, V](values: openArray[(string, V)]): SymbolSet[T, V] =
   ## convert an openArray of (name, value) pairs into a suitable SymbolSet

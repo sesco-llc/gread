@@ -90,9 +90,6 @@ suite "basic fennel stuff":
     var gram: Grammar
     var rng = initRand(5)
     initFennelGrammar(gram, fennelGrammar)
-    for name, production in gram.pairs:
-      if name == "start":
-        checkpoint production
     let geno = randomGenome(rng, 200)
     let (pc, ast) = πGE[Fennel](gram, geno)
     checkpoint "program counter: ", pc

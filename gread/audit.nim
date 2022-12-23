@@ -9,7 +9,7 @@ proc size*(s: string): int {.inline.} =
   s.cap + 1 + sizeof(int)
 
 proc compact*(s: var string) {.inline.} =
-  if s.capacity != s.len:
+  if s.cap != s.len:
     var x = newStringOfCap s.len
     x.add s
     s = x
