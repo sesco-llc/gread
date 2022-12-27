@@ -705,14 +705,15 @@ proc tournament*[T](rng: var Rand; population: HeapQueue[T]; size: int;
 
   var size = max(1, min(population.len, size))
   var index: int
+  let bound = population.high
   while size > 0:
     dec size
     index =
       case order
       of Ascending:
-        min(index, rng.rand(high population))
+        min(index, rng.rand(bound))
       of Descending:
-        max(index, rng.rand(high population))
+        max(index, rng.rand(bound))
   result = population[index]
 
 iterator trim*[T, V](evo: var Evolver[T, V]): Program[T] =
