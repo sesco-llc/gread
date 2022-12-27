@@ -167,11 +167,7 @@ proc newVM(): PState =
   result = newState()
   setupVM result
 
-proc clearStats*(fnl: Fennel) =
-  ## reset the MovingStat values in the Fennel object
-  clear fnl.nans
-  clear fnl.errors
-  clear fnl.runtime
+proc tidyVM*(fnl: Fennel) =
   let began = getMonoTime()
   when true:
     close fnl.vm
@@ -182,16 +178,17 @@ proc clearStats*(fnl: Fennel) =
       discard
     echo fmt"gccollect in {(getMonoTime() - began).inMilliseconds} ms"
 
+proc clearStats*(fnl: Fennel) =
+  ## reset the MovingStat values in the Fennel object
+  clear fnl.nans
+  clear fnl.errors
+  clear fnl.runtime
+  fnl.tidyVM()
+
 proc newFennel*(core = none int): Fennel =
   ## reset a Fennel instance and prepare it for running programs
   result = Fennel(vm: newVM(), core: core)
   initGreadCache(result.aslua, initialSize=greadLuaCacheSize)
-  clearStats result
-
-proc clearCache*(fnl: Fennel) {.deprecated.} =
-  ## clear the execution cache of the Fennel instance;
-  ## caching has been entirely lifted into the Evolver
-  discard
 
 proc fun*(s: string; arity = 0; args = arity..int.high): Fun =
   Fun(ident: s, arity: max(arity, args.a), args: args)
@@ -333,9 +330,9 @@ proc `$`*(program: FProg): string =
 
 proc compileFennel(vm: PState; source: string): string =
   vm.pushGlobal("result", term false)
-  let fennel = """
-    result = fennel.compileString([==[$#]==], {compilerEnv=_G})
-  """ % [ source ]
+  let fennel = fmt"""
+    result = fennel.compileString([==[{source}]==], {{compilerEnv=_G}})
+  """
   let code: cstring = fennel
   try:
     vm.checkLua vm.doString code:
