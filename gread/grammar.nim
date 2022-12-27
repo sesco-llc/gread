@@ -122,6 +122,9 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
   if gram.isNil:
     raise Defect.newException "unable to map genome with nil grammar"
 
+  if geno.len == 0:
+    raise Defect.newException "supplied genome is empty"
+
   var nts: seq[int]                             # indices of unresolved nodes
   nts.add 0                                     # prime them with the head node
   result.ast.nodes.add:
@@ -158,7 +161,7 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
     let content = codon mod options.len.uint16  # choose content index
     let rule = options[int content]             # select the content production
     let rhs = toAst[T](gram, rule)              # convert rule to nodes
-    doAssert rule.len == rhs.len, "not yet supported"
+    assert rule.len == rhs.len, "not yet supported"
 
     # we can now perform the substitution in the ast at the `chose`n index
     result.ast = result.ast.replace(chose, rhs) # add the nodes to the ast
