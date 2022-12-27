@@ -23,6 +23,8 @@ import gread/tableau
 import gread/grammar
 import gread/maths
 import gread/tournament
+import gread/genotype
+import gread/heapqueue
 
 const
   greadHoeffding* {.intdefine.} = 20
@@ -691,6 +693,27 @@ proc tournament*[T, V](evo: var Evolver[T, V]; size: int;
   discharge(evo, result)
   result.valid = result.program.isValid
   result.score = result.program.score
+
+proc tournament*[T](rng: var Rand; population: HeapQueue[T]; size: int;
+                    order = Descending): T =
+  if population.len < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with empty population"
+  if size < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with less than one competitor"
+
+  var size = max(1, min(population.len, size))
+  var index: int
+  while size > 0:
+    dec size
+    index =
+      case order
+      of Ascending:
+        min(index, rng.rand(high population))
+      of Descending:
+        max(index, rng.rand(high population))
+  result = population[index]
 
 iterator trim*[T, V](evo: var Evolver[T, V]): Program[T] =
   ## emit the worst programs until the population is
