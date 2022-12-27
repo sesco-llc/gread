@@ -29,7 +29,7 @@ const
   statFrequency =
     # report after this many generations
     when defined(useMalloc):
-      1_000
+      10_000
     else:
       10_000
   llsGrammar = """
