@@ -298,14 +298,6 @@ when isMainModule:
     initEvolver(evo, fnl, monitor)
     evo.strength = strength
     evo.grammar = gram
-    evo.operators = {
-      geCrossover[Fennel, LuaValue]:        1.0,
-      geMutation[Fennel, LuaValue]:         1.0,
-      subtreeXover[Fennel, LuaValue]:       1.0,
-      randomSubtreeXover[Fennel, LuaValue]: 1.0,
-      randomCrossover[Fennel, LuaValue]:    1.0,
-      geNoise1pt0[Fennel, LuaValue]:        1.0,
-    }
     evo.dataset = dataset
     evo.fitone = fitone
     evo.fitmany = fitmany

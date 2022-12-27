@@ -40,35 +40,54 @@ type
                         p: Program[T]): Option[V] ##
   ## a fitness function that runs against a series of symbolsets
 
+  FitGene* = proc(g: Genome): float ##
+  ## a fitness function that runs against a Genome
+
+  GenomeOperator*[T] = proc(rng: var Rand; population: HeapQueue[T]; size: int): seq[T] {.nimcall.}
   Operator*[T, V] = proc(evo: var Evolver[T, V]): seq[Program[T]] {.nimcall.}
   OperatorWeight*[T, V] = tuple[operator: Operator[T, V]; weight: float64]
 
   Strength*[V] = proc(value: V): float ##
   ## a function converts program results to a float for sorting purposes
 
-  Evolver*[T, V] = object
-    platform: T
+  LeanEvolver* = object of RootObj
     rng*: Rand                      # we essentially need to expose mutability
-    name*: string                   # for reporting purposes
     grammar: Grammar
-    strength: Strength[V]
-    fitone: FitOne[T, V]
-    fitmany: FitMany[T, V]
-    dataset: seq[SymbolSet[T, V]]
-    core: CoreSpec
     tableau: Tableau
-    population: Population[T]
-    operators: AliasMethod[Operator[T, V]]
+
+    name*: string                   # for reporting purposes
+    core: CoreSpec
     gentime: MovingStat[float32, uint32]
     shorties: MovingStat[float32, uint32]
+    generations: Generation
+    ken: PopMetrics
+
+  HeavyEvolver*[T, V] = object of LeanEvolver
+    operators: AliasMethod[Operator[T, V]]
+
+    fittest: Option[Program[T]]
+
+    platform: T
+    dataset: seq[SymbolSet[T, V]]
+    population: Population[T]
+
+    strength: Strength[V]
     cache: GreadTable[Hash, seq[V]]
     cacheCounter: int
     indexes: GreadSet[int]
-    generations: Generation
-    fittest: Option[Program[T]]
     unnovel: GreadTable[Hash, GreadSet[int]]
-    ken: PopMetrics
     scoreCache: GreadTable[Hash, Option[float]]
+
+  OneEvolver*[T, V] = object of HeavyEvolver[T, V]
+    fitone: FitOne[T, V]
+
+  ManyEvolver*[T, V] = object of OneEvolver[T, V]
+    fitmany: FitMany[T, V]
+
+  Evolver*[T, V] = ManyEvolver[T, V]
+
+  GeneEvolver* = object of LeanEvolver
+    fitgene: FitGene
 
 import frosty/streams as brrr
 
