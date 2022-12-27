@@ -1,7 +1,6 @@
 import std/algorithm
 import std/deques
 import std/hashes
-import std/heapqueue
 import std/math
 import std/options
 import std/packedsets
@@ -13,6 +12,7 @@ import pkg/adix/stat except variance, Option
 import gread/spec
 import gread/programs
 import gread/maths
+import gread/heapqueue
 
 {.experimental: "strictFuncs".}
 
@@ -370,3 +370,8 @@ func clone*[T](population: Population[T]; core = none CoreId): Population[T] =
 
 proc sort*(population: Population; order = SortOrder.Ascending) =
   sort(population.programs, order = order)
+
+proc randomRemoval*[T](q: var HeapQueue[T]; rng: var Rand): T =
+  let index = rng.rand(q.high)
+  result = q[index]
+  q.del(index)
