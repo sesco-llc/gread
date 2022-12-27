@@ -50,9 +50,8 @@ import std/private/since
 type HeapQueue*[T] = object
   ## A heap queue, commonly known as a priority queue.
   data: seq[T]
-  cmp: proc(a, b: T): bool
 
-proc initHeapQueue*[T](cmp: proc(a, b: T): bool; initialSize: Natural = 4): HeapQueue[T] =
+proc initHeapQueue*[T](initialSize: Natural = 4): HeapQueue[T] =
   ## Creates a new empty heap.
   ##
   ## Heaps are initialized by default, so it is not necessary to call
@@ -60,7 +59,6 @@ proc initHeapQueue*[T](cmp: proc(a, b: T): bool; initialSize: Natural = 4): Heap
   ##
   ## **See also:**
   ## * `toHeapQueue proc <#toHeapQueue,openArray[T]>`_
-  result.cmp = cmp
   result.data = newSeqOfCap[T](initialSize)
 
 proc len*[T](heap: HeapQueue[T]): int {.inline.} =
@@ -79,6 +77,7 @@ proc siftup[T](heap: var HeapQueue[T], startpos, p: int) =
   ## `heap` is a heap at all indices >= `startpos`, except possibly for `p`. `p`
   ## is the index of a leaf with a possibly out-of-order value. Restores the
   ## heap invariant.
+  mixin `<`
   var pos = p
   let newitem = heap[pos]
   # Follow the path to the root, moving parents down until finding a place
@@ -86,7 +85,7 @@ proc siftup[T](heap: var HeapQueue[T], startpos, p: int) =
   while pos > startpos:
     let parentpos = (pos - 1) shr 1
     let parent = heap[parentpos]
-    if heap.cmp(newitem, parent):
+    if newitem < parent:
       heap.data[pos] = parent
       pos = parentpos
     else:
@@ -95,6 +94,7 @@ proc siftup[T](heap: var HeapQueue[T], startpos, p: int) =
 
 proc siftdownToBottom[T](heap: var HeapQueue[T], p: int) =
   # This is faster when the element should be close to the bottom.
+  mixin `<`
   let endpos = len(heap)
   var pos = p
   let startpos = pos
@@ -104,7 +104,7 @@ proc siftdownToBottom[T](heap: var HeapQueue[T], p: int) =
   while childpos < endpos:
     # Set childpos to index of smaller child.
     let rightpos = childpos + 1
-    if rightpos < endpos and not heap.cmp(heap[childpos], heap[rightpos]):
+    if rightpos < endpos and not (heap[childpos] < heap[rightpos]):
       childpos = rightpos
     # Move the smaller child up.
     heap.data[pos] = heap[childpos]
@@ -116,15 +116,16 @@ proc siftdownToBottom[T](heap: var HeapQueue[T], p: int) =
   siftup(heap, startpos, pos)
 
 proc siftdown[T](heap: var HeapQueue[T], p: int) =
+  mixin `<`
   let endpos = len(heap)
   var pos = p
   let newitem = heap[pos]
   var childpos = 2 * pos + 1
   while childpos < endpos:
     let rightpos = childpos + 1
-    if rightpos < endpos and not heap.cmp(heap[childpos], heap[rightpos]):
+    if rightpos < endpos and not (heap[childpos] < heap[rightpos]):
       childpos = rightpos
-    if not heap.cmp(heap[childpos], newitem):
+    if not (heap[childpos] < newitem):
       break
     heap.data[pos] = heap[childpos]
     pos = childpos
@@ -223,9 +224,9 @@ proc pushpop*[T](heap: var HeapQueue[T], item: sink T): T =
     assert heap.len == 2
     assert heap[0] == 6
     assert heap.pushpop(4) == 4
-
+  mixin `<`
   result = item
-  if heap.len > 0 and heap.cmp(heap.data[0], result):
+  if heap.len > 0 and heap.data[0] < result:
     swap(result, heap.data[0])
     siftdown(heap, 0)
 
