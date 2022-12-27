@@ -149,7 +149,7 @@ proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
           try:
             o = trampoline o
             work.addLast o.Continuation
-          except Exception as e:
+          except CatchableError as e:
             error fmt"{e.name}: {e.msg}"
             error "dismissing continuation..."
 
