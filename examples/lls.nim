@@ -24,7 +24,7 @@ import pkg/adix/lptabz
 const
   greadSeed {.intdefine.} = 0
   goodEnough = -0.01     # termination condition
-  llsMany {.intdefine.} = 50_000
+  llsMany {.intdefine.} = 100_000
   manyGenerations = llsMany
   statFrequency =
     # report after this many generations
@@ -138,51 +138,48 @@ when isMainModule:
     let et = getTime()
     var fittest: Program[Fennel]
     while true:
-      let transport = pop inputs
-      if transport.isNil:
-        sleep 250
+      let transport = recv inputs
+      case transport.kind
+      of ctControl:
+        case transport.control
+        of ckWorkerQuit:
+          dec workerCount
+          debug fmt"cluster has {workerCount} workers"
+          if workerCount == 0:
+            break
+        #else:
+        #  discard
+      of ctPopulation:
+        # thread shut-down
+        discard
+      of ctProgram:
+        var p = transport.program
+        if not p.isValid:
+          continue
+
+        # sharing
+        if cores > 1:
+          push(outputs, p)
+
+        p.score = Score NaN
+        evo.makeRoom()
+        evo.add p
+        if fittest != get(evo.fittest):
+          fittest = get(evo.fittest)
+          dumpScore fittest
+
+        if fittest.score < goodEnough:
+          continue
+
+        notice fmt"winner, winner, chicken dinner: {fittest.score}"
+        notice fmt"last generation: {fittest.generation} secs: {(getTime() - et).inSeconds}"
+
+        for index in 1..workerCount:
+          debug "shutting down worker " & $index
+          push(inputs, ckWorkerQuit)
+
       else:
-        case transport.kind
-        of ctControl:
-          case transport.control
-          of ckWorkerQuit:
-            dec workerCount
-            debug fmt"cluster has {workerCount} workers"
-            if workerCount == 0:
-              break
-          #else:
-          #  discard
-        of ctPopulation:
-          # thread shut-down
-          discard
-        of ctProgram:
-          var p = transport.program
-          if not p.isValid:
-            continue
-
-          # sharing
-          if cores > 1:
-            push(outputs, p)
-
-          p.score = Score NaN
-          evo.makeRoom()
-          evo.add p
-          if fittest != get(evo.fittest):
-            fittest = get(evo.fittest)
-            dumpScore fittest
-
-          if fittest.score < goodEnough:
-            continue
-
-          notice fmt"winner, winner, chicken dinner: {fittest.score}"
-          notice fmt"last generation: {fittest.generation} secs: {(getTime() - et).inSeconds}"
-
-          for index in 1..workerCount:
-            debug "shutting down worker " & $index
-            push(inputs, ckWorkerQuit)
-
-        else:
-          raise Defect.newException "unsupported transport: " & $transport.kind
+        raise Defect.newException "unsupported transport: " & $transport.kind
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()
