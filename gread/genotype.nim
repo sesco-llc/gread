@@ -40,17 +40,17 @@ proc `[]`*[T, U: Ordinal](genome: Genome; hs: HSlice[T, U]): Genome =
 proc `[]=`*(geno: var Genome; index: int; ch: char) =
   geno.string[index] = ch
 
-proc canRead*[T: Genes](geno: Genome; pc: PC; count = 1): bool =
+proc canRead*[T: Genes](geno: Genome; pc: PC; count = 1): bool {.inline.} =
   ## true if there remain at least `count` genes between the
   ## program counter `pc` and the end of the genome
-  pc.int <= geno.len - (sizeof(T) * count)
+  pc.int <= geno.high - (sizeof(T) * count)
 
 proc read*[T: Genes](geno: Genome; pc: var PC): T
 
-proc read*[T: Genes](geno: Genome; pc: var PC; into: var T) =
+proc read*[T: Genes](geno: Genome; pc: var PC; into: var T) {.inline.} =
   ## read a gene of `T` into `into` from genome `geno` and
   ## advance the program counter `pc`
-  if canRead[T](geno, pc, count = 1):
+  if canRead[T](geno, pc):
     into =
       when T is uint8:
         try:
@@ -64,7 +64,7 @@ proc read*[T: Genes](geno: Genome; pc: var PC; into: var T) =
       else:
         uint64(read[uint32](geno, pc) shl 32) or read[uint32](geno, pc)
   else:
-    raise IndexDefect.newException "ran out of genes"
+    raise IndexDefect.newException "ran out of genes for " & $T
 
 proc read*[T: Genes](geno: Genome; pc: var PC): T =
   ## read a gene of `T` from genome `geno` and
