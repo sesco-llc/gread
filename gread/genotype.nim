@@ -75,7 +75,7 @@ proc randomGenome*(rng: var Rand; size: int): Genome =
   ## using the provided random state,
   ## generate a random genome of the given size
   result = Genome newString(size)
-  for i in result.low ..< result.high:
+  for i in result.low .. result.high:
     result[i] = rng.rand(int char.high).char
 
 converter toString*(geno: Genome): string =
