@@ -131,13 +131,17 @@ when isMainModule:
 
   proc newHeapPopulation[T](gram: Grammar; size: int; core = none CoreId): HeapQueue[T] =
     var fnl = newFennel()
-    var cache: GreadCache[Hash, float]
+    var cache: GreadCache[T, float]
     initGreadCache(cache, size * 10)  # FIXME
 
     proc computeScore(genome: var T): float =
       try:
         var p = πMap[Fennel](gram, genome)
         genome = p.genome  # compacted
+        try:
+          return cache[genome]
+        except KeyError:
+          discard
         var results = newSeqOfCap[float](dataset.len)
         block complete:
           for locals in dataset.items:
@@ -148,27 +152,30 @@ when isMainModule:
               result = -Inf
               break complete
           result = -ss(results)
-      except CatchableError:
+      except ShortGenome:
         result = -Inf
+      except CatchableError as e:
+        echo repr(e)
+        quit 1
       #echo "genome hash ", hash(genome), " is ", result, " on ", getThreadId()
 
     proc score(genome: T): float =
       try:
-        result = cache[hash genome]
+        result = cache[genome]
       except KeyError:
         var g = genome
         result = computeScore g
-        cache[hash g] = result
-        cache[hash genome] = result
+        cache[g] = result
+        cache[genome] = result
 
         # clear the VM periodically
         if fnl.runs mod 500_000 == 0:
           fnl.tidyVM()
 
-    proc worseThan(a, b: T): bool =
+    proc `<`(a, b: T): bool =
       result = a.score < b.score
 
-    result = initHeapQueue[Genome](worseThan, initialSize = size)
+    result = initHeapQueue[Genome](initialSize = size)
 
   proc leanWorker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
     template maxPop: int = args.tableau.maxPopulation
