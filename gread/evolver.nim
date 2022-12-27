@@ -819,9 +819,11 @@ proc introduce*(evo: var Evolver; program: Program) =
 
 proc add*(evo: var Evolver; program: var Program) =
   ## add a program to an evolver, maybe reset fittest program
-  evo.introduce program
   if not program.zombie and not program.score.isValid:
-    discard evo.paintScore(program, inPop=true)
+    discard evo.paintScore(program, inPop=false)
+  evo.introduce program
+  if program.isValid:
+    evo.maybeResetFittest(program)
 
 proc discover*(evo: var Evolver; program: Program) =
   inc evo.ken.inventions
