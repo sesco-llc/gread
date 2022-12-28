@@ -74,8 +74,8 @@ proc `zombie=`*(p: var Program; b: bool) =
     raise Defect.newException "the undead must never live again"
 
 func len*(p: Program): int =
-  ## some objective measurement of the program; ast length
-  p.ast.len
+  ## some objective measurement of the program; genome length
+  p.genome.len
 
 proc render*(p: var Program): string =
   mixin render

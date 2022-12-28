@@ -462,11 +462,9 @@ proc threadName*(core: CoreSpec): string =
   result.add $core
 
 proc dumpScore*(p: FProg) =
-  var s = fmt"{p.score} {p.core}/{p.generation}[{p.len}/{p.genome.len}]: "
+  var s = fmt"{p.score} {p.core}/{p.generation}[{p.genome.len}]: "
   s.add $p
   s.add " <"
-  s.add $hash(p.ast)
-  s.add "/"
   s.add $hash(p.genome)
   s.add ">"
   checkpoint s
