@@ -34,6 +34,7 @@ import gread/grammar
 import gread/tableau
 import gread/decompile
 import gread/audit
+import gread/genotype
 
 export lunacy
 export lrucache

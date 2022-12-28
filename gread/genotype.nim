@@ -1,3 +1,4 @@
+import std/hashes
 import std/random
 
 const
@@ -83,3 +84,9 @@ converter toString*(geno: Genome): string =
 
 converter fromString*(str: string): Genome =
   Genome str
+
+proc hash*(geno: Genome): Hash =
+  hash geno.string
+
+proc `==`*(a, b: Genome): bool =
+  a.string == b.string

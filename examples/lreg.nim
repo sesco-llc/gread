@@ -134,14 +134,9 @@ when isMainModule:
     var cache: GreadCache[T, float]
     initGreadCache(cache, size * 10)  # FIXME
 
-    proc computeScore(genome: var T): float =
+    proc computeScore(genome: T): float =
       try:
         var p = πMap[Fennel](gram, genome)
-        genome = p.genome  # compacted
-        try:
-          return cache[genome]
-        except KeyError:
-          discard
         var results = newSeqOfCap[float](dataset.len)
         block complete:
           for locals in dataset.items:
@@ -163,9 +158,7 @@ when isMainModule:
       try:
         result = cache[genome]
       except KeyError:
-        var g = genome
-        result = computeScore g
-        cache[g] = result
+        result = computeScore genome
         cache[genome] = result
 
         # clear the VM periodically

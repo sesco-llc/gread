@@ -348,10 +348,7 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
 proc πFilling*[T](grammar: Grammar; genome: Genome): tuple[ast: Ast[T]; genome: Genome] {.inline.} =
   {.warning: "work around https://github.com/nim-lang/Nim/issues/19364".}
   let bug = πGE[T](grammar, genome)
-  var genes = newStringOfCap(bug.pc.int+1)
-  genes = string genome[0..bug.pc.int]
-  compact genes
-  result = (ast: bug.ast, genome: Genome genes)
+  result = (ast: bug.ast, genome: genome)
 
 proc πMap*[T](grammar: Grammar; genome: Genome): Program[T] {.inline.} =
   ## map a `genome` to a program using the given `grammar`
