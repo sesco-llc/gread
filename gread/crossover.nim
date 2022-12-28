@@ -23,13 +23,13 @@ proc subtreeCrossover*[T](rng: var Rand; a, b: T): T =
   if a.len == 0 or b.len == 0:
     raise Defect.newException "attempt to crossover empty genome"
   # the second point can exceed the length of a shorter genome
-  let x = rng.rand(0..min(a.high, b.high))
-  let l = rng.rand(x..b.high) + 1
+  let n = rng.rand(0..min(a.high, b.high))
+  let l = rng.rand(n..b.high)
   result =
-    if x == 0:
-      b[x..<l]
+    if n == 0:
+      b[n..l]
     else:
-      a[0..<x] & b[x..<l]
+      a[0..<n] & b[n..l]
   if l <= a.high:
     result.add a[l..a.high]
 
@@ -37,7 +37,7 @@ iterator geCrossover*[T](rng: var Rand; a, b: T): T =
   # ensure the crossover point occurs in mutual coding space
   if a.len == 0 or b.len == 0:
     raise Defect.newException "attempt to crossover empty genome"
-  let n = rng.rand(0..min(a.high, b.high))
+  let n = rng.rand(min(a.high, b.high))
   if n == 0:
     yield a
     yield b
