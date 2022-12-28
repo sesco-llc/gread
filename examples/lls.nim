@@ -176,7 +176,7 @@ when isMainModule:
 
         for index in 1..workerCount:
           debug "shutting down worker " & $index
-          push(inputs, ckWorkerQuit)
+          push(outputs, ckWorkerQuit)
 
       else:
         raise Defect.newException "unsupported transport: " & $transport.kind
