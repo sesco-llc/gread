@@ -464,9 +464,9 @@ proc threadName*(core: CoreSpec): string =
 proc dumpScore*(p: FProg) =
   var s = fmt"{p.score} {p.core}/{p.generation}[{p.len}]: "
   s.add $p
-  s.add " ("
+  s.add " <"
   s.add $hash(p.genome)
-  s.add ")"
+  s.add ">"
   checkpoint s
 
 proc dumpScore*(fnl: Fennel; p: FProg) {.deprecated: "use dumpScore/1".} =
