@@ -173,7 +173,7 @@ proc tidyVM*(fnl: Fennel) =
   when true:
     close fnl.vm
     fnl.vm = newVM()
-    echo fmt"reboot vm in {(getMonoTime() - began).inMilliseconds} ms"
+    #echo fmt"reboot vm in {(getMonoTime() - began).inMilliseconds} ms"
   else:
     fnl.vm.checkLua fnl.vm.gc(GcCollect, 0):
       discard
