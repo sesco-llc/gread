@@ -3,7 +3,6 @@ import std/logging
 import std/math
 import std/options
 import std/os
-import std/osproc
 import std/packedsets
 import std/random
 import std/sets
@@ -17,7 +16,6 @@ import gread/genotype
 import gread/aliasmethod
 import gread/heapqueue
 
-import pkg/sysinfo
 import pkg/cps
 import pkg/lunacy
 import pkg/adix/lptabz
@@ -25,15 +23,13 @@ import pkg/insideout
 
 const
   greadSeed {.intdefine.} = 0
-  goodEnough = -0.01     # termination condition
-  llsMany {.intdefine.} = 100_000
+  goodEnough = -0.10     # termination condition
+  llsMany {.intdefine.} = 200_000
   manyGenerations = llsMany
+  tourney = 0.05
   statFrequency =
     # report after this many generations
-    when defined(useMalloc):
-      10_000
-    else:
-      10_000
+    100_000
   llsGrammar = """
     <start>        ::= <numexpr>
     <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
@@ -56,12 +52,14 @@ initFennelGrammar(gram, llsGrammar)
 
 # you can adjust these weights to change mutation rates
 let operatorWeights = {
-  geCrossover[Genome]:        1.0,
-  geMutation[Genome]:         1.0,
-  subtreeXover[Genome]:       1.0,
-  randomSubtreeXover[Genome]: 1.0,
-  randomCrossover[Genome]:    1.0,
-  geNoise1pt0[Genome]:        1.0,
+  #geCrossover[Genome]:        2.0,
+  #subtreeXover[Genome]:       1.0,
+  #randomSubtreeXover[Genome]: 1.0,
+  #randomCrossover[Genome]:    1.0,
+
+  geNoise1pt0[Genome]:        2.0,
+  geNoise2pt0[Genome]:        4.0,
+  geNoise4pt0[Genome]:        12.0,
 }
 
 const
@@ -99,7 +97,7 @@ proc fitmany(fnl: Fennel; iter: iterator(): (ptr Locals, ptr LuaValue);
 proc add[T](population: var HeapQueue[T]; size: Natural; rng: var Rand; item: sink T) =
   # XXX: nim's capacity(seq) does not work
   while population.len >= size:
-    remove(rng, population, int(population.len.float * 0.03))
+    remove(rng, population, max(1, int(size.float * tourney)))
   population.push(item)
 
 proc add[T](population: var HeapQueue[T]; rng: var Rand; item: sink T) =
@@ -120,11 +118,11 @@ when isMainModule:
   var tab = defaultTableau
   tab -= {UseParsimony}
   tab -= {RequireValid, EqualWeight}
-  tab.seedProgramSize = 400
-  tab.seedPopulation = 400
+  tab.seedProgramSize = 500
+  tab.seedPopulation = 100
   tab.maxPopulation = tab.seedPopulation
-  tab.tournamentSize = int(0.03 * tab.maxPopulation.float)
-  tab.sharingRate = 0.005
+  tab.tournamentSize = int(tab.maxPopulation.float * tourney)
+  tab.sharingRate = 0.0025
   tab.maxGenerations = manyGenerations
 
   proc coop(c: C): C {.cpsMagic.} = c
@@ -165,10 +163,17 @@ when isMainModule:
         if fnl.runs mod 500_000 == 0:
           fnl.tidyVM()
 
-    proc `<`(a, b: T): bool =
-      result = a.score < b.score
+    proc worseThan(a, b: T): bool =
+      let x = a.score
+      let y = b.score
+      if x.isNaN:
+        not y.isNaN
+      elif y.isNaN:
+        false
+      else:
+        x < y
 
-    result = initHeapQueue[Genome](initialSize = size)
+    result = initHeapQueue[Genome](worseThan, initialSize = size)
 
   proc leanWorker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
     template maxPop: int = args.tableau.maxPopulation
@@ -199,8 +204,9 @@ when isMainModule:
       coop() # give other evolvers a chance
 
       inc gen
-      if gen mod args.stats == 0:
-        echo args.core, " ", gen
+      when false:
+        if gen mod args.stats == 0:
+          echo args.core, " ", gen
 
       # messages from other threads
       var transport: ClusterTransport[Fennel, LuaValue]
@@ -220,15 +226,12 @@ when isMainModule:
           let stale = population[rng.rand(population.high)]
           try:
             var program = πMap[Fennel](gram, stale)
-            when true:
-              # do this manually so as to push into inputs
-              program.source = getThreadId()
-              program.core = args.core
-              program.generation = gen
-              push(args.io.output, program)
-            else:
-              # push to outputs
-              args.forceShare program
+            # do this manually so as to push into input
+            program.source = getThreadId()
+            program.core = args.core
+            program.generation = gen
+            var message = ClusterTransport[Fennel, LuaValue](kind: ctProgram, program: program)
+            discard trySend(args.io.input, message)
           except ShortGenome:
             discard
           except CatchableError as e:
@@ -253,30 +256,47 @@ when isMainModule:
 
       when true:
         if finest.isNone or get(finest) != population[population.high]:
-          try:
-            var program = πMap[Fennel](gram, population[population.high])
-            if finest.isNone or program.genome != get finest:
-              finest = some program.genome
-            program.source = getThreadId()
-            program.core = args.core
-            program.generation = gen
-            push(args.io.output, program)
-          except ShortGenome:
-            discard
-          except CatchableError as e:
-            echo repr(e)
-            quit 1
+          if rng.rand(1.0) < args.tableau.sharingRate:
+            try:
+              var program = πMap[Fennel](gram, population[population.high])
+              if finest.isNone or program.genome != get finest:
+                finest = some program.genome
+              program.source = getThreadId()
+              program.core = args.core
+              program.generation = gen
+              push(args.io.output, program)
+            except ShortGenome:
+              discard
+            except CatchableError as e:
+              echo repr(e)
+              quit 1
 
     when false:
       block:
-        let shared = newPopulation[Fennel]()
+        let shared = newPopulation[Fennel](size = population.len)
         while population.len > 0:
           try:
-            shared.add:
-              πMap[Fennel](gram, pop population)
+            var program = πMap[Fennel](gram, pop population)
+            program.source = getThreadId()
+            program.core = args.core
+            program.generation = gen
+            shared.add program
           except CatchableError:
             discard
         push(args.io.output, shared)
+
+    when true:
+      try:
+        var program = πMap[Fennel](gram, population[population.high])
+        program.source = getThreadId()
+        program.core = args.core
+        program.generation = gen
+        push(args.io.output, program)
+      except ShortGenome:
+        discard
+      except CatchableError as e:
+        echo repr(e)
+        quit 1
 
     push(args.io.output, ckWorkerQuit)
 
@@ -299,6 +319,7 @@ when isMainModule:
 
     let et = getTime()
     var fittest: Program[Fennel]
+    var winners = 0
     while true:
       var transport = recv inputs
       case transport.kind
@@ -306,12 +327,22 @@ when isMainModule:
         case transport.control
         of ckWorkerQuit:
           dec workerCount
-          warn fmt"cluster has {workerCount} workers"
+          debug fmt"cluster has {workerCount} workers"
           if workerCount == 0:
             break
       of ctPopulation:
         # thread shut-down
-        discard
+        echo "\nthread shutdown:"
+        var i = 0
+        for program in transport.population.mitems:
+          echo i
+          inc i
+          let s = evo.score program
+          if s.isSome:
+            program.score = toFloat(get s)
+          dumpScore program
+        echo ""
+
       of ctProgram:
         var p = transport.program
         if cores > 1:
@@ -322,22 +353,28 @@ when isMainModule:
         evo.add p
         #dumpScore p
 
-        if fittest != get(evo.fittest):
-          fittest = get(evo.fittest)
-          dumpScore fittest
+        if fittest == get(evo.fittest):
+          continue
+
+        fittest = get(evo.fittest)
+        dumpScore fittest
+        inc winners
 
         if fittest.score < goodEnough:
           continue
 
         notice fmt"winner, winner, chicken dinner: {fittest.score}"
-        notice fmt"last generation: {fittest.generation} secs: {(getTime() - et).inSeconds}"
 
-        for index in 1..workerCount:
-          debug "shutting down worker " & $index
-          push(outputs, ckWorkerQuit)
+        once:
+          for index in 1..workerCount:
+            debug "shutting down worker " & $index
+            push(outputs, ckWorkerQuit)
 
       else:
         raise Defect.newException "unsupported transport: " & $transport.kind
+    let secs = (getTime() - et).inMilliseconds
+    notice fmt"last generation: {fittest.generation} secs: {ff(secs.float / 1000.0)}"
+    notice fmt"number of winners: {winners} ({ff(winners.float / (secs.float / 1000.0))}/sec)"
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()
