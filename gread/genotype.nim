@@ -28,9 +28,7 @@ proc `&`*(a, b: Genome): Genome {.borrow.}
 proc `[]`*[T, U: Ordinal](genome: Genome; hs: HSlice[T, U]): Genome =
   ## essentially a `.borrow.` which works around a nim bug
   let size = hs.b.ord - hs.a.ord
-  if hs.b.ord < hs.a.ord:
-    raise Defect.newException "bad range: " & repr(hs)
-  if size == 0:
+  if size <= 0:
     return EmptyGenome
   when false:
     result = newString(size)
@@ -79,8 +77,8 @@ proc randomGenome*(rng: var Rand; size: int): Genome =
   for i in result.low .. result.high:
     result[i] = rng.rand(int char.high).char
 
-converter toString*(geno: Genome): string =
-  string geno
+#converter toString*(geno: Genome): string =
+#  string geno
 
 converter fromString*(str: string): Genome =
   Genome str
