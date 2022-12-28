@@ -99,7 +99,7 @@ proc fitmany(fnl: Fennel; iter: iterator(): (ptr Locals, ptr LuaValue);
 proc add[T](population: var HeapQueue[T]; size: Natural; rng: var Rand; item: sink T) =
   # XXX: nim's capacity(seq) does not work
   while population.len >= size:
-    discard population.randomRemoval(rng)
+    remove(rng, population, int(population.len.float * 0.03))
   population.push(item)
 
 proc add[T](population: var HeapQueue[T]; rng: var Rand; item: sink T) =

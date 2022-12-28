@@ -713,6 +713,18 @@ proc tournament*[T, V](evo: var Evolver[T, V]; size: int;
   result.valid = result.program.isValid
   result.score = result.program.score
 
+proc tournament*(rng: var Rand; bound: Natural; size: Positive;
+                 order = Descending): int =
+  var size = max(1, min(bound + 1, size))
+  while size > 0:
+    dec size
+    result =
+      case order
+      of Ascending:
+        min(result, rng.rand(bound))
+      of Descending:
+        max(result, rng.rand(bound))
+
 proc tournament*[T](rng: var Rand; population: HeapQueue[T]; size: int;
                     order = Descending): T =
   if population.len < 1:
@@ -721,19 +733,18 @@ proc tournament*[T](rng: var Rand; population: HeapQueue[T]; size: int;
   if size < 1:
     raise ValueError.newException:
       "cannot run a tournament with less than one competitor"
-
-  var size = max(1, min(population.len, size))
-  var index: int
-  let bound = population.high
-  while size > 0:
-    dec size
-    index =
-      case order
-      of Ascending:
-        min(index, rng.rand(bound))
-      of Descending:
-        max(index, rng.rand(bound))
+  let index = tournament(rng, population.high, size, order = order)
   result = population[index]
+
+proc remove*[T](rng: var Rand; population: var HeapQueue[T]; size: int) =
+  if population.len < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with empty population"
+  if size < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with less than one competitor"
+  let index = tournament(rng, population.high, size, order = Ascending)
+  population.del(index)
 
 iterator trim*[T, V](evo: var Evolver[T, V]): Program[T] =
   ## emit the worst programs until the population is
