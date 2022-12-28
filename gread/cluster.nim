@@ -157,7 +157,7 @@ proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
           if dismissed c:
             break
           work.addLast c
-  when defined(useMalloc) and not defined(valgrind):
+  when false and defined(useMalloc) and not defined(valgrind):
     echo fmt"thread exit; {Kute memoryUsed()} of {Kute memoryArena()}"
 
 
