@@ -41,6 +41,32 @@ proc randomCrossover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
     if x.isSome:
       result.add newProgram(x.get.ast, x.get.genome)
 
+proc asymmetricCrossover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
+  ## perform GE crossover with a random genome to form new children
+  template size: int = evo.tableau.tournamentSize
+  let a = tournament(evo, size).program
+  let b = tournament(evo, size).program
+  if a.genome.len == 0 or b.genome.len == 0:
+    raise ValueError.newException:
+      "population contains programs without genomes"
+  for x in asymmetricCrossover[T](evo.rng, evo.grammar, a.genome, b.genome):
+    evo.shortGenome(x.isNone)
+    if x.isSome:
+      result.add newProgram(x.get.ast, x.get.genome)
+
+proc randomAsymmetricCrossover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
+  ## perform GE crossover with a random genome to form new children
+  template size: int = evo.tableau.tournamentSize
+  let a = tournament(evo, size).program
+  if a.genome.len == 0:
+    raise ValueError.newException:
+      "population contains programs without genomes"
+  for x in randomAsymmetricCrossover[T](evo.rng, evo.grammar, a.genome,
+                                        size = evo.tableau.seedProgramSize):
+    evo.shortGenome(x.isNone)
+    if x.isSome:
+      result.add newProgram(x.get.ast, x.get.genome)
+
 proc subtreeXover*[T, V](evo: var Evolver[T, V]): seq[Program[T]] =
   ## perform GE crossover between two parents to form a new child
   template size: int = evo.tableau.tournamentSize
@@ -125,11 +151,25 @@ proc geCrossover*[T](rng: var Rand; population: HeapQueue[T]; size: int): seq[T]
   for genome in geCrossover(rng, a, b):
     result.add genome
 
+proc asymmetricCrossover*[T](rng: var Rand; population: HeapQueue[T]; size: int): seq[T] =
+  ## perform GE crossover between two parents to form new children
+  let a = tournament(rng, population, size)
+  let b = tournament(rng, population, size)
+  for genome in asymmetricCrossover(rng, a, b):
+    result.add genome
+
 proc randomCrossover*[T](rng: var Rand; population: HeapQueue[T]; size: int): seq[T] =
   ## perform GE crossover with a random genome to form new children
   let a = tournament(rng, population, size)
   let b = randomGenome(rng, a.len)
   for genome in geCrossover(rng, a, b):
+    result.add genome
+
+proc randomAsymmetricCrossover*[T](rng: var Rand; population: HeapQueue[T]; size: int): seq[T] =
+  ## perform GE crossover with a random genome to form new children
+  let a = tournament(rng, population, size)
+  let b = randomGenome(rng, a.len)
+  for genome in asymmetricCrossover(rng, a, b):
     result.add genome
 
 proc subtreeXover*[T](rng: var Rand; population: HeapQueue[T]; size: int): seq[T] =

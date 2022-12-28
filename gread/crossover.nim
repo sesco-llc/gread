@@ -34,21 +34,42 @@ proc subtreeCrossover*[T](rng: var Rand; a, b: T): T =
     result.add a[l..a.high]
 
 iterator geCrossover*[T](rng: var Rand; a, b: T): T =
-  # ensure the crossover point occurs in mutual coding space
   if a.len == 0 or b.len == 0:
     raise Defect.newException "attempt to crossover empty genome"
   let n = rng.rand(min(a.high, b.high))
-  if n == 0:
-    yield a
-    yield b
-  else:
+  if n > 0:
     yield a[0..<n] & b[n..b.high]
     yield b[0..<n] & a[n..a.high]
+
+iterator asymmetricCrossover*[T](rng: var Rand; a, b: T): T =
+  if a.len == 0 or b.len == 0:
+    raise Defect.newException "attempt to crossover empty genome"
+  let x = rng.rand(a.high)
+  let y = rng.rand(b.high)
+  let n = a[0..<x] & b[y..b.high]
+  let m = b[0..<y] & a[x..a.high]
+  if n.len > 0:
+    yield n
+  if m.len > 0:
+    yield m
 
 iterator geCrossover*[T](rng: var Rand; gram: Grammar;
                          a, b: Genome): ResultForm[T] =
   ## perform GE crossover between two parents to form a new child
   for r in geCrossover(rng, a, b):
+    yieldInvention[T](gram, r)
+
+iterator asymmetricCrossover*[T](rng: var Rand; gram: Grammar;
+                                 a, b: Genome): ResultForm[T] =
+  ## perform GE crossover between two parents to form a new child
+  for r in asymmetricCrossover(rng, a, b):
+    yieldInvention[T](gram, r)
+
+iterator randomAsymmetricCrossover*[T](rng: var Rand; gram: Grammar;
+                                       a: Genome; size: int): ResultForm[T] =
+  ## perform GE crossover between two parents to form a new child
+  let b = randomGenome(size)
+  for r in asymmetricCrossover(rng, a, b):
     yieldInvention[T](gram, r)
 
 iterator randomSubtreeXover*[T](rng: var Rand; gram: Grammar;
