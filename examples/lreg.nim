@@ -21,24 +21,8 @@ import pkg/lunacy
 import pkg/adix/lptabz
 import pkg/insideout
 
-const
-  greadSeed {.intdefine.} = 0
-  goodEnough = -0.10     # termination condition
-  llsMany {.intdefine.} = 200_000
-  manyGenerations = llsMany
-  tourney = 0.05
-  statFrequency =
-    # report after this many generations
-    100_000
-  llsGrammar = """
-    <start>        ::= <numexpr>
-    <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
-    <numexpr>      ::= <value>
-    <numexpr>      ::= <value>
-    <numbop>       ::= "+" | "*" | "-" | "/"
-    <value>        ::= "1.0" | "0.5" | "0.1" | "2.0"
-    <value>        ::= "x"
-  """
+include preamble
+
 let
   cores =
     when not defined(release) and greadSeed != 0:
@@ -52,14 +36,12 @@ initFennelGrammar(gram, llsGrammar)
 
 # you can adjust these weights to change mutation rates
 let operatorWeights = {
-  #geCrossover[Genome]:        2.0,
-  #subtreeXover[Genome]:       1.0,
-  #randomSubtreeXover[Genome]: 1.0,
-  #randomCrossover[Genome]:    1.0,
+  #asymmetricCrossover[Genome]:        6.0,
+  #randomAsymmetricCrossover[Genome]:        1.0,
 
-  geNoise1pt0[Genome]:        2.0,
-  geNoise2pt0[Genome]:        4.0,
-  geNoise4pt0[Genome]:        12.0,
+  geNoise1pt0[Genome]:        1.0,
+  geNoise2pt0[Genome]:        1.0,
+  geNoise4pt0[Genome]:        1.0,
 }
 
 const
@@ -97,12 +79,12 @@ proc fitmany(fnl: Fennel; iter: iterator(): (ptr Locals, ptr LuaValue);
 proc add[T](population: var HeapQueue[T]; size: Natural; rng: var Rand; item: sink T) =
   # XXX: nim's capacity(seq) does not work
   while population.len >= size:
-    remove(rng, population, max(1, int(size.float * tourney)))
+    remove(rng, population, max(1, tab.tournamentSize))
   population.push(item)
 
 proc add[T](population: var HeapQueue[T]; rng: var Rand; item: sink T) =
   # XXX: nim's capacity(seq) does not work
-  population.add(population.len, rng, item)
+  population.add(tab.maxPopulation, rng, item)
 
 when isMainModule:
   import pkg/cutelog
@@ -113,17 +95,6 @@ when isMainModule:
                          levelThreshold = parseEnum[logging.Level](logLevel))
 
   randomize()
-
-  # define the parameters for the evolvers
-  var tab = defaultTableau
-  tab -= {UseParsimony}
-  tab -= {RequireValid, EqualWeight}
-  tab.seedProgramSize = 500
-  tab.seedPopulation = 100
-  tab.maxPopulation = tab.seedPopulation
-  tab.tournamentSize = int(tab.maxPopulation.float * tourney)
-  tab.sharingRate = 0.0025
-  tab.maxGenerations = manyGenerations
 
   proc coop(c: C): C {.cpsMagic.} = c
 
@@ -351,7 +322,6 @@ when isMainModule:
         p.score = Score NaN
         evo.makeRoom()
         evo.add p
-        #dumpScore p
 
         if fittest == get(evo.fittest):
           continue
@@ -405,5 +375,7 @@ when isMainModule:
     voluntary context switches: {process.voluntaryContextSwitches}""".fmt
   echo """
   involuntary context switches: {process.involuntaryContextSwitches}""".fmt
+  echo """
+                process memory: {Kute process.maxResidentBytes} ({processors} threads)""".fmt
   echo """
                    memory used: {Kute memoryUsed()} of {Kute memoryArena()}""".fmt

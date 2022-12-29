@@ -19,28 +19,9 @@ import gread/fennel except variance
 import pkg/sysinfo
 import pkg/cps
 import pkg/lunacy
-import pkg/adix/lptabz
 
-const
-  greadSeed {.intdefine.} = 0
-  goodEnough = -0.01     # termination condition
-  llsMany {.intdefine.} = 100_000
-  manyGenerations = llsMany
-  statFrequency =
-    # report after this many generations
-    when defined(useMalloc):
-      10_000
-    else:
-      10_000
-  llsGrammar = """
-    <start>        ::= <numexpr>
-    <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
-    <numexpr>      ::= <value>
-    <numexpr>      ::= <value>
-    <numbop>       ::= "+" | "*" | "-" | "/"
-    <value>        ::= "1.0" | "0.5" | "0.1" | "2.0"
-    <value>        ::= "x"
-  """
+include preamble
+
 let
   cores =
     when not defined(release) and greadSeed != 0:
@@ -54,12 +35,16 @@ initFennelGrammar(gram, llsGrammar)
 
 # you can adjust these weights to change mutation rates
 let operators = {
-  geCrossover[Fennel, LuaValue]:        1.0,
-  geMutation[Fennel, LuaValue]:         1.0,
-  subtreeXover[Fennel, LuaValue]:       1.0,
-  randomSubtreeXover[Fennel, LuaValue]: 1.0,
-  randomCrossover[Fennel, LuaValue]:    1.0,
+  #geCrossover[Fennel, LuaValue]:        1.0,
+  #geMutation[Fennel, LuaValue]:         1.0,
+  #subtreeXover[Fennel, LuaValue]:       1.0,
+  #randomSubtreeXover[Fennel, LuaValue]: 1.0,
+  #randomCrossover[Fennel, LuaValue]:    1.0,
+  #asymmetricCrossover[Fennel, LuaValue]:        6.0,
+  #randomAsymmetricCrossover[Genome]:        1.0,
   geNoise1pt0[Fennel, LuaValue]:        1.0,
+  geNoise2pt0[Fennel, LuaValue]:        1.0,
+  geNoise4pt0[Fennel, LuaValue]:        1.0,
 }
 
 const
@@ -106,17 +91,6 @@ when isMainModule:
 
   randomize()
 
-  # define the parameters for the evolvers
-  var tab = defaultTableau
-  tab -= {UseParsimony}
-  tab -= {RequireValid, EqualWeight}
-  tab.seedProgramSize = 400
-  tab.seedPopulation = 400
-  tab.maxPopulation = tab.seedPopulation
-  tab.tournamentSize = int(0.03 * tab.maxPopulation.float)
-  tab.sharingRate = 0.005
-  tab.maxGenerations = manyGenerations
-
   # the main loop monitors inventions
   proc main(work: Work; inputs, outputs: TransportQ[Fennel, LuaValue]) =
     # create a population to monitor new inventions
@@ -137,6 +111,7 @@ when isMainModule:
 
     let et = getTime()
     var fittest: Program[Fennel]
+    var winners = 0
     while true:
       let transport = recv inputs
       case transport.kind
@@ -147,8 +122,6 @@ when isMainModule:
           debug fmt"cluster has {workerCount} workers"
           if workerCount == 0:
             break
-        #else:
-        #  discard
       of ctPopulation:
         # thread shut-down
         discard
@@ -164,22 +137,29 @@ when isMainModule:
         p.score = Score NaN
         evo.makeRoom()
         evo.add p
-        if fittest != get(evo.fittest):
-          fittest = get(evo.fittest)
-          dumpScore fittest
+
+        if fittest == get(evo.fittest):
+          continue
+
+        fittest = get(evo.fittest)
+        dumpScore fittest
+        inc winners
 
         if fittest.score < goodEnough:
           continue
 
         notice fmt"winner, winner, chicken dinner: {fittest.score}"
-        notice fmt"last generation: {fittest.generation} secs: {(getTime() - et).inSeconds}"
 
-        for index in 1..workerCount:
-          debug "shutting down worker " & $index
-          push(outputs, ckWorkerQuit)
+        once:
+          for index in 1..workerCount:
+            debug "shutting down worker " & $index
+            push(outputs, ckWorkerQuit)
 
       else:
         raise Defect.newException "unsupported transport: " & $transport.kind
+    let secs = (getTime() - et).inMilliseconds
+    notice fmt"last generation: {fittest.generation} secs: {(getTime() - et).inSeconds}"
+    notice fmt"number of winners: {winners} ({ff(winners.float / (secs.float / 1000.0))}/sec)"
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()
