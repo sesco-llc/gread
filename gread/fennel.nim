@@ -679,20 +679,19 @@ when compileOption"threads":
       coop() # give other evolvers a chance
 
       # messages from other threads
-      block:
-        var transport = pop args.io.input
-        if not transport.isNil:
-          case transport.kind
-          of ctControl:
-            case transport.control
-            of ckWorkerQuit:
-              info "terminating on request"
-              break
-            #else:
-            #  warn "ignoring control: " & $transport.control
-          else:
-            for program in programs(transport):
-              evo.introduce program
+      var transport = pop args.io.input
+      if not transport.isNil:
+        case transport.kind
+        of ctControl:
+          case transport.control
+          of ckWorkerQuit:
+            info "terminating on request"
+            break
+          #else:
+          #  warn "ignoring control: " & $transport.control
+        else:
+          for program in programs(transport):
+            evo.introduce program
 
       let stale = randomMember(evo.population, evo.rng)
       share(args, stale.program)
