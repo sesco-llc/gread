@@ -18,7 +18,7 @@ iterator geMutation*[T](rng: var Rand; a: T): T =
   if a.len == 0:
     raise Defect.newException "received empty input genome"
   var g = a
-  g.string[rng.rand(g.high)] = rng.rand(int char.high).char
+  g[rng.rand(g.high)] = rng.rand(int char.high).char
   yield g
 
 iterator geMutation*[T](rng: var Rand; gram: Grammar;
