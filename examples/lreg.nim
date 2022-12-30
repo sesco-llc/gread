@@ -36,6 +36,7 @@ initFennelGrammar(gram, llsGrammar)
 
 # you can adjust these weights to change mutation rates
 let operatorWeights = {
+  geCrossover[Genome]:        1.0,
   #asymmetricCrossover[Genome]:        6.0,
   #randomAsymmetricCrossover[Genome]:        1.0,
 
@@ -175,7 +176,7 @@ when isMainModule:
       coop() # give other evolvers a chance
 
       inc gen
-      when false:
+      when true:
         if gen mod args.stats == 0:
           echo args.core, " ", gen
 
@@ -316,8 +317,8 @@ when isMainModule:
 
       of ctProgram:
         var p = transport.program
-        if cores > 1:
-          push(outputs, p)
+        #if cores > 1:
+        #  push(outputs, p)
 
         p.score = Score NaN
         evo.makeRoom()

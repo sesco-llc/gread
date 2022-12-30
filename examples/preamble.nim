@@ -1,8 +1,8 @@
 
 const
   greadSeed {.intdefine.} = 0
-  goodEnough = -0.10     # termination condition
-  llsMany {.intdefine.} = 200_000
+  goodEnough = -0.10000     # termination condition
+  llsMany {.intdefine.} = 1_000_000
   manyGenerations = llsMany
   statFrequency = 10_000
   llsGrammar = """
@@ -14,15 +14,15 @@ const
     <value>        ::= "1.0" | "0.5" | "0.1" | "2.0"
     <value>        ::= "x"
   """
-  tourney = 0.04
+  tourney = 0.03
 
 # define the parameters for the evolvers
 var tab = defaultTableau
 tab -= {UseParsimony}
 tab -= {RequireValid, EqualWeight}
-tab.seedProgramSize = 400
-tab.seedPopulation = 1000
+tab.seedProgramSize = 300
+tab.seedPopulation = 300
 tab.maxPopulation = tab.seedPopulation
 tab.tournamentSize = int(tourney * tab.maxPopulation.float)
-tab.sharingRate = 0.0025
+tab.sharingRate = 0.00005
 tab.maxGenerations = manyGenerations

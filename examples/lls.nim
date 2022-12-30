@@ -35,7 +35,7 @@ initFennelGrammar(gram, llsGrammar)
 
 # you can adjust these weights to change mutation rates
 let operators = {
-  #geCrossover[Fennel, LuaValue]:        1.0,
+  geCrossover[Fennel, LuaValue]:        1.0,
   #geMutation[Fennel, LuaValue]:         1.0,
   #subtreeXover[Fennel, LuaValue]:       1.0,
   #randomSubtreeXover[Fennel, LuaValue]: 1.0,
@@ -127,12 +127,8 @@ when isMainModule:
         discard
       of ctProgram:
         var p = transport.program
-        if not p.isValid:
-          continue
-
-        # sharing
-        if cores > 1:
-          push(outputs, p)
+        #if cores > 1:
+        #  push(outputs, p)
 
         p.score = Score NaN
         evo.makeRoom()
