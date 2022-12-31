@@ -84,9 +84,9 @@ proc unpackGenomeToProgram[T](gram: Grammar; geno: Genome): Program[T] =
 
 proc load*(r: var Redis; key: ScoredGenomeMapName): Option[Genome] =
   ## attempt to load a random program from the sorted set
-  let genes: string = r.zrandmember($key)
+  let genes = r.zrandmember($key)
   if genes.len > 0:
-    result = some genes.Genome
+    result = some genes.fromString
 
 proc load*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName): Option[Program[T]] =
   ## try to fetch a random program from the redis sorted set

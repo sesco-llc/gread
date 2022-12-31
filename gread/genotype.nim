@@ -80,7 +80,7 @@ proc randomGenome*(rng: var Rand; size: int): Genome =
 #converter toString*(geno: Genome): string =
 #  string geno
 
-converter fromString*(str: string): Genome =
+proc fromString*(str: string): Genome =
   Genome str
 
 proc hash*(geno: Genome): Hash =
