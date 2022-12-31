@@ -87,6 +87,28 @@ proc add[T](population: var HeapQueue[T]; rng: var Rand; item: sink T) =
   # XXX: nim's capacity(seq) does not work
   population.add(tab.maxPopulation, rng, item)
 
+proc computeScore[T](fnl: Fennel; genome: T): float =
+  var results: array[data.len, float]
+  try:
+    var p = πMap[Fennel](gram, genome)
+    #var results = newSeq[float](dataset.len)
+    block complete:
+      for index, locals in dataset.pairs:
+        let s = evaluate(fnl, p, locals)
+        if s.isValid:
+          results[index] = -abs(data[index][1].float - s.toFloat)
+        else:
+          result = -Inf
+          break complete
+      result = -ss(results)
+      if result.isNaN:
+        result = -Inf
+  except ShortGenome:
+    result = -Inf
+  except CatchableError as e:
+    echo repr(e)
+    quit 1
+
 when isMainModule:
   import pkg/cutelog
 
@@ -104,31 +126,11 @@ when isMainModule:
     var cache: GreadCache[T, float]
     initGreadCache(cache, size * 10)  # FIXME
 
-    proc computeScore(genome: T): float =
-      try:
-        var p = πMap[Fennel](gram, genome)
-        var results = newSeqOfCap[float](dataset.len)
-        block complete:
-          for locals in dataset.items:
-            let s = evaluate(fnl, p, locals)
-            if s.isValid:
-              results.add -abs(locals["y"].toFloat - s.toFloat)
-            else:
-              result = -Inf
-              break complete
-          result = -ss(results)
-      except ShortGenome:
-        result = -Inf
-      except CatchableError as e:
-        echo repr(e)
-        quit 1
-      #echo "genome hash ", hash(genome), " is ", result, " on ", getThreadId()
-
     proc score(genome: T): float =
       try:
         result = cache[genome]
       except KeyError:
-        result = computeScore genome
+        result = computeScore(fnl, genome)
         cache[genome] = result
 
         # clear the VM periodically
@@ -138,12 +140,7 @@ when isMainModule:
     proc worseThan(a, b: T): bool =
       let x = a.score
       let y = b.score
-      if x.isNaN:
-        not y.isNaN
-      elif y.isNaN:
-        false
-      else:
-        x < y
+      x < y
 
     result = initHeapQueue[Genome](worseThan, initialSize = size)
 
@@ -180,35 +177,52 @@ when isMainModule:
         if gen mod args.stats == 0:
           echo args.core, " ", gen
 
-      # messages from other threads
-      var transport: ClusterTransport[Fennel, LuaValue]
-      if tryRecv(args.io.input, transport):
-        case transport.kind
-        of ctControl:
-          case transport.control
-          of ckWorkerQuit:
-            info "terminating on request"
-            break
+      if rng.rand(1.0) < args.tableau.sharingRate:
+        if rng.rand(1.0) < 0.51:
+          when true:
+            var transport: ClusterTransport[Fennel, LuaValue]
+            if tryRecv(args.io.input, transport):
+              case transport.kind
+              of ctControl:
+                case transport.control
+                of ckWorkerQuit:
+                  info "terminating on request"
+                  break
+              else:
+                for program in programs(transport):
+                  population.add(maxPop, rng, program.genome)
         else:
-          for program in programs(transport):
-            population.add(maxPop, rng, program.genome)
+          when true:
+            let stale = population[rng.rand(population.high)]
+            try:
+              var program = πMap[Fennel](gram, stale)
+              program.source = getThreadId()
+              program.core = args.core
+              program.generation = gen
+              var message = ClusterTransport[Fennel, LuaValue](kind: ctProgram, program: program)
+              discard trySend(args.io.input, message)
+            except ShortGenome:
+              discard
+            except CatchableError as e:
+              echo repr(e)
+              quit 1
 
-      when true:
-        if rng.rand(1.0) < args.tableau.sharingRate:
-          let stale = population[rng.rand(population.high)]
-          try:
-            var program = πMap[Fennel](gram, stale)
-            # do this manually so as to push into input
-            program.source = getThreadId()
-            program.core = args.core
-            program.generation = gen
-            var message = ClusterTransport[Fennel, LuaValue](kind: ctProgram, program: program)
-            discard trySend(args.io.input, message)
-          except ShortGenome:
-            discard
-          except CatchableError as e:
-            echo repr(e)
-            quit 1
+          when true:
+            if finest.isNone or get(finest) != population[population.high]:
+              try:
+                var program = πMap[Fennel](gram, population[population.high])
+                if finest.isNone or program.genome != get finest:
+                  finest = some program.genome
+                program.source = getThreadId()
+                program.core = args.core
+                program.generation = gen
+                warn $program
+                push(args.io.output, program)
+              except ShortGenome:
+                discard
+              except CatchableError as e:
+                echo repr(e)
+                quit 1
 
       # lean generational loop
       while true:
@@ -225,23 +239,6 @@ when isMainModule:
         except CatchableError as e:
           echo repr(e)
           quit 1
-
-      when true:
-        if finest.isNone or get(finest) != population[population.high]:
-          if rng.rand(1.0) < args.tableau.sharingRate:
-            try:
-              var program = πMap[Fennel](gram, population[population.high])
-              if finest.isNone or program.genome != get finest:
-                finest = some program.genome
-              program.source = getThreadId()
-              program.core = args.core
-              program.generation = gen
-              push(args.io.output, program)
-            except ShortGenome:
-              discard
-            except CatchableError as e:
-              echo repr(e)
-              quit 1
 
     when false:
       block:
@@ -345,7 +342,7 @@ when isMainModule:
         raise Defect.newException "unsupported transport: " & $transport.kind
     let secs = (getTime() - et).inMilliseconds
     notice fmt"last generation: {fittest.generation} secs: {ff(secs.float / 1000.0)}"
-    notice fmt"number of winners: {winners} ({ff(winners.float / (secs.float / 1000.0))}/sec)"
+    #notice fmt"number of winners: {winners} ({ff(winners.float / (secs.float / 1000.0))}/sec)"
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()

@@ -2,7 +2,7 @@
 const
   greadSeed {.intdefine.} = 0
   goodEnough = -0.10000     # termination condition
-  llsMany {.intdefine.} = 1_000_000
+  llsMany {.intdefine.} = 100_000
   manyGenerations = llsMany
   statFrequency = 10_000
   llsGrammar = """
@@ -24,5 +24,5 @@ tab.seedProgramSize = 300
 tab.seedPopulation = 300
 tab.maxPopulation = tab.seedPopulation
 tab.tournamentSize = int(tourney * tab.maxPopulation.float)
-tab.sharingRate = 0.00005
+tab.sharingRate = 0.004
 tab.maxGenerations = manyGenerations

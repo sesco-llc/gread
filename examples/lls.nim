@@ -155,7 +155,7 @@ when isMainModule:
         raise Defect.newException "unsupported transport: " & $transport.kind
     let secs = (getTime() - et).inMilliseconds
     notice fmt"last generation: {fittest.generation} secs: {(getTime() - et).inSeconds}"
-    notice fmt"number of winners: {winners} ({ff(winners.float / (secs.float / 1000.0))}/sec)"
+    #notice fmt"number of winners: {winners} ({ff(winners.float / (secs.float / 1000.0))}/sec)"
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()
