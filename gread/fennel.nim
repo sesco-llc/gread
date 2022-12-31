@@ -678,31 +678,32 @@ when compileOption"threads":
     while evo.generation <= evo.tableau.maxGenerations:
       coop() # give other evolvers a chance
 
-      # messages from other threads
-      var transport = pop args.io.input
-      if not transport.isNil:
-        case transport.kind
-        of ctControl:
-          case transport.control
-          of ckWorkerQuit:
-            info "terminating on request"
-            break
-          #else:
-          #  warn "ignoring control: " & $transport.control
+      if evo.rng.rand(1.0) < args.tableau.sharingRate:
+        if evo.rng.rand(1.0) < 0.51:
+          when true:
+            # messages from other threads
+            var transport = pop args.io.input
+            if not transport.isNil:
+              case transport.kind
+              of ctControl:
+                case transport.control
+                of ckWorkerQuit:
+                  info "terminating on request"
+                  break
+              else:
+                for program in programs(transport):
+                  evo.introduce program
         else:
-          for program in programs(transport):
-            evo.introduce program
+          let stale = randomMember(evo.population, evo.rng)
+          share(args, stale.program)
 
-      let stale = randomMember(evo.population, evo.rng)
-      share(args, stale.program)
-
-      # share any new winner
-      if evo.fittest.isSome:
-        if finest.isNone or get(finest) != get(evo.fittest):
-          finest = evo.fittest
-          # NOTE: clone the finest so that we don't have to
-          #       worry about the reference counter across threads
-          forceShare(args, get(finest))
+          # share any new winner
+          if evo.fittest.isSome:
+            if finest.isNone or get(finest) != get(evo.fittest):
+              finest = evo.fittest
+              # NOTE: clone the finest so that we don't have to
+              #       worry about the reference counter across threads
+              forceShare(args, get(finest))
 
       for discovery in evo.generation():
         discard
