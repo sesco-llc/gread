@@ -181,17 +181,6 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
       if component.kind == ckRule:
         nts.insert(chose + n, index)            # insert for ordering reasons
 
-    if not canRead[uint16](geno, i, 2):         # if we're out of genome,
-      # XXX: wrapping is impl via a hack atm
-      if false:                                 # and wrapping is enabled,
-        result.pc = i                           # record the consumed genome,
-        i = default PC                          # & wrap the program counter,
-      else:                                     # otherwise,
-        break                                   # stop mapping
-
-  if nts.len > 0:
-    raise ShortGenome.newException "insufficient genome"
-
   # set the coded portion of the genome
   result.pc = i
 
