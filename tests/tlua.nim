@@ -96,7 +96,7 @@ suite "basic lua stuff":
     checkpoint $p
     check $p == "return a + b"
     # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
-    var locals = initLocals:
+    var locals = initSymbolSet[Lua, LuaValue]:
       {
         "a": 3.toLuaValue,
         "b": 5.toLuaValue,
@@ -118,7 +118,7 @@ suite "basic lua stuff":
       checkpoint "genome length: ", p.genome.len
       let (pc1, ast1) = πGE[Lua](gram, p.genome)
       check $p == $newProgram(ast1, p.genome[0..<pc1.int])
-      var locals = initLocals:
+      var locals = initSymbolSet[Lua, LuaValue]:
         {
           "a": 3.toLuaValue,
           "b": 5.toLuaValue,
@@ -134,4 +134,4 @@ suite "basic lua stuff":
           break alright
         except ShortGenome:
           discard
-      assert false, "your genes are too short"
+      check false, "your genes are too short"
