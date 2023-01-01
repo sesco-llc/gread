@@ -383,7 +383,7 @@ proc scoreFromCache[T, V](evo: var Evolver[T, V]; p: var Program[T]): Option[V] 
     demandValid result
   except UnfitError:
     result = none V
-  except Exception:
+  except CatchableError:
     error p
     writeStackTrace()
     raise
@@ -467,7 +467,7 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr GreadSet[int];
       demandValid result
     except UnfitError:
       result = none V
-    except Exception as e:
+    except CatchableError as e:
       echo $e.name & ": " & e.msg
       writeStackTrace()
       raise
