@@ -99,7 +99,12 @@ proc recv*[T, V](tq: TransportQ[T, V]): ClusterTransport[T, V] {.deprecated.} =
   result = insideout.recv tq
 
 proc push*[T, V](tq: TransportQ[T, V]; control: ControlKind;
-                 argument: JsonNode = newJNull()) =
+                 argument: JsonNode = nil) =
+  let argument =
+    if argument.isNil:
+      newJNull()
+    else:
+      argument
   ## convenience for pushing into a transport queue
   tq.push ClusterTransport[T, V](kind: ctControl,
                                  control: control, argument: argument)
