@@ -42,7 +42,7 @@ proc `[]=`*(geno: var Genome; index: int; ch: char) =
 proc canRead*[T: Genes](geno: Genome; pc: PC; count = 1): bool {.inline.} =
   ## true if there remain at least `count` genes between the
   ## program counter `pc` and the end of the genome
-  pc.int <= geno.high - (sizeof(T) * count)
+  pc.int <= geno.len - (sizeof(T) * count)
 
 proc read*[T: Genes](geno: Genome; pc: var PC): T
 
