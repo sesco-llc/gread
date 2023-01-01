@@ -3,7 +3,6 @@ import std/logging
 import std/math
 import std/options
 import std/os
-import std/packedsets
 import std/random
 import std/sets
 import std/strformat
@@ -18,7 +17,6 @@ import gread/heapqueue
 
 import pkg/cps
 import pkg/lunacy
-import pkg/adix/lptabz
 import pkg/insideout
 
 include preamble
