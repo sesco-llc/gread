@@ -143,17 +143,17 @@ proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
     while true:
       var c: Continuation
       if work.len == 0:
-        c = queue.recv()
+        c = recv queue
         if dismissed c:
           break
         work.addLast c
       else:
         # trampoline that tolerates errors and coops
-        var o: Continuation = work.popFirst()
-        if o.running:
+        var c = popFirst work
+        if running c:
           try:
-            o = trampoline o
-            work.addLast o.Continuation
+            work.addLast:
+              trampoline(move c)
           except CatchableError as e:
             error fmt"{e.name}: {e.msg}"
             error "dismissing continuation..."
@@ -186,7 +186,7 @@ for core in 0..<processors:
     pinToCpu(runtime, core)
   threads.add runtime
 
-proc sendToCore(c: Continuation; core: Natural) =
+proc sendToCore(c: sink Continuation; core: Natural) =
   shelf[core mod shelf.len].send c
 
 proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
@@ -292,12 +292,12 @@ proc initWork*[T, V](cluster: Cluster[T, V]): Work[T, V] =
   ## instantiate a new Work object which is already redress(ed)
   cluster.redress result
 
-proc boot*[T, V](cluster: Cluster[T, V]; worker: C; core: CoreSpec) =
+proc boot*[T, V](cluster: Cluster[T, V]; worker: sink C; core: CoreSpec) =
   ## boot a cluster with a worker continuation
   sendToCore(worker, get core)
   cluster.cores.incl(get core)
 
-proc boot*[T, V](cluster: Cluster[T, V]; worker: C) =
+proc boot*[T, V](cluster: Cluster[T, V]; worker: sink C) =
   ## boot a cluster with a worker continuation
   let core = nextCore()
   sendToCore(worker, core)
