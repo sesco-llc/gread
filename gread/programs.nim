@@ -79,7 +79,7 @@ func len*(p: Program): int =
 
 proc render*(p: var Program): string =
   mixin render
-  if Rendered in p.flags:
+  if Rendered in p.flags or p.code.isSome:
     result = get p.code
   else:
     result = render p.ast
@@ -88,14 +88,14 @@ proc render*(p: var Program): string =
 
 proc `$`*(p: var Program): string =
   ## renders the program as source code if possible; else raw ast
-  if Rendered in p.flags:
+  if Rendered in p.flags or p.code.isSome:
     get p.code
   else:
     render p
 
 proc `$`*(p: Program): string =
   ## renders the program as source code if possible; else raw ast
-  if Rendered in p.flags:
+  if Rendered in p.flags or p.code.isSome:
     result = get p.code
   else:
     raise Defect.newException "program has not been rendered"
