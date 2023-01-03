@@ -52,7 +52,6 @@ type
     nans*: FennelStat
     errors*: FennelStat
     runtime*: FennelStat
-    aslua: GreadCache[Hash, string]
   Fennel* = ref FennelObj
 
   FennelStat* = MovingStat[float32, uint32]
@@ -189,7 +188,6 @@ proc clearStats*(fnl: Fennel) =
 proc newFennel*(core = none int): Fennel =
   ## reset a Fennel instance and prepare it for running programs
   result = Fennel(vm: newVM(), core: core)
-  initGreadCache(result.aslua, initialSize=greadLuaCacheSize)
 
 proc fun*(s: string; arity = 0; args = arity..int.high): Fun =
   Fun(ident: s, arity: max(arity, args.a), args: args)
@@ -352,14 +350,6 @@ proc compileFennel(vm: PState; source: string): string =
 proc compileFennel*(fnl: Fennel; source: string): string =
   compileFennel(fnl.vm, source)
 
-proc toLua(fnl: Fennel; index: Hash; source: string): string =
-  if index in fnl.aslua:
-    result = fnl.aslua[index]
-  else:
-    inc fnl.runs
-    result = compileFennel(fnl.vm, source)
-    fnl.aslua[index] = result
-
 proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
   ## evaluate the string as lua and pop the stack for the result
   for point in locals.items:
@@ -507,7 +497,6 @@ proc getStats*(evo: Evolver; evoTime: Time): string =
                thread and core: {m.core.threadName} -- {evo.name}
                   dataset size: {evo.dataset.len}
           virtual machine runs: {fnl.runs} (never reset)
-         lua compilation cache: {fnl.aslua.len}
             average vm runtime: {fnl.runtime.mean / 1_000_000.0:>8.4f} ms
          total population size: {m.size}
           validity rate in pop: {m.validity.mean.percent} <= 100%
@@ -1016,7 +1005,3 @@ proc decompiler*[T: Fennel, G: LuaValue](d: var T; tableau: Tableau; gram: Gramm
 proc del*[T: Fennel, V: LuaValue](evo: var Evolver[T, V]; p: Program[T]) =
   ## remove a program from the evolver; currently used to drop cache entries
   evolver.del(evo, p)
-  try:
-    del(evo.platform.aslua, p.hash)
-  except KeyError:
-    discard
