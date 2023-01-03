@@ -99,7 +99,12 @@ proc recv*[T, V](tq: TransportQ[T, V]): ClusterTransport[T, V] {.deprecated.} =
   result = insideout.recv tq
 
 proc push*[T, V](tq: TransportQ[T, V]; control: ControlKind;
-                 argument: JsonNode = newJNull()) =
+                 argument: JsonNode = nil) =
+  let argument =
+    if argument.isNil:
+      newJNull()
+    else:
+      argument
   ## convenience for pushing into a transport queue
   tq.push ClusterTransport[T, V](kind: ctControl,
                                  control: control, argument: argument)
@@ -138,18 +143,18 @@ proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
     while true:
       var c: Continuation
       if work.len == 0:
-        c = queue.recv()
+        c = recv queue
         if dismissed c:
           break
         work.addLast c
       else:
         # trampoline that tolerates errors and coops
-        var o: Continuation = work.popFirst()
-        if o.running:
+        var c = popFirst work
+        if running c:
           try:
-            o = trampoline o
-            work.addLast o.Continuation
-          except Exception as e:
+            work.addLast:
+              trampoline(move c)
+          except CatchableError as e:
             error fmt"{e.name}: {e.msg}"
             error "dismissing continuation..."
 
@@ -157,7 +162,7 @@ proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
           if dismissed c:
             break
           work.addLast c
-  when defined(useMalloc) and not defined(valgrind):
+  when false and defined(useMalloc) and not defined(valgrind):
     echo fmt"thread exit; {Kute memoryUsed()} of {Kute memoryArena()}"
 
 
@@ -181,7 +186,7 @@ for core in 0..<processors:
     pinToCpu(runtime, core)
   threads.add runtime
 
-proc sendToCore(c: Continuation; core: Natural) =
+proc sendToCore(c: sink Continuation; core: Natural) =
   shelf[core mod shelf.len].send c
 
 proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
@@ -287,12 +292,12 @@ proc initWork*[T, V](cluster: Cluster[T, V]): Work[T, V] =
   ## instantiate a new Work object which is already redress(ed)
   cluster.redress result
 
-proc boot*[T, V](cluster: Cluster[T, V]; worker: C; core: CoreSpec) =
+proc boot*[T, V](cluster: Cluster[T, V]; worker: sink C; core: CoreSpec) =
   ## boot a cluster with a worker continuation
   sendToCore(worker, get core)
   cluster.cores.incl(get core)
 
-proc boot*[T, V](cluster: Cluster[T, V]; worker: C) =
+proc boot*[T, V](cluster: Cluster[T, V]; worker: sink C) =
   ## boot a cluster with a worker continuation
   let core = nextCore()
   sendToCore(worker, core)
@@ -306,7 +311,7 @@ when false:
 
 proc newTransportQ*[T, V](): TransportQ[T, V] =
   ## create a new transport queue for messaging between threads
-  newMailbox[ClusterTransport[T, V]](32768)
+  newMailbox[ClusterTransport[T, V]](1024)
 
 proc newCluster*[T, V](name = ""): Cluster[T, V] =
   ## create a new cluster

@@ -1,3 +1,4 @@
+import std/hashes
 import std/random
 
 const
@@ -27,9 +28,7 @@ proc `&`*(a, b: Genome): Genome {.borrow.}
 proc `[]`*[T, U: Ordinal](genome: Genome; hs: HSlice[T, U]): Genome =
   ## essentially a `.borrow.` which works around a nim bug
   let size = hs.b.ord - hs.a.ord
-  if hs.b.ord < hs.a.ord:
-    raise Defect.newException "bad range: " & repr(hs)
-  if size == 0:
+  if size <= 0:
     return EmptyGenome
   when false:
     result = newString(size)
@@ -40,17 +39,17 @@ proc `[]`*[T, U: Ordinal](genome: Genome; hs: HSlice[T, U]): Genome =
 proc `[]=`*(geno: var Genome; index: int; ch: char) =
   geno.string[index] = ch
 
-proc canRead*[T: Genes](geno: Genome; pc: PC; count = 1): bool =
+proc canRead*[T: Genes](geno: Genome; pc: PC; count = 1): bool {.inline.} =
   ## true if there remain at least `count` genes between the
   ## program counter `pc` and the end of the genome
   pc.int <= geno.len - (sizeof(T) * count)
 
 proc read*[T: Genes](geno: Genome; pc: var PC): T
 
-proc read*[T: Genes](geno: Genome; pc: var PC; into: var T) =
+proc read*[T: Genes](geno: Genome; pc: var PC; into: var T) {.inline.} =
   ## read a gene of `T` into `into` from genome `geno` and
   ## advance the program counter `pc`
-  if canRead[T](geno, pc, count = 1):
+  if canRead[T](geno, pc):
     into =
       when T is uint8:
         try:
@@ -64,7 +63,7 @@ proc read*[T: Genes](geno: Genome; pc: var PC; into: var T) =
       else:
         uint64(read[uint32](geno, pc) shl 32) or read[uint32](geno, pc)
   else:
-    raise IndexDefect.newException "ran out of genes"
+    raise IndexDefect.newException "ran out of genes for " & $T
 
 proc read*[T: Genes](geno: Genome; pc: var PC): T =
   ## read a gene of `T` from genome `geno` and
@@ -75,11 +74,17 @@ proc randomGenome*(rng: var Rand; size: int): Genome =
   ## using the provided random state,
   ## generate a random genome of the given size
   result = Genome newString(size)
-  for i in result.low ..< result.high:
+  for i in result.low .. result.high:
     result[i] = rng.rand(int char.high).char
 
-converter toString*(geno: Genome): string =
-  string geno
+#converter toString*(geno: Genome): string =
+#  string geno
 
-converter fromString*(str: string): Genome =
+proc fromString*(str: string): Genome =
   Genome str
+
+proc hash*(geno: Genome): Hash =
+  hash geno.string
+
+proc `==`*(a, b: Genome): bool =
+  a.string == b.string

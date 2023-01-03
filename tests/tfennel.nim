@@ -13,7 +13,7 @@ import gread/fennel
 
 const
   #expectedMapping = "(if (> 2.0 b ) 2.0 (- 0.0 a ) )"
-  expectedMapping = "( if ( or ( not= 0.0 2.0 ) ( not= 1.0 1.0 ) ) 0.0 0.5 )"
+  expectedMapping = "( if ( or ( not= 0.0 2.0 ) ( not= 0.0 1.0 ) ) 0.0 0.5 )"
   badSeed = 47059
   fennelGrammar = """
     <start>        ::= <expr>
@@ -77,7 +77,7 @@ suite "basic fennel stuff":
     checkpoint $p
     check $p == program
     # [("a", 3.toLuaValue), ("b", 5.toLuaValue)]
-    var locals = initLocals:
+    var locals = initSymbolSet[Fennel, LuaValue]:
       {
         "a": 3.toLuaValue,
         "b": 5.toLuaValue,
@@ -99,7 +99,7 @@ suite "basic fennel stuff":
     checkpoint "genome length: ", p.genome.len
     let (pc1, ast1) = πGE[Fennel](gram, p.genome)
     check $p == $newProgram(ast1, p.genome[0..<pc1.int])
-    var locals = initLocals:
+    var locals = initSymbolSet[Fennel, LuaValue]:
       {
         "a": 3.toLuaValue,
         "b": 5.toLuaValue,

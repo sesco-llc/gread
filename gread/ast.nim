@@ -391,14 +391,14 @@ proc insert*[T](a: Ast[T]; index: int; values: Ast[T];
       copyAst[T](result.nodes[index+values.len], a.nodes[index],
                  (a.len - index))
     # adjust the nearest/correct parent if possible
-    block:
+    block parentage:
       var parent = parent
       if parent == -1:
         let p = a.parentOf min(index, a.high)
         if p.isSome:
           parent = get p
         else:
-          break
+          break parentage
       inc result.nodes[parent].operand, countAsChildren(values.nodes)
 
     # finally, reset the literal identities for the insertion

@@ -415,13 +415,23 @@ proc toAst[T: Lua](node: TsLuaNode; s: string): Ast[T] =
   else:
     raise Defect.newException "unimplemented node: " & $node.kind
 
+proc parseLuaString(str: string): TsLuaNode =
+  let parser = newTsLuaParser()
+  try:
+    result = parseString(parser, str)
+  finally:
+    tsParserDelete parser.PtsParser
+
 proc newLuaProgram*(s: string): Program[Lua] =
   ## working around cps `()` operator shenanigans
-  let tree = parseTsLuaString s
-  if tree.kind != luaProgram:
-    raise ValueError.newException "expected a program; got " & $tree.kind
-  else:
-    result = newProgram toAst[Lua](tree, s)
+  let node = parseLuaString s
+  try:
+    if node.kind != luaProgram:
+      raise ValueError.newException "expected a program; got " & $node.kind
+    else:
+      result = newProgram toAst[Lua](node, s)
+  finally:
+    tsTreeDelete node.TSNode.tree
 
 proc parseToken*[T: Lua](s: string): LuaNodeKind =
   case s

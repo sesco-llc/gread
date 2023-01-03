@@ -67,18 +67,6 @@ or if you're still using Nimble like it's 2012,
 $ nimble install https://github.com/sesco-llc/gread
 ```
 
-## Threads
-
-Gread supports threads and you _really_ want to exploit this because it can
-produce _massive_ speed-ups in evolution. However, there's a problem: Nim's
-shared heap and reference counting conspire to crash programs built against
-mainline version-1-6 and devel branches.
-
-You'll need the atomic reference counting implementation
-in `lib/system/atomics.nim` and `lib/system.nim` from
-https://github.com/nim-works/nimskull/pull/88 in order to exploit threading
-under Gread without undefined behavior leading to crashes or memory corruption.
-
 ## Usage
 
 Check out the [examples](examples/); the `average` example does not use threads
@@ -91,8 +79,7 @@ Note the following required compilation switches:
 
 - `--define:danger` (because otherwise it's debugging)
 - `--define:useMalloc` (due to bugs in the Nim allocator)
-- `--threads:on` (to evolve disparate populations across CPU cores)
-- `--gc:arc` or `--gc:orc` (because we use CPS and Loony)
+- `--gc:arc` or `--gc:orc` (because we use CPS)
 - `--panics:on` (because we use CPS)
 - `--define:lunacyLuaJIT` (enables use of luajit)
 
@@ -285,15 +272,13 @@ reported.
 ### defines
 
 - `greadPin` pin each thread to a core
-- `greadFast` use partial evaluation of dataset for faster evolution
-- `greadHoeffding` set the degree of precision for above; `N` means `1/N`
+- `greadCores` special desired maximum thread count
 - `greadDebug` might enable some debugging here and there
 - `greadProfile` profiles some interesting parts of the system
-- `greadWrapping` enables wrapping of the genome during mapping _(not fully implemented yet)_
 
 ## Documentation
 
-[A little light so far, sorry. Still experimenting with how best to structure the implementation.](https://sesco-llc.github.io/gread/gread.html)
+Nim's documentation generator does not work, but the code *is* documented.
 
 ## License
 GPLv3

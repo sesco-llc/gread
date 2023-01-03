@@ -122,6 +122,9 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
   if gram.isNil:
     raise Defect.newException "unable to map genome with nil grammar"
 
+  if geno.len == 0:
+    raise Defect.newException "supplied genome is empty"
+
   var nts: seq[int]                             # indices of unresolved nodes
   nts.add 0                                     # prime them with the head node
   result.ast.nodes.add:
@@ -131,6 +134,9 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
   var i: PC                                     # start at the genotype's head
   var order, codon: uint16
   while nts.len > 0:
+    if not canRead[uint16](geno, i, 2):           # if we're out of genome,
+      raise ShortGenome.newException "insufficient genome"
+
     geno.read(i, order)                         # read the order codon
     geno.read(i, codon)                         # read the content codon
 
@@ -158,7 +164,7 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
     let content = codon mod options.len.uint16  # choose content index
     let rule = options[int content]             # select the content production
     let rhs = toAst[T](gram, rule)              # convert rule to nodes
-    doAssert rule.len == rhs.len, "not yet supported"
+    assert rule.len == rhs.len, "not yet supported"
 
     # we can now perform the substitution in the ast at the `chose`n index
     result.ast = result.ast.replace(chose, rhs) # add the nodes to the ast
@@ -175,20 +181,8 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
       if component.kind == ckRule:
         nts.insert(chose + n, index)            # insert for ordering reasons
 
-    if not canRead[uint16](geno, i, 2):         # if we're out of genome,
-      # XXX: wrapping is impl via a hack atm
-      if false:                                 # and wrapping is enabled,
-        result.pc = i                           # record the consumed genome,
-        i = default PC                          # & wrap the program counter,
-      else:                                     # otherwise,
-        break                                   # stop mapping
-
-  if nts.len > 0:
-    raise ShortGenome.newException "insufficient genome"
-
-  # if we didn't set the coded portion of the genome, set it now
-  if result.pc == default PC:
-    result.pc = i
+  # set the coded portion of the genome
+  result.pc = i
 
 proc toTerminal(s: string): Terminal =
   ## turn a string into a Terminal
@@ -343,10 +337,7 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
 proc πFilling*[T](grammar: Grammar; genome: Genome): tuple[ast: Ast[T]; genome: Genome] {.inline.} =
   {.warning: "work around https://github.com/nim-lang/Nim/issues/19364".}
   let bug = πGE[T](grammar, genome)
-  var genes = newStringOfCap(bug.pc.int)
-  genes = string genome[0..<bug.pc.int]
-  compact genes
-  result = (ast: bug.ast, genome: Genome genes)
+  result = (ast: bug.ast, genome: genome)
 
 proc πMap*[T](grammar: Grammar; genome: Genome): Program[T] {.inline.} =
   ## map a `genome` to a program using the given `grammar`

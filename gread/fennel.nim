@@ -34,6 +34,7 @@ import gread/grammar
 import gread/tableau
 import gread/decompile
 import gread/audit
+import gread/genotype
 
 export lunacy
 export lrucache
@@ -167,31 +168,28 @@ proc newVM(): PState =
   result = newState()
   setupVM result
 
-proc clearStats*(fnl: Fennel) =
-  ## reset the MovingStat values in the Fennel object
-  clear fnl.nans
-  clear fnl.errors
-  clear fnl.runtime
+proc tidyVM*(fnl: Fennel) =
   let began = getMonoTime()
   when true:
     close fnl.vm
     fnl.vm = newVM()
-    echo fmt"reboot vm in {(getMonoTime() - began).inMilliseconds} ms"
+    #echo fmt"reboot vm in {(getMonoTime() - began).inMilliseconds} ms"
   else:
     fnl.vm.checkLua fnl.vm.gc(GcCollect, 0):
       discard
     echo fmt"gccollect in {(getMonoTime() - began).inMilliseconds} ms"
 
+proc clearStats*(fnl: Fennel) =
+  ## reset the MovingStat values in the Fennel object
+  clear fnl.nans
+  clear fnl.errors
+  clear fnl.runtime
+  fnl.tidyVM()
+
 proc newFennel*(core = none int): Fennel =
   ## reset a Fennel instance and prepare it for running programs
   result = Fennel(vm: newVM(), core: core)
   initGreadCache(result.aslua, initialSize=greadLuaCacheSize)
-  clearStats result
-
-proc clearCache*(fnl: Fennel) {.deprecated.} =
-  ## clear the execution cache of the Fennel instance;
-  ## caching has been entirely lifted into the Evolver
-  discard
 
 proc fun*(s: string; arity = 0; args = arity..int.high): Fun =
   Fun(ident: s, arity: max(arity, args.a), args: args)
@@ -333,9 +331,9 @@ proc `$`*(program: FProg): string =
 
 proc compileFennel(vm: PState; source: string): string =
   vm.pushGlobal("result", term false)
-  let fennel = """
-    result = fennel.compileString([==[$#]==], {compilerEnv=_G})
-  """ % [ source ]
+  let fennel = fmt"""
+    result = fennel.compileString([==[{source}]==], {{compilerEnv=_G}})
+  """
   let code: cstring = fennel
   try:
     vm.checkLua vm.doString code:
@@ -351,6 +349,9 @@ proc compileFennel(vm: PState; source: string): string =
     writeStackTrace()
     raise
 
+proc compileFennel*(fnl: Fennel; source: string): string =
+  compileFennel(fnl.vm, source)
+
 proc toLua(fnl: Fennel; index: Hash; source: string): string =
   if index in fnl.aslua:
     result = fnl.aslua[index]
@@ -360,27 +361,25 @@ proc toLua(fnl: Fennel; index: Hash; source: string): string =
     fnl.aslua[index] = result
 
 proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
-  ## compile and evaluate the program as fennel; the result of
-  ## the expression is assigned to the variable `result`.
-  memoryAudit "evaluateLua all-in":
-    for point in locals.items:
-      discard vm.push point.value
-      vm.setGlobal point.name.cstring
-    try:
-      vm.checkLua loadString(vm, s.cstring):
-        vm.checkLua pcall(vm, 0, MultRet, 0):
-          result = popStack vm
-    except LuaError as e:
-      when greadSemanticErrorsAreFatal:
-        error e.name, ": ", e.msg
-        writeStackTrace()
-        raise
-    except Exception as e:
+  ## evaluate the string as lua and pop the stack for the result
+  for point in locals.items:
+    discard vm.push point.value
+    vm.setGlobal point.name.cstring
+  try:
+    vm.checkLua loadString(vm, s.cstring):
+      vm.checkLua pcall(vm, 0, MultRet, 0):
+        result = popStack vm
+  except LuaError as e:
+    when greadSemanticErrorsAreFatal:
       error e.name, ": ", e.msg
       writeStackTrace()
       raise
+  except Exception as e:
+    error e.name, ": ", e.msg
+    writeStackTrace()
+    raise
 
-proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
+proc evaluate(vm: PState; s: string; locals: Locals): LuaStack {.deprecated.} =
   ## compile and evaluate the program as fennel; the result of
   ## the expression is assigned to the variable `result`.
   vm.pushGlobal("result", term 0.0)
@@ -404,46 +403,40 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
     writeStackTrace()
     raise
 
-proc evaluate*(fnl: Fennel; p: var FProg; locals: Locals): LuaValue =
-  mixin render
-  # prepare to run the vm
-  memoryAudit "evaluate fennel all-in":
-    result = LuaValue(kind: TInvalid)
-    inc fnl.runs
-    try:
-      # pass the program and the training inputs
-      memoryAudit "evaluate fennel zone":
-        block:
-          when defined(greadNoFennelCache):
-            let began = getMonoTime()
-            let stack = evaluate(fnl.vm, $p, locals)
-            fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
-          else:
-            var source: string
-            source = fnl.toLua(hash p, render p)
-            let began = getMonoTime()
-            let stack = evaluateLua(fnl.vm, source, locals)
-            fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
-          fnl.errors.push 0.0
-          # score a resultant value if one was produced
-          if not stack.isNil:
-            result = stack.value
-    except LuaError as e:
-      when greadSemanticErrorsAreFatal:
-        debugEcho $p
-        debugEcho e.msg
-        quit 1
-      else:
-        discard e
-      fnl.errors.push 1.0
+proc evaluateLua*(fnl: Fennel; code: string; locals: Locals): LuaValue =
+  result = LuaValue(kind: TInvalid)
+  inc fnl.runs
+  if fnl.runs mod 50_000 == 0:
+    fnl.tidyVM()
+  try:
+    # pass the program and the training inputs
+    let began = getMonoTime()
+    let stack = evaluateLua(fnl.vm, code, locals)
+    fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
+    fnl.errors.push 0.0
+    # score a resultant value if one was produced
+    if not stack.isNil:
+      result = stack.value
+  except LuaError as e:
+    when greadSemanticErrorsAreFatal:
+      debugEcho e.msg
+      quit 1
+    else:
+      discard e
+    fnl.errors.push 1.0
 
-    # any failure to produce a scorable value
-    fnl.nans.push:
-      if result.isValid:
-        0.0
-      else:
-        p.zombie = true
-        1.0
+  # any failure to produce a scorable value
+  fnl.nans.push:
+    if result.isValid:
+      0.0
+    else:
+      1.0
+
+proc evaluate*(fnl: Fennel; p: var FProg; locals: Locals): LuaValue =
+  var code = compileFennel(fnl.vm, $p)
+  result = evaluateLua(fnl, code, locals)
+  if result.kind == TInvalid:
+    p.zombie = true
 
 proc injectLocals*(p: FProg; locals: Locals): string =
   result = "(let ["
@@ -464,8 +457,11 @@ proc threadName*(core: CoreSpec): string =
   result.add $core
 
 proc dumpScore*(p: FProg) =
-  var s = fmt"{p.score} {p.core}/{p.generation}[{p.len}]: "
+  var s = fmt"{p.score} {p.core}/{p.generation}[{p.genome.len}]: "
   s.add $p
+  s.add " <"
+  s.add $hash(p.genome)
+  s.add ">"
   checkpoint s
 
 proc dumpScore*(fnl: Fennel; p: FProg) {.deprecated: "use dumpScore/1".} =
@@ -677,32 +673,32 @@ when compileOption"threads":
     while evo.generation <= evo.tableau.maxGenerations:
       coop() # give other evolvers a chance
 
-      # messages from other threads
-      block:
-        var transport = pop args.io.input
-        if not transport.isNil:
-          case transport.kind
-          of ctControl:
-            case transport.control
-            of ckWorkerQuit:
-              info "terminating on request"
-              break
-            #else:
-            #  warn "ignoring control: " & $transport.control
-          else:
-            for program in programs(transport):
-              evo.introduce program
+      if evo.rng.rand(1.0) < args.tableau.sharingRate:
+        if evo.rng.rand(1.0) < 0.51:
+          when true:
+            # messages from other threads
+            var transport = pop args.io.input
+            if not transport.isNil:
+              case transport.kind
+              of ctControl:
+                case transport.control
+                of ckWorkerQuit:
+                  info "terminating on request"
+                  break
+              else:
+                for program in programs(transport):
+                  evo.introduce program
+        else:
+          let stale = randomMember(evo.population, evo.rng)
+          share(args, stale.program)
 
-      let stale = randomMember(evo.population, evo.rng)
-      share(args, stale.program)
-
-      # share any new winner
-      if evo.fittest.isSome:
-        if finest.isNone or get(finest) != get(evo.fittest):
-          finest = evo.fittest
-          # NOTE: clone the finest so that we don't have to
-          #       worry about the reference counter across threads
-          forceShare(args, get(finest))
+          # share any new winner
+          if evo.fittest.isSome:
+            if finest.isNone or get(finest) != get(evo.fittest):
+              finest = evo.fittest
+              # NOTE: clone the finest so that we don't have to
+              #       worry about the reference counter across threads
+              forceShare(args, get(finest))
 
       for discovery in evo.generation():
         discard

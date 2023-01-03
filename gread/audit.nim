@@ -1,15 +1,14 @@
 import std/strutils
 import std/os
 
-proc cap*(s: string): int {.inline.} =
+proc cap(s: string): int =
   {.emit: ["if(s.p != 0) result = s.p->cap;"].}
-  #doAssert result == s.capacity
 
 proc size*(s: string): int {.inline.} =
   s.cap + 1 + sizeof(int)
 
 proc compact*(s: var string) {.inline.} =
-  if s.cap != s.len:
+  if s.capacity != s.len:
     var x = newStringOfCap s.len
     x.add s
     s = x

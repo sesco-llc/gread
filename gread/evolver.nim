@@ -23,6 +23,8 @@ import gread/tableau
 import gread/grammar
 import gread/maths
 import gread/tournament
+import gread/genotype
+import gread/heapqueue
 
 const
   greadHoeffding* {.intdefine.} = 20
@@ -38,35 +40,51 @@ type
                         p: Program[T]): Option[V] ##
   ## a fitness function that runs against a series of symbolsets
 
+  FitGenome*[T] = proc(g: T): float ##
+  ## a fitness function that runs against a Genome-like thing
+
+  GenomeOperator*[T] = proc(rng: var Rand; population: HeapQueue[T]; size: int): seq[T] {.nimcall.}
   Operator*[T, V] = proc(evo: var Evolver[T, V]): seq[Program[T]] {.nimcall.}
   OperatorWeight*[T, V] = tuple[operator: Operator[T, V]; weight: float64]
 
   Strength*[V] = proc(value: V): float ##
   ## a function converts program results to a float for sorting purposes
 
-  Evolver*[T, V] = object
-    platform: T
+  LeanEvolver* = object of RootObj
     rng*: Rand                      # we essentially need to expose mutability
-    name*: string                   # for reporting purposes
     grammar: Grammar
-    strength: Strength[V]
-    fitone: FitOne[T, V]
-    fitmany: FitMany[T, V]
-    dataset: seq[SymbolSet[T, V]]
-    core: CoreSpec
     tableau: Tableau
-    population: Population[T]
-    operators: AliasMethod[Operator[T, V]]
+
+    name*: string                   # for reporting purposes
+    core: CoreSpec
     gentime: MovingStat[float32, uint32]
     shorties: MovingStat[float32, uint32]
+    generations: Generation
+    ken: PopMetrics
+
+  HeavyEvolver*[T, V] = object of LeanEvolver
+    operators: AliasMethod[Operator[T, V]]
+
+    fittest: Option[Program[T]]
+
+    platform: T
+    dataset: seq[SymbolSet[T, V]]
+    population: Population[T]
+
+    strength: Strength[V]
     cache: GreadTable[Hash, seq[V]]
     cacheCounter: int
     indexes: GreadSet[int]
-    generations: Generation
-    fittest: Option[Program[T]]
     unnovel: GreadTable[Hash, GreadSet[int]]
-    ken: PopMetrics
     scoreCache: GreadTable[Hash, Option[float]]
+
+  OneEvolver*[T, V] = object of HeavyEvolver[T, V]
+    fitone: FitOne[T, V]
+
+  ManyEvolver*[T, V] = object of OneEvolver[T, V]
+    fitmany: FitMany[T, V]
+
+  Evolver*[T, V] = ManyEvolver[T, V]
 
 import frosty/streams as brrr
 
@@ -362,7 +380,7 @@ proc scoreFromCache[T, V](evo: var Evolver[T, V]; p: var Program[T]): Option[V] 
     demandValid result
   except UnfitError:
     result = none V
-  except Exception:
+  except CatchableError:
     error p
     writeStackTrace()
     raise
@@ -446,7 +464,7 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr GreadSet[int];
       demandValid result
     except UnfitError:
       result = none V
-    except Exception as e:
+    except CatchableError as e:
       echo $e.name & ": " & e.msg
       writeStackTrace()
       raise
@@ -692,6 +710,39 @@ proc tournament*[T, V](evo: var Evolver[T, V]; size: int;
   result.valid = result.program.isValid
   result.score = result.program.score
 
+proc tournament*(rng: var Rand; bound: Natural; size: Positive;
+                 order = Descending): int =
+  var size = max(1, min(bound + 1, size))
+  while size > 0:
+    dec size
+    result =
+      case order
+      of Ascending:
+        min(result, rng.rand(bound))
+      of Descending:
+        max(result, rng.rand(bound))
+
+proc tournament*[T](rng: var Rand; population: HeapQueue[T]; size: int;
+                    order = Descending): T =
+  if population.len < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with empty population"
+  if size < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with less than one competitor"
+  let index = tournament(rng, population.high, size, order = order)
+  result = population[index]
+
+proc remove*[T](rng: var Rand; population: var HeapQueue[T]; size: int) =
+  if population.len < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with empty population"
+  if size < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with less than one competitor"
+  let index = tournament(rng, population.high, size, order = Ascending)
+  population.del(index)
+
 iterator trim*[T, V](evo: var Evolver[T, V]): Program[T] =
   ## emit the worst programs until the population is
   ## within the maximum defined by the tableau
@@ -796,9 +847,11 @@ proc introduce*(evo: var Evolver; program: Program) =
 
 proc add*(evo: var Evolver; program: var Program) =
   ## add a program to an evolver, maybe reset fittest program
-  evo.introduce program
   if not program.zombie and not program.score.isValid:
-    discard evo.paintScore(program, inPop=true)
+    discard evo.paintScore(program, inPop=false)
+  evo.introduce program
+  if program.isValid:
+    evo.maybeResetFittest(program)
 
 proc discover*(evo: var Evolver; program: Program) =
   inc evo.ken.inventions
