@@ -69,27 +69,27 @@ jobs:
           nimble --accept install "https://github.com/disruptek/balls"
           balls --path="\$projectdir" --define:release --define:danger --mm:arc --backend:c --define:useMalloc
 
-      - name: Build docs
-        if: ${{ matrix.docs }} == 'true'
-        shell: bash
-        run: |
-          cd project
-          branch=${{ github.ref }}
-          branch=${branch##*/}
-          nimble doc --gc:arc --threads:on --project --path="." --outdir:docs \
-            '--git.url:https://github.com/${{ github.repository }}' \
-            '--git.commit:${{ github.sha }}' \
-            "--git.devel:$branch" \
-            gread.nim
-          # Ignore failures for older Nim
-          cp docs/{the,}index.html || true
+      # - name: Build docs
+      #   if: ${{ matrix.docs }} == 'true'
+      #   shell: bash
+      #   run: |
+      #     cd project
+      #     branch=${{ github.ref }}
+      #     branch=${branch##*/}
+      #     nimble doc --gc:arc --threads:on --project --path="." --outdir:docs \
+      #       '--git.url:https://github.com/${{ github.repository }}' \
+      #       '--git.commit:${{ github.sha }}' \
+      #       "--git.devel:$branch" \
+      #       gread.nim
+      #     # Ignore failures for older Nim
+      #     cp docs/{the,}index.html || true
 
-      - name: Publish docs
-        if: >
-          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-          matrix.os == 'ubuntu-latest' && matrix.nim == 'version-2-0'
-        uses: crazy-max/ghaction-github-pages@v1
-        with:
-          build_dir: project/docs
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Publish docs
+      #   if: >
+      #     github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      #     matrix.os == 'ubuntu-latest' && matrix.nim == 'version-2-0'
+      #   uses: crazy-max/ghaction-github-pages@v1
+      #   with:
+      #     build_dir: project/docs
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
