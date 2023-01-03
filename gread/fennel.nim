@@ -349,6 +349,9 @@ proc compileFennel(vm: PState; source: string): string =
     writeStackTrace()
     raise
 
+proc compileFennel*(fnl: Fennel; source: string): string =
+  compileFennel(fnl.vm, source)
+
 proc toLua(fnl: Fennel; index: Hash; source: string): string =
   if index in fnl.aslua:
     result = fnl.aslua[index]
@@ -358,27 +361,25 @@ proc toLua(fnl: Fennel; index: Hash; source: string): string =
     fnl.aslua[index] = result
 
 proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
-  ## compile and evaluate the program as fennel; the result of
-  ## the expression is assigned to the variable `result`.
-  memoryAudit "evaluateLua all-in":
-    for point in locals.items:
-      discard vm.push point.value
-      vm.setGlobal point.name.cstring
-    try:
-      vm.checkLua loadString(vm, s.cstring):
-        vm.checkLua pcall(vm, 0, MultRet, 0):
-          result = popStack vm
-    except LuaError as e:
-      when greadSemanticErrorsAreFatal:
-        error e.name, ": ", e.msg
-        writeStackTrace()
-        raise
-    except Exception as e:
+  ## evaluate the string as lua and pop the stack for the result
+  for point in locals.items:
+    discard vm.push point.value
+    vm.setGlobal point.name.cstring
+  try:
+    vm.checkLua loadString(vm, s.cstring):
+      vm.checkLua pcall(vm, 0, MultRet, 0):
+        result = popStack vm
+  except LuaError as e:
+    when greadSemanticErrorsAreFatal:
       error e.name, ": ", e.msg
       writeStackTrace()
       raise
+  except Exception as e:
+    error e.name, ": ", e.msg
+    writeStackTrace()
+    raise
 
-proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
+proc evaluate(vm: PState; s: string; locals: Locals): LuaStack {.deprecated.} =
   ## compile and evaluate the program as fennel; the result of
   ## the expression is assigned to the variable `result`.
   vm.pushGlobal("result", term 0.0)
@@ -402,46 +403,40 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
     writeStackTrace()
     raise
 
-proc evaluate*(fnl: Fennel; p: var FProg; locals: Locals): LuaValue =
-  mixin render
-  # prepare to run the vm
-  memoryAudit "evaluate fennel all-in":
-    result = LuaValue(kind: TInvalid)
-    inc fnl.runs
-    try:
-      # pass the program and the training inputs
-      memoryAudit "evaluate fennel zone":
-        block:
-          when defined(greadNoFennelCache):
-            let began = getMonoTime()
-            let stack = evaluate(fnl.vm, $p, locals)
-            fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
-          else:
-            var source: string
-            source = fnl.toLua(hash p, render p)
-            let began = getMonoTime()
-            let stack = evaluateLua(fnl.vm, source, locals)
-            fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
-          fnl.errors.push 0.0
-          # score a resultant value if one was produced
-          if not stack.isNil:
-            result = stack.value
-    except LuaError as e:
-      when greadSemanticErrorsAreFatal:
-        debugEcho $p
-        debugEcho e.msg
-        quit 1
-      else:
-        discard e
-      fnl.errors.push 1.0
+proc evaluateLua*(fnl: Fennel; code: string; locals: Locals): LuaValue =
+  result = LuaValue(kind: TInvalid)
+  inc fnl.runs
+  if fnl.runs mod 50_000 == 0:
+    fnl.tidyVM()
+  try:
+    # pass the program and the training inputs
+    let began = getMonoTime()
+    let stack = evaluateLua(fnl.vm, code, locals)
+    fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
+    fnl.errors.push 0.0
+    # score a resultant value if one was produced
+    if not stack.isNil:
+      result = stack.value
+  except LuaError as e:
+    when greadSemanticErrorsAreFatal:
+      debugEcho e.msg
+      quit 1
+    else:
+      discard e
+    fnl.errors.push 1.0
 
-    # any failure to produce a scorable value
-    fnl.nans.push:
-      if result.isValid:
-        0.0
-      else:
-        p.zombie = true
-        1.0
+  # any failure to produce a scorable value
+  fnl.nans.push:
+    if result.isValid:
+      0.0
+    else:
+      1.0
+
+proc evaluate*(fnl: Fennel; p: var FProg; locals: Locals): LuaValue =
+  var code = compileFennel(fnl.vm, $p)
+  result = evaluateLua(fnl, code, locals)
+  if result.kind == TInvalid:
+    p.zombie = true
 
 proc injectLocals*(p: FProg; locals: Locals): string =
   result = "(let ["
