@@ -40,8 +40,8 @@ type
                         p: Program[T]): Option[V] ##
   ## a fitness function that runs against a series of symbolsets
 
-  FitGene* = proc(g: Genome): float ##
-  ## a fitness function that runs against a Genome
+  FitGenome*[T] = proc(g: T): float ##
+  ## a fitness function that runs against a Genome-like thing
 
   GenomeOperator*[T] = proc(rng: var Rand; population: HeapQueue[T]; size: int): seq[T] {.nimcall.}
   Operator*[T, V] = proc(evo: var Evolver[T, V]): seq[Program[T]] {.nimcall.}
@@ -85,9 +85,6 @@ type
     fitmany: FitMany[T, V]
 
   Evolver*[T, V] = ManyEvolver[T, V]
-
-  GeneEvolver* = object of LeanEvolver
-    fitgene: FitGene
 
 import frosty/streams as brrr
 
