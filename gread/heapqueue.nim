@@ -63,6 +63,10 @@ proc initHeapQueue*[T](cmp: proc(a, b: T): bool; initialSize: Natural = 4): Heap
   result.cmp = cmp
   result.data = newSeqOfCap[T](initialSize)
 
+proc initHeapQueue*[T](initialSize: Natural = 4): HeapQueue[T] =
+  mixin `<`
+  initHeapQueue[T](`<`, initialSize = initialSize)
+
 proc len*[T](heap: HeapQueue[T]): int {.inline.} =
   ## Returns the number of elements of `heap`.
   runnableExamples:
