@@ -85,18 +85,37 @@ proc add[T](population: var HeapQueue[T]; rng: var Rand; item: sink T) =
   # XXX: nim's capacity(seq) does not work
   population.add(tab.maxPopulation, rng, item)
 
-proc computeScore[T](fnl: Fennel; genome: T): float =
+type
+  CacheNode = object
+    score: float
+    code: string
+
+#
+# we'll close over these threadvars to simplify impl
+#
+var cache {.threadVar.}: Table[Genome, CacheNode]
+var fnl {.threadVar.}: Fennel
+
+proc computeScore(genome: Genome): float =
+  mixin render
+  var source: string
   var results: array[data.len, float]
   try:
     var p = πMap[Fennel](gram, genome)
+    source =
+      if genome in cache:
+        cache[genome].code
+      else:
+        compileFennel(fnl, render p)
     #var results = newSeq[float](dataset.len)
     block complete:
       for index, locals in dataset.pairs:
-        let s = evaluate(fnl, p, locals)
+        let s = evaluateLua(fnl, source, locals)
         if s.isValid:
           results[index] = -abs(data[index][1].float - s.toFloat)
         else:
           result = -Inf
+          # might set zombie here if it'd help
           break complete
       result = -ss(results)
       if result.isNaN:
@@ -106,6 +125,19 @@ proc computeScore[T](fnl: Fennel; genome: T): float =
   except CatchableError as e:
     echo repr(e)
     quit 1
+  finally:
+    cache[genome] = CacheNode(score: result, code: source)
+
+proc score(genome: Genome): float =
+  try:
+    result = cache[genome].score
+  except KeyError:
+    result = computeScore(genome)
+
+proc `<`(a, b: Genome): bool =
+  let x = a.score
+  let y = b.score
+  x < y
 
 when isMainModule:
   import pkg/cutelog
@@ -119,30 +151,28 @@ when isMainModule:
 
   proc coop(c: C): C {.cpsMagic.} = c
 
-  proc newHeapPopulation[T](gram: Grammar; size: int; core = none CoreId): HeapQueue[T] =
-    var fnl = newFennel()
-    var cache: GreadCache[T, float]
-    initGreadCache(cache, size * 10)  # FIXME
+  proc pop*[T](rng: var Rand; population: var HeapQueue[T]; size: int): T =
+    if population.len < 1:
+      raise ValueError.newException:
+        "cannot run a tournament with empty population"
+    if size < 1:
+      raise ValueError.newException:
+        "cannot run a tournament with less than one competitor"
+    let index = tournament(rng, population.high, size, order = Ascending)
+    result = population[index]
+    population.del(index)
 
-    proc score(genome: T): float =
-      try:
-        result = cache[genome]
-      except KeyError:
-        result = computeScore(fnl, genome)
-        cache[genome] = result
+  proc makeRoom(rng: var Rand; population: var HeapQueue[Genome]; size: int; tourney: int) =
+    while population.len >= size:
+      var genome = pop(rng, population, max(1, tourney))
+      cache.del(genome)
 
-        # clear the VM periodically
-        if fnl.runs mod 500_000 == 0:
-          fnl.tidyVM()
-
-    proc worseThan(a, b: T): bool =
-      let x = a.score
-      let y = b.score
-      x < y
-
-    result = initHeapQueue[Genome](worseThan, initialSize = size)
+  proc newHeapPopulation[T](gram: Grammar; size: int): HeapQueue[T] =
+    initHeapQueue[Genome](`<`, initialSize = size)
 
   proc leanWorker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
+    if fnl.isNil:
+      fnl = newFennel()
     template maxPop: int = args.tableau.maxPopulation
     var rng =
       if args.rng.isSome:
@@ -154,7 +184,7 @@ when isMainModule:
     var operators: AliasMethod[GenomeOperator[Genome]]
     initAliasMethod(operators, operatorWeights)
 
-    var population = newHeapPopulation[Genome](args.grammar, maxPop, args.core)
+    var population = newHeapPopulation[Genome](args.grammar, maxPop)
     if args.population.isNil:
       while population.len < args.tableau.seedPopulation:
         let genome = randomGenome(rng, args.tableau.seedProgramSize)
@@ -162,6 +192,7 @@ when isMainModule:
         population.push(genome)
     else:
       for program in args.population.items:
+        makeRoom(rng, population, maxPop, tab.tournamentSize)
         population.add(maxPop, rng, program.genome)
 
     var evoTime = getTime()
@@ -188,6 +219,7 @@ when isMainModule:
                   break
               else:
                 for program in programs(transport):
+                  makeRoom(rng, population, maxPop, tab.tournamentSize)
                   population.add(maxPop, rng, program.genome)
         else:
           when true:
@@ -229,6 +261,7 @@ when isMainModule:
         try:
           for genome in operator(rng, population, args.tableau.tournamentSize):
             inc discoveries
+            makeRoom(rng, population, maxPop, tab.tournamentSize)
             population.add(maxPop, rng, genome)
           break
         except ShortGenome:
