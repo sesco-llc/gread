@@ -5,9 +5,6 @@ import std/options
 import pkg/adix/stat except Option
 import pkg/adix/lptabz
 
-when compileOption"threads":
-  import pkg/arc
-
 #from pkg/frosty import frostyError, FreezeError, ThawError
 
 import gread/ast
