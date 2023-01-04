@@ -311,7 +311,7 @@ when false:
 
 proc newTransportQ*[T, V](): TransportQ[T, V] =
   ## create a new transport queue for messaging between threads
-  newMailbox[ClusterTransport[T, V]](1024)
+  newMailbox[ClusterTransport[T, V]](8192)
 
 proc newCluster*[T, V](name = ""): Cluster[T, V] =
   ## create a new cluster
