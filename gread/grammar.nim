@@ -201,6 +201,7 @@ proc bnf(s: string): seq[Component] =
   var list: Production
   var prods: seq[Production]
   var emits: seq[Component]
+  var s = s.strip() & "\n"  # normalize input
   let p = peg "start":
     EOL        <- "\n" | "\r\n"
     s          <- *" "
