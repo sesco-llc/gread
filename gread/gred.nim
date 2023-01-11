@@ -150,8 +150,8 @@ proc entirePopulation*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
   for gene in genes.items:
     try:
       let program = unpackGenomeToProgram[T](gram, gene.fromString)
-      {.warning: "remove if redis cardinality matches population cardinality".}
-      if program in result:
+      # removed; redis cardinality matches population cardinality
+      if false and program in result:
         notice fmt"rm duplicate ast {program}"
         clear(r, key, [gene.fromString])
       else:
