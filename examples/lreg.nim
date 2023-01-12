@@ -7,6 +7,7 @@ import std/random
 import std/sets
 import std/strformat
 import std/strutils
+import std/tables
 import std/times
 
 import gread
