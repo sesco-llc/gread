@@ -868,7 +868,7 @@ when compileOption"threads":
       for it in iter:
         body
 
-  proc threadedScore*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]): Population[T] =
+  proc threadedScore*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]; cores = none int): Population[T] =
     ## score programs in the population using multiple threads
     let clump = newCluster[T, V]()
     clump.redress args
@@ -877,6 +877,11 @@ when compileOption"threads":
     for p in population.items:
       push(inputs, p)
 
+    let processors =
+      if cores.isSome:
+        get cores
+      else:
+        processors
     for core in 1..processors:
       args.rng = some initRand()
       clump.boot(whelp scorer(args))
@@ -901,7 +906,7 @@ when compileOption"threads":
               result.add program
             break
 
-  proc threadedEvaluate*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]): GreadTable[Program[T], seq[Option[V]]] =
+  proc threadedEvaluate*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]; cores = none int): GreadTable[Program[T], seq[Option[V]]] =
     ## evaluate programs in the population using multiple threads
     initGreadTable result
     let clump = newCluster[T, V]()
@@ -911,6 +916,11 @@ when compileOption"threads":
     for p in population.items:
       push(inputs, p)
 
+    let processors =
+      if cores.isSome:
+        get cores
+      else:
+        processors
     for core in 1..processors:
       args.rng = some initRand()
       clump.boot(whelp runner(args))
