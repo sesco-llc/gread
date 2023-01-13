@@ -202,7 +202,7 @@ proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
       setLen(s, s.len - frostyMagic.len)  # remove the magic
       var genome: Genome
       thaw(s, genome)
-      program = unpackGenomeToProgram(gram, genome)
+      program = unpackGenomeToProgram[T](gram, genome)
     else:
       when supportsParsing:
         # parse it using tree-sitter
