@@ -12,16 +12,17 @@ import std/strformat
 import std/strutils
 import std/times
 
-import pkg/lunacy except Integer
-import pkg/lunacy/json as luajs
 import pkg/adix/stat except Option
 import pkg/balls
 import pkg/cps
 import pkg/frosty/streams as brrr
-import pkg/htsparse/fennel/fennel_core_only as parsefen
-import pkg/lrucache
-import pkg/grok/resources
 import pkg/grok/kute
+import pkg/grok/resources
+import pkg/htsparse/fennel/fennel_core_only as parsefen
+import pkg/insideout
+import pkg/lrucache
+import pkg/lunacy except Integer
+import pkg/lunacy/json as luajs
 
 import gread/spec
 import gread/ast
@@ -663,21 +664,21 @@ when compileOption"threads":
       coop() # give other evolvers a chance
 
       if evo.rng.rand(1.0) < args.tableau.sharingRate:
-        if evo.rng.rand(1.0) < 0.51:
-          when true:
-            # messages from other threads
-            var transport = pop args.io.input
-            if not transport.isNil:
-              case transport.kind
-              of ctControl:
-                case transport.control
-                of ckWorkerQuit:
-                  info "terminating on request"
-                  break
-              else:
-                for program in programs(transport):
-                  evo.introduce program
+        if evo.rng.rand(1.0) < 0.60:
+          # receive messages from other members of the cluster
+          var transport: ClusterTransport[Fennel, LuaValue]
+          if tryRecv(args.io.input, transport):
+            case transport.kind
+            of ctControl:
+              case transport.control
+              of ckWorkerQuit:
+                info "terminating on request"
+                break
+            else:
+              for program in programs(transport):
+                evo.introduce program
         else:
+          # send programs to other members of the cluster
           let stale = randomMember(evo.population, evo.rng)
           share(args, stale.program)
 
@@ -687,7 +688,7 @@ when compileOption"threads":
               finest = evo.fittest
               # NOTE: clone the finest so that we don't have to
               #       worry about the reference counter across threads
-              forceShare(args, get(finest))
+              forceShare(args, get finest)
 
       for discovery in evo.generation():
         discard
@@ -770,7 +771,7 @@ when compileOption"threads":
     while true:
       coop() # give other evolvers a chance
 
-      let transport = pop args.io.input
+      let transport = recv args.io.input
       if transport.isNil:
         # we're done
         break
@@ -890,21 +891,18 @@ when compileOption"threads":
     result = newPopulation[T](population.len)
     maybeProgressBar(1..population.len):
       while true:
-        let transport = pop outputs
-        if transport.isNil:
-          sleep 5
+        let transport = recv outputs
+        case transport.kind
+        of ctControl:
+          case transport.control
+          of ckWorkerQuit:
+            debug "worker terminated"
+          #else:
+          #  warn "ignoring control: " & $transport.control
         else:
-          case transport.kind
-          of ctControl:
-            case transport.control
-            of ckWorkerQuit:
-              debug "worker terminated"
-            #else:
-            #  warn "ignoring control: " & $transport.control
-          else:
-            for program in programs(transport):
-              result.add program
-            break
+          for program in programs(transport):
+            result.add program
+          break
 
   proc threadedEvaluate*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]; cores = none int): GreadTable[Program[T], seq[Option[V]]] =
     ## evaluate programs in the population using multiple threads
@@ -928,20 +926,17 @@ when compileOption"threads":
 
     maybeProgressBar(1..population.len):
       while true:
-        let transport = pop args.io.output
-        if transport.isNil:
-          sleep 5
+        let transport = recv args.io.output
+        case transport.kind
+        of ctControl:
+          case transport.control
+          of ckWorkerQuit:
+            debug "worker terminated"
+        of ctEvalResult:
+          result[transport.result.program] = transport.result.results
+          break
         else:
-          case transport.kind
-          of ctControl:
-            case transport.control
-            of ckWorkerQuit:
-              debug "worker terminated"
-          of ctEvalResult:
-            result[transport.result.program] = transport.result.results
-            break
-          else:
-            warn "threadedEvaluate() ignoring " & $transport.control
+          warn "threadedEvaluate() ignoring " & $transport.control
 
 proc parseToken*[T: Fennel](s: string): FennelNodeKind =
   case s

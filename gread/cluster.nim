@@ -89,14 +89,21 @@ type
     io*: IO[T, V]                          ## how we move data between threads
     cluster: Cluster[T, V]
 
+proc tryPush*[T, V](tq: TransportQ[T, V]; item: sink ClusterTransport[T, V]): bool {.inline.} =
+  tq.trySend item
+  #tq.send item
+
 proc push*[T, V](tq: TransportQ[T, V]; item: sink ClusterTransport[T, V]) {.inline.} =
   tq.send item
 
 proc pop*[T, V](tq: TransportQ[T, V]): ClusterTransport[T, V] {.deprecated.} =
   discard tryRecv(tq, result)
 
-proc recv*[T, V](tq: TransportQ[T, V]): ClusterTransport[T, V] {.deprecated.} =
-  result = insideout.recv tq
+when false:
+  proc recv*[T, V](tq: TransportQ[T, V]): ClusterTransport[T, V] {.deprecated.} =
+    result = insideout.recv tq
+else:
+  export recv
 
 proc push*[T, V](tq: TransportQ[T, V]; control: ControlKind;
                  argument: JsonNode = nil) =
@@ -108,6 +115,10 @@ proc push*[T, V](tq: TransportQ[T, V]; control: ControlKind;
   ## convenience for pushing into a transport queue
   tq.push ClusterTransport[T, V](kind: ctControl,
                                  control: control, argument: argument)
+
+proc tryPush*[T, V](tq: TransportQ[T, V]; program: sink Program[T]): bool =
+  ## convenience for pushing into a transport queue
+  tq.tryPush ClusterTransport[T, V](kind: ctProgram, program: program)
 
 proc push*[T, V](tq: TransportQ[T, V]; program: sink Program[T]) =
   ## convenience for pushing into a transport queue
@@ -221,16 +232,20 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
   if work.core.isNone:
     work.core = core
 
+proc toTransit(program: Program; core: CoreSpec = none CoreId): Program =
+  result = program
+  result.source = getThreadId()
+  result.core = core         # set the core to help define origin
+
 proc forceShare*(work: Work; program: Program) =
   ## send a better program to other threads
-  var transit = program
-  transit.source = getThreadId()
-  transit.core = work.core         # set the core to help define origin
+  var transit = program.toTransit(work.core)
   push(work.io.output, transit)
 
-proc share*(work: Work; p: Program) =
+proc share*(work: Work; p: Program): int {.discardable.} =
   ## send a better program to other threads
-  ## if we meet the tableau's sharing rate
+  ## if we meet the tableau's sharing rate.
+  ## returns the number of copies shared
   let sharing =
     # if the sharing rate is < 1.0, it's a weight
     if work.tableau.sharingRate < 1.0:
@@ -244,7 +259,9 @@ proc share*(work: Work; p: Program) =
 
   # share the program as widely as is requested
   for copies in 0..<max(0, sharing):
-    forceShare(work, p)
+    var transit = p.toTransit(work.core)
+    if tryPush(work.io.input, transit):
+      inc result
 
 iterator programs*[T, V](transport: ClusterTransport[T, V]): var Program[T] =
   ## iterate over programs passed in a transport envelope
