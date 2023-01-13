@@ -78,7 +78,6 @@ proc store*(r: var Redis; key: ScoredMapNames; population: Population): BiggestI
 
 proc unpackGenomeToProgram[T](gram: Grammar; geno: Genome): Program[T] =
   ## turn a genome into a program
-  mixin newProgram
   try:
     result = πMap[T](gram, geno)
     result.flags.incl Cached
