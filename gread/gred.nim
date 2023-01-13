@@ -33,7 +33,11 @@ type
   ScoredMapNames = ScoredGenomeMapName or ScoredSourceMapName
 
 proc `$`*(store: ScoredGenomeMapName): string {.borrow.}
+proc `==`*(a, b: ScoredGenomeMapName): bool {.borrow.}
+proc `<`*(a, b: ScoredGenomeMapName): bool {.borrow.}
 proc `$`*(store: ScoredSourceMapName): string {.borrow.}
+proc `==`*(a, b: ScoredSourceMapName): bool {.borrow.}
+proc `<`*(a, b: ScoredSourceMapName): bool {.borrow.}
 
 proc store*(r: var Redis; key: ScoredMapNames; program: var Program): bool =
   ## store a program to a given redis sorted set with the program's score.
