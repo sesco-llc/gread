@@ -45,15 +45,14 @@ template isNil*(program: Program): bool {.deprecated: "use isInitialized/1".} =
   not program.isInitialized
 
 proc pushRuntime*(p: var Program; nanoseconds: float) =
-  discard
+  p.runtime.push nanoseconds
 
 proc runtime*(p: Program): MovingStat[float32, uint32] =
-  discard
+  p.runtime
 
 proc push*(p: var Program; s: Score) =
   ## record a valid score for statistics purposes
-  #p.scores.push s
-  discard
+  p.scores.push s
 
 proc genome*(p: Program): Genome {.inline.} =
   ## the program's source genome
