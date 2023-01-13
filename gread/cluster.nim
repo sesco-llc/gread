@@ -136,6 +136,19 @@ proc push*[T, V](tq: TransportQ[T, V]; evaluated: sink EvalResult[T, V]) =
 template push*(cluster: Cluster; thing: untyped): untyped =
   push(cluster.io.input, thing)
 
+proc bounce*[T: Continuation](c: sink T): T {.inline.} =
+  var c: Continuation = move c
+  if c.running:
+    try:
+      var y = c.fn
+      var x = y(c)
+      c = x
+    except CatchableError:
+      if not c.dismissed:
+        writeStackFrames c
+      raise
+  result = T c
+
 proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
   ## continuation worker
   var work: Deque[Continuation]
@@ -153,18 +166,17 @@ proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
         if running c:
           try:
             work.addLast:
-              trampoline(move c)
+              bounce(move c)
           except CatchableError as e:
             error fmt"{e.name}: {e.msg}"
             error "dismissing continuation..."
-
-        if queue.tryRecv c:
-          if dismissed c:
-            break
-          work.addLast c
+        else:
+          if queue.tryRecv c:
+            if dismissed c:
+              break
+            work.addLast c
   when false and defined(useMalloc) and not defined(valgrind):
     echo fmt"thread exit; {Kute memoryUsed()} of {Kute memoryArena()}"
-
 
 # we'll run as many as (processors) threads, though we
 # may not recommend more than (cores) concurrency
@@ -175,19 +187,15 @@ let processors* =
   else:
     max(1, greadCores)
 
-var threads*: ContinuationPool[Continuation]
-var shelf*: seq[Mailbox[Continuation]]
+var threads: ContinuationPool[Continuation]
+var mailbox = newMailbox[Continuation]()
 
 const ContinuationRunner = whelp continuationRunner
 for core in 0..<processors:
-  shelf.add newMailbox[Continuation]()
-  var runtime = spawn(ContinuationRunner, shelf[^1])
+  var runtime = spawn(ContinuationRunner, mailbox)
   when defined(greadPin):
     pinToCpu(runtime, core)
   threads.add runtime
-
-proc sendToCore(c: sink Continuation; core: Natural) =
-  shelf[core mod shelf.len].send c
 
 proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
                      grammar: Grammar;
@@ -292,15 +300,15 @@ proc initWork*[T, V](cluster: Cluster[T, V]): Work[T, V] =
   ## instantiate a new Work object which is already redress(ed)
   cluster.redress result
 
-proc boot*[T, V](cluster: Cluster[T, V]; worker: sink C; core: CoreSpec) =
+proc boot*[T, V](cluster: Cluster[T, V]; worker: sink C; core: CoreSpec) {.deprecated.} =
   ## boot a cluster with a worker continuation
-  sendToCore(worker, get core)
+  mailbox.send worker
   cluster.cores.incl(get core)
 
 proc boot*[T, V](cluster: Cluster[T, V]; worker: sink C) =
   ## boot a cluster with a worker continuation
   let core = nextCore()
-  sendToCore(worker, core)
+  mailbox.send worker
   cluster.cores.incl(core)
 
 when false:
