@@ -108,10 +108,12 @@ converter toInt*(g: Generation): int = g.int
 #proc isNone*(cs: CoreSpec): bool = isNone Option[int](cs)
 
 proc `$`*(cs: CoreSpec): string =
-  if cs.isSome:
-    $get(cs)
-  else:
-    "-"
+  result.add "c"
+  result.add:
+    if cs.isSome:
+      $get(cs)
+    else:
+      "-"
 
 const
   debugging* = defined(greadDebug) and not defined(release)
