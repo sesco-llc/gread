@@ -237,15 +237,15 @@ proc toTransit(program: Program; core: CoreSpec = none CoreId): Program =
   result.source = getThreadId()
   result.core = core         # set the core to help define origin
 
-proc forceShare*(work: Work; program: Program) =
-  ## send a better program to other threads
+proc shareOutput*(work: Work; program: Program) =
+  ## blocking send of a better program to the output pipe
   var transit = program.toTransit(work.core)
   push(work.io.output, transit)
 
-proc share*(work: Work; p: Program): int {.discardable.} =
-  ## send a better program to other threads
+proc shareInput*(work: Work; p: Program): int {.discardable.} =
+  ## try to send a better program to other threads
   ## if we meet the tableau's sharing rate.
-  ## returns the number of copies shared
+  ## returns the number of copies shared to the input pipe
   let sharing =
     # if the sharing rate is < 1.0, it's a weight
     if work.tableau.sharingRate < 1.0:

@@ -663,81 +663,46 @@ when compileOption"threads":
       coop() # give other evolvers a chance
 
       if evo.rng.rand(1.0) < args.tableau.sharingRate:
-        if evo.rng.rand(1.0) < 0.60:
-          # receive messages from other members of the cluster
-          var transport: ClusterTransport[Fennel, LuaValue]
-          if tryRecv(args.io.input, transport):
-            case transport.kind
-            of ctControl:
-              case transport.control
-              of ckWorkerQuit:
-                info "terminating on request"
-                break
-            else:
-              for program in programs(transport):
-                evo.introduce program
+        # receive messages from other members of the cluster
+        var transport: ClusterTransport[Fennel, LuaValue]
+        if tryRecv(args.io.input, transport):
+          case transport.kind
+          of ctControl:
+            case transport.control
+            of ckWorkerQuit:
+              info "terminating on request"
+              break
+          else:
+            for program in programs(transport):
+              evo.add program
         else:
           # send programs to other members of the cluster
           let stale = randomMember(evo.population, evo.rng)
-          share(args, stale.program)
+          shareInput(args, stale.program)
 
           # share any new winner
           if evo.fittest.isSome:
+            assert FinestKnown in evo.fittest.get.flags
             if finest.isNone or get(finest) != get(evo.fittest):
               finest = evo.fittest
-              # NOTE: clone the finest so that we don't have to
-              #       worry about the reference counter across threads
-              forceShare(args, get finest)
+              assert FinestKnown in finest.get.flags
+              shareOutput(args, get finest)
 
       for discovery in evo.generation():
         discard
 
       if args.stats > 0:
         if evo.generation mod args.stats == 0:
-          dumpStats(evo, evoTime)
-          when defined(greadMemoryAudit):
-            echo fmt"memory consumption for platform: {memoryGraphSize(evo.platform)}"
-            evo.audit
-            when false:
-              echo fmt"memory consumption for evolver: {memoryGraphSize(evo)}"
-              echo fmt"memory consumption for population: {memoryGraphSize(evo.population)}"
-              echo fmt"memory consumption difference: {memoryGraphSize(evo)-memoryGraphSize(evo.population)}"
-              var astmem, codemem, statsmem, genesmem = 0
-              var length = 0
-              for p in evo.population.items:
-                length += p.len
-                astmem += memoryGraphSize(p.ast)
-                codemem += memoryGraphSize($p)
-                statsmem += memoryGraphSize(p.scores)
-                statsmem += memoryGraphSize(p.runtime)
-                genesmem += memoryGraphSize(p.genome)
-              let kenmem = memoryGraphSize(evo.population.ken)
-              when false:
-                echo fmt"memory consumption ast: {astmem}"
-                echo fmt"memory consumption code: {codemem}"
-                echo fmt"memory consumption stats: {statsmem}"
-                echo fmt"memory consumption genes: {genesmem}"
-                echo fmt"memory consumption metrics: {kenmem}"
-              echo fmt"memory consumption per ast node: {memoryGraphSize(evo.population) div length}"
-            #let cachemem = memoryGraphSize(evo.population.cache)
-            #echo fmt"memory consumption cache: {cachemem}"
-            #echo fmt"memory consumption minus cache: {memoryGraphSize(evo)-cachemem}"
-            #echo fmt"cache cardinality: {len(evo.population.cache)}"
-            when false:
-              if defined(debug) and evo.generation > 10_000:
-                debug fmt"memory consumption for aslua: {memoryGraphSize(evo.platform.aslua)}"
-                when defined(greadLargeCache):
-                  when defined(greadSlowTable):
-                    debug fmt"aslua (table) capacity: {rightSize(len evo.platform.aslua)}"
-                  else:
-                    debug fmt"aslua (table) capacity: {getCap evo.platform.aslua}"
-                else:
-                  debug fmt"aslua (lru) capacity: {capacity evo.platform.aslua}"
-          clearStats evo
+          evo.dumpStats(evoTime)
+          evo.clearStats()
 
-    let shared = evo.population
-    evo.population = nil
-    push(args.io.output, shared)
+    when defined(greadShareEntirePopulationAtDeath):
+      let shared = evo.population
+      evo.population = nil
+      push(args.io.output, shared)
+    else:
+      if evo.fittest.isSome:
+        shareOutput(args, get evo.fittest)
 
     push(args.io.output, ckWorkerQuit)
 
@@ -870,6 +835,8 @@ when compileOption"threads":
 
   proc threadedScore*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]; cores = none int): Population[T] =
     ## score programs in the population using multiple threads
+    if population.len == 0:
+      return population
     let clump = newCluster[T, V]()
     clump.redress args
 
