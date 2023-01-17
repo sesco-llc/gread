@@ -150,7 +150,7 @@ proc πGE*[T](gram: Grammar; geno: Genome): tuple[pc: PC; ast: Ast[T]] =
       if result.ast[chose].isSymbol:
         let name = result.ast.name(chose)       # resolve the nt name
         withHeatMap gram:
-          inc gram.m[name]
+          inc gram[].m[name]
         gram[].p[name]                          # RHS production choices
       else:
         raise Defect.newException "bug.  bad indices in nts queue"
@@ -273,7 +273,7 @@ proc initGrammar*(gram: var Grammar) =
 
 proc `$`*(gram: Grammar): string =
   withHeatMap gram:
-    for key, value in gram.m.pairs:
+    for key, value in gram[].m.pairs:
       result &= "$# -> $#\n" % [ key, $value ]
 
 proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
