@@ -42,7 +42,6 @@ export lrucache
 export stat except Option  # nim bug workaround
 
 const
-  greadSemanticErrorsAreFatal {.booldefine.} = false
   greadLuaCacheSize {.intdefine.} = 2048
 
 type

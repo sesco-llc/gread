@@ -30,9 +30,6 @@ export stat except Option
 export lptabz
 export lunacy
 
-const
-  semanticErrorsAreFatal = false
-
 type
   Lua* = ref object
     core*: Option[int]
@@ -265,7 +262,7 @@ proc evaluate*(lua: Lua; p: var LProg; locals: Locals): LuaValue =
     if not stack.isNil:
       result = stack.value
   except LuaError as e:
-    when semanticErrorsAreFatal:
+    when greadSemanticErrorsAreFatal:
       debugEcho $p
       debugEcho e.msg
       quit 1

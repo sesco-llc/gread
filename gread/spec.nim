@@ -5,6 +5,9 @@ import std/tables
 
 import pkg/cps
 
+const
+  greadSemanticErrorsAreFatal* {.booldefine.} = false
+
 when defined(greadLeakySet):
   import std/packedsets
   export packedsets
