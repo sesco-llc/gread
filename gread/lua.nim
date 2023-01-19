@@ -486,7 +486,7 @@ when compileOption"threads":
       search(args, evo)   # fresh meat from other threads
 
       let stale = randomMember(evo.population, evo.rng)
-      share(args, stale.program)
+      shareInput(args, stale.program)
 
       for discovery in generation evo:
         discard
@@ -496,7 +496,7 @@ when compileOption"threads":
         clearStats evo
 
     while evo.population.len > 0:
-      share(args, randomRemoval(evo.population, evo.rng))
+      shareOutput(args, randomRemoval(evo.population, evo.rng))
 
     quit 0
 
