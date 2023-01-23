@@ -57,6 +57,7 @@ type
 
     name*: string                   # for reporting purposes
     core: CoreSpec
+    birthday: MonoTime
     gentime: MovingStat[float32, uint32]
     shorties: MovingStat[float32, uint32]
     generations: Generation
@@ -280,7 +281,8 @@ proc dataset*[T, V](evo: Evolver[T, V]): lent seq[SymbolSet[T, V]] =
 
 proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau; rng: Rand = randState()) =
   ## perform initial setup of the Evolver, binding platform and tableau
-  evo = Evolver[T, V](platform: platform, tableau: tableau, rng: rng)
+  evo = Evolver[T, V](platform: platform, tableau: tableau, rng: rng,
+                      birthday: getMonoTime())
   if evo.core.isNone:
     evo.core = platform.core
   evo.resetCache()
@@ -865,3 +867,5 @@ proc `core=`*(evo: var Evolver; core: CoreSpec) =
   evo.ken.core = evo.core
 
 proc core*(evo: var Evolver): CoreSpec = evo.core
+
+proc birthday*(evo: Evolver): MonoTime = evo.birthday
