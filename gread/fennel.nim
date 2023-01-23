@@ -342,7 +342,7 @@ proc compileFennel(vm: PState; source: string): string =
       error e.name, ": ", e.msg
       writeStackTrace()
       raise
-  except Exception as e:
+  except CatchableError as e:
     error e.name, ": ", e.msg
     writeStackTrace()
     raise
@@ -364,7 +364,7 @@ proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
       error e.name, ": ", e.msg
       writeStackTrace()
       raise
-  except Exception as e:
+  except CatchableError as e:
     error e.name, ": ", e.msg
     writeStackTrace()
     raise
@@ -388,7 +388,7 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack {.deprecated.} =
       error e.name, ": ", e.msg
       writeStackTrace()
       raise
-  except Exception as e:
+  except CatchableError as e:
     error e.name, ": ", e.msg
     writeStackTrace()
     raise
