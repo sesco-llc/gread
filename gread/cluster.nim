@@ -72,6 +72,9 @@ type
     cores: GreadSet[CoreId]
     io: IO[T, V]                   ## how we move data between threads
 
+  Terminator*[T; V] = proc(evo: var Evolver[T, V]): bool ##
+  ## user-supplied predicate returning true when the evolver should terminate
+
   Work*[T, V] = object
     name*: string                          ## for reporting purposes
     core*: Option[CoreId]                  ## threadId-like concept
@@ -82,9 +85,9 @@ type
     population*: Population[T]
     operators*: seq[OperatorWeight[T, V]]  ## operators & their weights
     dataset*: seq[SymbolSet[T, V]]
-    targets*: Option[seq[V]]
     fitone*: FitOne[T, V]
     fitmany*: FitMany[T, V]
+    terminator*: Terminator[T, V]          ## predicate for terminating a worker
     strength*: Strength[V]                 ## compute a metric for sorting
     io*: IO[T, V]                          ## how we move data between threads
     cluster: Cluster[T, V]
@@ -214,8 +217,8 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
                      dataset: seq[SymbolSet[T, V]] = @[];
                      fitone: FitOne[T, V] = nil; fitmany: FitMany[T, V] = nil;
                      population: Population[T] = nil; strength: Strength[V] = nil;
-                     targets = none seq[V]; rng = none Rand;
-                     core = none int; stats = 1000; name = "") =
+                     terminator: Terminator[T, V] = nil;
+                     rng = none Rand; core = none int; stats = 1000; name = "") =
   ## initialize a work object for passing setup instructions to worker threads;
   ## this is now just a convenience to reduce line count
   work.tableau = tab
@@ -228,6 +231,7 @@ proc initWork*[T, V](work: var Work[T, V]; tab: Tableau;
   work.fitone = fitone
   work.fitmany = fitmany
   work.population = population
+  work.terminator = terminator
   work.rng = rng
   if work.core.isNone:
     work.core = core
