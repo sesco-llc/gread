@@ -35,7 +35,7 @@ iterator generation*[T, V](evo: var Evolver[T, V]): Program[T] =
 
   try:
     while discoveries == 0:
-      let operator = evo.randomOperator()
+      let operator = evo.chooseOperator()
       var programs = operator evo
       for program in programs.mitems:
         program.generation = gen

@@ -3,6 +3,7 @@ when not compileOption"threads":
 
 import std/hashes
 import std/logging
+import std/monotimes
 import std/options
 import std/os
 import std/osproc
@@ -46,6 +47,14 @@ let operators = {
   geNoise2pt0[Fennel, LuaValue]:        1.0,
   geNoise4pt0[Fennel, LuaValue]:        1.0,
 }
+
+proc terminator(evo: var Evolver[Fennel, LuaValue]): bool =
+  result = evo.generation >= llsMany
+  when compiles(evo.fittest.isSome):
+    result = result or evo.fittest.isSome and evo.fittest.get.score >= goodEnough
+  result = result or (getMonoTime() - evo.birthday).inSeconds >= llsDuration
+  if result:
+    info fmt"terminator terminating evolver {evo.core}"
 
 const
   # given a line of (x, y) points, solve for y given x
@@ -109,7 +118,6 @@ when isMainModule:
     evo.population =
       newPopulation[Fennel](monitor.maxPopulation, core = evo.core)
 
-    let et = getTime()
     var fittest: Program[Fennel]
     var winners = 0
     while true:
@@ -153,15 +161,16 @@ when isMainModule:
 
       else:
         raise Defect.newException "unsupported transport: " & $transport.kind
-    let secs = (getTime() - et).inMilliseconds
-    notice fmt"last generation: {fittest.generation} secs: {(getTime() - et).inSeconds}"
-    #notice fmt"number of winners: {winners} ({ff(winners.float / (secs.float / 1000.0))}/sec)"
+    let secs = (getMonoTime() - evo.birthday).inMilliseconds.float / 1000.0
+    notice fmt"last generation: {fittest.generation} secs: {ff(secs.float)}"
+    #notice fmt"number of winners: {winners} ({ff(winners.float / secs.float)}/sec)"
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()
   var args = clump.initWork()
   initWork(args, tab, grammar = gram, operators = operators,
            dataset = dataset, fitone = fitone, fitmany = fitmany,
+           terminator = terminator,
            strength = fennel.strength, stats = statFrequency)
 
   for core in 1..cores:
@@ -171,7 +180,7 @@ when isMainModule:
       args.rng = some: initRand(greadSeed)
     if cores == 1:
       args.tableau.sharingRate = 0.0
-    clump.boot(whelp worker(args), args.core)
+    clump.boot(whelp worker(args))
     clump.redress args
 
   # run the main loop to gatekeep inventions

@@ -1,6 +1,7 @@
 import std/hashes
 import std/logging
 import std/math
+import std/monotimes
 import std/options
 import std/os
 import std/random
@@ -14,7 +15,7 @@ import gread
 import gread/fennel except variance
 import gread/genotype
 import gread/aliasmethod
-import gread/heapqueue
+import gread/heappops
 
 import pkg/cps
 import pkg/lunacy
@@ -76,16 +77,6 @@ proc fitmany(fnl: Fennel; iter: iterator(): (ptr Locals, ptr LuaValue);
     if s.isValid:
       result = some s
 
-proc add[T](population: var HeapQueue[T]; size: Natural; rng: var Rand; item: sink T) =
-  # XXX: nim's capacity(seq) does not work
-  while population.len >= size:
-    remove(rng, population, max(1, tab.tournamentSize))
-  population.push(item)
-
-proc add[T](population: var HeapQueue[T]; rng: var Rand; item: sink T) =
-  # XXX: nim's capacity(seq) does not work
-  population.add(tab.maxPopulation, rng, item)
-
 type
   CacheNode = object
     score: float
@@ -94,7 +85,7 @@ type
 #
 # we'll close over these threadvars to simplify impl
 #
-var cache {.threadVar.}: Table[Genome, CacheNode]
+var cache {.threadVar.}: GreadTable[Genome, CacheNode]
 var fnl {.threadVar.}: Fennel
 
 proc computeScore(genome: Genome): float =
@@ -135,10 +126,13 @@ proc score(genome: Genome): float =
   except KeyError:
     result = computeScore(genome)
 
-proc `<`(a, b: Genome): bool =
+proc worseThan(a, b: Genome): bool =
   let x = a.score
   let y = b.score
   x < y
+
+proc newGenomeHeap(initialSize: Natural): HeapPop[Genome] =
+  initHeapPop(worseThan, initialSize = initialSize)
 
 when isMainModule:
   import pkg/cutelog
@@ -152,7 +146,7 @@ when isMainModule:
 
   proc coop(c: C): C {.cpsMagic.} = c
 
-  proc pop*[T](rng: var Rand; population: var HeapQueue[T]; size: int): T =
+  proc pop*[T](rng: var Rand; population: var HeapPop[T]; size: int): T =
     if population.len < 1:
       raise ValueError.newException:
         "cannot run a tournament with empty population"
@@ -163,40 +157,50 @@ when isMainModule:
     result = population[index]
     population.del(index)
 
-  proc makeRoom(rng: var Rand; population: var HeapQueue[Genome]; size: int; tourney: int) =
-    while population.len >= size:
-      var genome = pop(rng, population, max(1, tourney))
+  proc makeRoom[T](evo: var HeapEvolver[T]) =
+    while evo.population.len >= evo.tableau.maxPopulation:
+      var genome = pop(evo.rng, evo.population, max(1, evo.tableau.tournamentSize))
       cache.del(genome)
 
-  proc newHeapPopulation[T](gram: Grammar; size: int): HeapQueue[T] =
-    initHeapQueue[Genome](`<`, initialSize = size)
+  proc add[T](evo: var HeapEvolver[T]; item: sink T) =
+    evo.makeRoom()
+    evo.population.push(item)
+
+  proc terminator[T](evo: var HeapEvolver[T]): bool =
+    result = evo.generation >= llsMany
+    when compiles(evo.fittest.isSome):
+      result = result or evo.fittest.isSome and evo.fittest.get.score >= goodEnough
+    result = result or (getMonoTime() - evo.birthday).inSeconds >= llsDuration
+    if result:
+      info fmt"terminator terminating evolver {evo.core}"
 
   proc leanWorker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
+    initGreadTable cache
+
     if fnl.isNil:
       fnl = newFennel()
-    template maxPop: int = args.tableau.maxPopulation
-    var rng =
+
+    let prng =
       if args.rng.isSome:
         get args.rng
       else:
         initRand()
 
-    # lightweight operators
-    var operators: AliasMethod[GenomeOperator[Genome]]
-    initAliasMethod(operators, operatorWeights)
+    var evo: HeapEvolver[Genome]
+    evo.initEvolver(args.tableau, rng = prng)
+    evo.operators = operatorWeights
+    evo.population = newGenomeHeap(evo.tableau.maxPopulation)
 
-    var population = newHeapPopulation[Genome](args.grammar, maxPop)
     if args.population.isNil:
-      while population.len < args.tableau.seedPopulation:
-        let genome = randomGenome(rng, args.tableau.seedProgramSize)
+      while evo.population.len < args.tableau.seedPopulation:
+        let genome = randomGenome(evo.rng, evo.tableau.seedProgramSize)
         assert genome.len > 0
-        population.push(genome)
+        evo.population.push(genome)
     else:
       for program in args.population.items:
-        makeRoom(rng, population, maxPop, tab.tournamentSize)
-        population.add(maxPop, rng, program.genome)
+        evo.makeRoom()
+        evo.add(program.genome)
 
-    var evoTime = getTime()
     var finest: Option[Genome]
     var gen: Generation
     while gen <= args.tableau.maxGenerations:
@@ -207,8 +211,8 @@ when isMainModule:
         if gen mod args.stats == 0:
           echo args.core, " ", gen
 
-      if rng.rand(1.0) < args.tableau.sharingRate:
-        if rng.rand(1.0) < 0.51:
+      if evo.rng.rand(1.0) < args.tableau.sharingRate:
+        if evo.rng.rand(1.0) < 0.60:
           when true:
             var transport: ClusterTransport[Fennel, LuaValue]
             if tryRecv(args.io.input, transport):
@@ -220,50 +224,34 @@ when isMainModule:
                   break
               else:
                 for program in programs(transport):
-                  makeRoom(rng, population, maxPop, tab.tournamentSize)
-                  population.add(maxPop, rng, program.genome)
+                  evo.makeRoom()
+                  evo.add(program.genome)
         else:
-          when true:
-            let stale = population[rng.rand(population.high)]
-            try:
-              var program = πMap[Fennel](gram, stale)
-              program.source = getThreadId()
-              program.core = args.core
-              program.generation = gen
-              var message = ClusterTransport[Fennel, LuaValue](kind: ctProgram, program: program)
-              discard trySend(args.io.input, message)
-            except ShortGenome:
-              discard
-            except CatchableError as e:
-              echo repr(e)
-              quit 1
-
-          when true:
-            if finest.isNone or get(finest) != population[population.high]:
-              try:
-                var program = πMap[Fennel](gram, population[population.high])
-                if finest.isNone or program.genome != get finest:
-                  finest = some program.genome
-                program.source = getThreadId()
-                program.core = args.core
+          try:
+            let stale = evo.randomMember()
+            var program = πMap[Fennel](gram, stale)
+            program.generation = gen
+            if args.shareInput(program) == 0:
+              if finest.isNone or get(finest) != evo.population.best:
+                var program = πMap[Fennel](gram, evo.population.best)
                 program.generation = gen
-                warn $program
-                push(args.io.output, program)
-              except ShortGenome:
-                discard
-              except CatchableError as e:
-                echo repr(e)
-                quit 1
+                args.shareOutput(program)
+                finest = some program.genome
+          except ShortGenome:
+            discard
+          except CatchableError as e:
+            echo repr(e)
+            quit 1
 
       # lean generational loop
       while true:
-        let operator = choose(operators, rng)
+        let operator = evo.chooseOperator()
         var discoveries = 0
         try:
-          for genome in operator(rng, population, args.tableau.tournamentSize):
+          for genome in operator(evo.rng, evo.population, args.tableau.tournamentSize):
             inc discoveries
-            makeRoom(rng, population, maxPop, tab.tournamentSize)
-            population.add(maxPop, rng, genome)
+            evo.makeRoom()
+            evo.add(genome)
           break
         except ShortGenome:
           if discoveries > 0:
@@ -272,12 +260,17 @@ when isMainModule:
           echo repr(e)
           quit 1
 
+      # terminate the evolver according to a supplied predicate
+      if terminator evo:
+        debug "terminator() killed evolver"
+        break
+
     when false:
       block:
         let shared = newPopulation[Fennel](size = population.len)
         while population.len > 0:
           try:
-            var program = πMap[Fennel](gram, pop population)
+            var program = πMap[Fennel](gram, pop evo.population)
             program.source = getThreadId()
             program.core = args.core
             program.generation = gen
@@ -288,7 +281,7 @@ when isMainModule:
 
     when true:
       try:
-        var program = πMap[Fennel](gram, population[population.high])
+        var program = πMap[Fennel](gram, evo.population.best)
         program.source = getThreadId()
         program.core = args.core
         program.generation = gen
@@ -318,7 +311,6 @@ when isMainModule:
     evo.population =
       newPopulation[Fennel](monitor.maxPopulation, core = evo.core)
 
-    let et = getTime()
     var fittest: Program[Fennel]
     var winners = 0
     while true:
@@ -372,14 +364,14 @@ when isMainModule:
 
       else:
         raise Defect.newException "unsupported transport: " & $transport.kind
-    let secs = (getTime() - et).inMilliseconds
-    notice fmt"last generation: {fittest.generation} secs: {ff(secs.float / 1000.0)}"
+    let secs = (getMonoTime() - evo.birthday).inMilliseconds.float / 1000.0
+    notice fmt"last generation: {fittest.generation} secs: {ff(secs.float)}"
     #notice fmt"number of winners: {winners} ({ff(winners.float / (secs.float / 1000.0))}/sec)"
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()
   var args = clump.initWork()
-  initWork(args, tab, grammar = gram,
+  initWork(args, tab, grammar = gram, #terminator = terminator,
            dataset = dataset, fitone = fitone, fitmany = fitmany,
            strength = fennel.strength, stats = statFrequency)
 
@@ -390,7 +382,7 @@ when isMainModule:
       args.rng = some: initRand(greadSeed)
     if cores == 1:
       args.tableau.sharingRate = 0.0
-    clump.boot(whelp leanWorker(args), args.core)
+    clump.boot(whelp leanWorker(args))
     clump.redress args
 
   # run the main loop to gatekeep inventions

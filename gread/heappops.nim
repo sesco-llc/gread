@@ -1,3 +1,10 @@
+import std/algorithm
+import std/random
+
+import gread/aliasmethod
+import gread/evolver
+import gread/tableau
+
 #
 #
 #            Nim's Runtime Library
@@ -6,7 +13,8 @@
 #    See the file "copying.txt", included in this
 #    distribution, for details about the copyright.
 
-
+## (adaptations of nim's heapqueue for genome populations)
+##
 ## The `heapqueue` module implements a
 ## `binary heap data structure<https://en.wikipedia.org/wiki/Binary_heap>`_
 ## that can be used as a `priority queue<https://en.wikipedia.org/wiki/Priority_queue>`_.
@@ -18,7 +26,7 @@
 ## -----------
 ##
 runnableExamples:
-  var heap = [8, 2].toHeapQueue
+  var heap = [8, 2].toHeapPop
   heap.push(5)
   # the first element is the lowest element
   assert heap[0] == 2
@@ -29,7 +37,7 @@ runnableExamples:
 
 ## Usage with custom objects
 ## -------------------------
-## To use a `HeapQueue` with a custom object, the `<` operator must be
+## To use a `HeapPop` with a custom object, the `<` operator must be
 ## implemented.
 
 runnableExamples:
@@ -38,7 +46,7 @@ runnableExamples:
 
   proc `<`(a, b: Job): bool = a.priority < b.priority
 
-  var jobs = initHeapQueue[Job]()
+  var jobs = initHeapPop[Job]()
   jobs.push(Job(priority: 1))
   jobs.push(Job(priority: 2))
 
@@ -47,39 +55,39 @@ runnableExamples:
 
 import std/private/since
 
-type HeapQueue*[T] = object
+type HeapPop*[T] = object
   ## A heap queue, commonly known as a priority queue.
   data: seq[T]
   cmp: proc(a, b: T): bool
 
-proc initHeapQueue*[T](cmp: proc(a, b: T): bool; initialSize: Natural = 4): HeapQueue[T] =
+proc initHeapPop*[T](cmp: proc(a, b: T): bool; initialSize: Natural = 4): HeapPop[T] =
   ## Creates a new empty heap.
   ##
   ## Heaps are initialized by default, so it is not necessary to call
   ## this function explicitly.
   ##
   ## **See also:**
-  ## * `toHeapQueue proc <#toHeapQueue,openArray[T]>`_
+  ## * `toHeapPop proc <#toHeapPop,openArray[T]>`_
   result.cmp = cmp
   result.data = newSeqOfCap[T](initialSize)
 
-proc initHeapQueue*[T](initialSize: Natural = 4): HeapQueue[T] =
+proc initHeapPop*[T](initialSize: Natural = 4): HeapPop[T] =
   mixin `<`
-  initHeapQueue[T](`<`, initialSize = initialSize)
+  initHeapPop[T](`<`, initialSize = initialSize)
 
-proc len*[T](heap: HeapQueue[T]): int {.inline.} =
+proc len*[T](heap: HeapPop[T]): int {.inline.} =
   ## Returns the number of elements of `heap`.
   runnableExamples:
-    let heap = [9, 5, 8].toHeapQueue
+    let heap = [9, 5, 8].toHeapPop
     assert heap.len == 3
 
   heap.data.len
 
-proc `[]`*[T](heap: HeapQueue[T], i: Natural): lent T {.inline.} =
+proc `[]`*[T](heap: HeapPop[T], i: Natural): lent T {.inline.} =
   ## Accesses the i-th element of `heap`.
   heap.data[i]
 
-proc siftup[T](heap: var HeapQueue[T], startpos, p: int) =
+proc siftup[T](heap: var HeapPop[T], startpos, p: int) =
   ## `heap` is a heap at all indices >= `startpos`, except possibly for `p`. `p`
   ## is the index of a leaf with a possibly out-of-order value. Restores the
   ## heap invariant.
@@ -97,7 +105,7 @@ proc siftup[T](heap: var HeapQueue[T], startpos, p: int) =
       break
   heap.data[pos] = newitem
 
-proc siftdownToBottom[T](heap: var HeapQueue[T], p: int) =
+proc siftdownToBottom[T](heap: var HeapPop[T], p: int) =
   # This is faster when the element should be close to the bottom.
   let endpos = len(heap)
   var pos = p
@@ -119,7 +127,7 @@ proc siftdownToBottom[T](heap: var HeapQueue[T], p: int) =
   heap.data[pos] = newitem
   siftup(heap, startpos, pos)
 
-proc siftdown[T](heap: var HeapQueue[T], p: int) =
+proc siftdown[T](heap: var HeapPop[T], p: int) =
   let endpos = len(heap)
   var pos = p
   let newitem = heap[pos]
@@ -135,18 +143,18 @@ proc siftdown[T](heap: var HeapQueue[T], p: int) =
     childpos = 2 * pos + 1
   heap.data[pos] = newitem
 
-proc push*[T](heap: var HeapQueue[T], item: sink T) =
+proc push*[T](heap: var HeapPop[T], item: sink T) =
   ## Pushes `item` onto `heap`, maintaining the heap invariant.
   heap.data.add(item)
   siftup(heap, 0, len(heap) - 1)
 
-proc toHeapQueue*[T](x: openArray[T]): HeapQueue[T] {.since: (1, 3).} =
-  ## Creates a new HeapQueue that contains the elements of `x`.
+proc toHeapPop*[T](x: openArray[T]): HeapPop[T] {.since: (1, 3).} =
+  ## Creates a new HeapPop that contains the elements of `x`.
   ##
   ## **See also:**
-  ## * `initHeapQueue proc <#initHeapQueue>`_
+  ## * `initHeapPop proc <#initHeapPop>`_
   runnableExamples:
-    var heap = [9, 5, 8].toHeapQueue
+    var heap = [9, 5, 8].toHeapPop
     assert heap.pop() == 5
     assert heap[0] == 8
 
@@ -155,11 +163,11 @@ proc toHeapQueue*[T](x: openArray[T]): HeapQueue[T] {.since: (1, 3).} =
   for i in countdown(x.len div 2 - 1, 0):
     siftdown(result, i)
 
-proc pop*[T](heap: var HeapQueue[T]): T =
+proc pop*[T](heap: var HeapPop[T]): T =
   ## Pops and returns the smallest item from `heap`,
   ## maintaining the heap invariant.
   runnableExamples:
-    var heap = [9, 5, 8].toHeapQueue
+    var heap = [9, 5, 8].toHeapPop
     assert heap.pop() == 5
 
   let lastelt = heap.data.pop()
@@ -170,10 +178,10 @@ proc pop*[T](heap: var HeapQueue[T]): T =
   else:
     result = lastelt
 
-proc find*[T](heap: HeapQueue[T], x: T): int {.since: (1, 3).} =
+proc find*[T](heap: HeapPop[T], x: T): int {.since: (1, 3).} =
   ## Linear scan to find the index of the item `x` or -1 if not found.
   runnableExamples:
-    let heap = [9, 5, 8].toHeapQueue
+    let heap = [9, 5, 8].toHeapPop
     assert heap.find(5) == 0
     assert heap.find(9) == 1
     assert heap.find(777) == -1
@@ -182,10 +190,10 @@ proc find*[T](heap: HeapQueue[T], x: T): int {.since: (1, 3).} =
   for i in 0 ..< heap.len:
     if heap[i] == x: return i
 
-proc del*[T](heap: var HeapQueue[T], index: Natural) =
+proc del*[T](heap: var HeapPop[T], index: Natural) =
   ## Removes the element at `index` from `heap`, maintaining the heap invariant.
   runnableExamples:
-    var heap = [9, 5, 8].toHeapQueue
+    var heap = [9, 5, 8].toHeapPop
     heap.del(1)
     assert heap[0] == 5
     assert heap[1] == 8
@@ -196,7 +204,7 @@ proc del*[T](heap: var HeapQueue[T], index: Natural) =
   if index < newLen:
     siftdownToBottom(heap, index)
 
-proc replace*[T](heap: var HeapQueue[T], item: sink T): T =
+proc replace*[T](heap: var HeapPop[T], item: sink T): T =
   ## Pops and returns the current smallest value, and add the new item.
   ## This is more efficient than `pop()` followed by `push()`, and can be
   ## more appropriate when using a fixed-size heap. Note that the value
@@ -204,9 +212,9 @@ proc replace*[T](heap: var HeapQueue[T], item: sink T): T =
   ## this routine unless written as part of a conditional replacement.
   ##
   ## **See also:**
-  ## * `pushpop proc <#pushpop,HeapQueue[T],sinkT>`_
+  ## * `pushpop proc <#pushpop,HeapPop[T],sinkT>`_
   runnableExamples:
-    var heap = [5, 12].toHeapQueue
+    var heap = [5, 12].toHeapPop
     assert heap.replace(6) == 5
     assert heap.len == 2
     assert heap[0] == 6
@@ -216,13 +224,13 @@ proc replace*[T](heap: var HeapQueue[T], item: sink T): T =
   heap.data[0] = item
   siftdown(heap, 0)
 
-proc pushpop*[T](heap: var HeapQueue[T], item: sink T): T =
+proc pushpop*[T](heap: var HeapPop[T], item: sink T): T =
   ## Fast version of a `push()` followed by a `pop()`.
   ##
   ## **See also:**
-  ## * `replace proc <#replace,HeapQueue[T],sinkT>`_
+  ## * `replace proc <#replace,HeapPop[T],sinkT>`_
   runnableExamples:
-    var heap = [5, 12].toHeapQueue
+    var heap = [5, 12].toHeapPop
     assert heap.pushpop(6) == 5
     assert heap.len == 2
     assert heap[0] == 6
@@ -233,19 +241,19 @@ proc pushpop*[T](heap: var HeapQueue[T], item: sink T): T =
     swap(result, heap.data[0])
     siftdown(heap, 0)
 
-proc clear*[T](heap: var HeapQueue[T]) =
+proc clear*[T](heap: var HeapPop[T]) =
   ## Removes all elements from `heap`, making it empty.
   runnableExamples:
-    var heap = [9, 5, 8].toHeapQueue
+    var heap = [9, 5, 8].toHeapPop
     heap.clear()
     assert heap.len == 0
 
   heap.data.setLen(0)
 
-proc `$`*[T](heap: HeapQueue[T]): string =
+proc `$`*[T](heap: HeapPop[T]): string =
   ## Turns a heap into its string representation.
   runnableExamples:
-    let heap = [1, 2].toHeapQueue
+    let heap = [1, 2].toHeapPop
     assert $heap == "[1, 2]"
 
   result = "["
@@ -254,8 +262,62 @@ proc `$`*[T](heap: HeapQueue[T]): string =
     result.addQuoted(x)
   result.add("]")
 
-proc high*[T](heap: HeapQueue[T]): int {.inline.} =
+proc high*[T](heap: HeapPop[T]): int {.inline.} =
   heap.len - 1
 
-proc capacity*[T](heap: HeapQueue[T]): int {.inline.} =
+proc capacity*[T](heap: HeapPop[T]): int {.inline.} =
   heap.data.capacity
+
+iterator items*[T](q: HeapPop[T]): T =
+  ## helper for heappop-based populations
+  for i in 0..<q.len:
+    yield q[i]
+
+type
+  HeapOperator*[T] = proc(rng: var Rand; population: HeapPop[T]; size: int): seq[T] {.nimcall.}
+
+  HeapEvolver*[T] = object of LeanEvolver
+    operators: AliasMethod[HeapOperator[T]]
+    population*: HeapPop[T]
+
+proc chooseOperator*[T](evo: var HeapEvolver[T]): HeapOperator[T] =
+  ## choose an operator at random
+  if evo.operators.len == 0:
+    raise ValueError.newException "evolver needs operators assigned"
+  else:
+    choose(evo.operators, evo.rng)
+
+proc `operators=`*[T](evo: var HeapEvolver[T];
+                      weighted: openArray[(HeapOperator[T], float64)]) =
+  initAliasMethod(evo.operators, weighted)
+
+proc initEvolver*[T](evo: var HeapEvolver[T]; tableau: Tableau; rng: Rand = randState()) =
+  ## perform initial setup of the Evolver, binding tableau
+  initEvolver(evo.LeanEvolver, tableau, rng)
+
+proc tournament*[T](rng: var Rand; population: HeapPop[T]; size: int;
+                    order = Descending): T =
+  if population.len < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with empty population"
+  if size < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with less than one competitor"
+  let index = tournament(rng, population.high, size, order = order)
+  result = population[index]
+
+proc remove*[T](rng: var Rand; population: var HeapPop[T]; size: int) =
+  if population.len < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with empty population"
+  if size < 1:
+    raise ValueError.newException:
+      "cannot run a tournament with less than one competitor"
+  let index = tournament(rng, population.high, size, order = Ascending)
+  population.del(index)
+
+proc best*[T](population: HeapPop[T]): T = population[population.high]
+proc worst*[T](population: HeapPop[T]): T = population[population.low]
+
+proc randomMember*[T](evo: var HeapEvolver[T]): T =
+  evo.population[evo.rng.rand(evo.population.high)]

@@ -2,7 +2,8 @@
 const
   greadSeed {.intdefine.} = 0
   goodEnough = -0.40000     # termination condition
-  llsMany {.intdefine.} = 100_000
+  llsMany {.intdefine.} = 10_000_000
+  llsDuration {.intdefine.} = 30
   manyGenerations = llsMany
   statFrequency = 5_000
   llsGrammar = """

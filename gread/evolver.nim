@@ -24,7 +24,6 @@ import gread/grammar
 import gread/maths
 import gread/tournament
 import gread/genotype
-import gread/heapqueue
 
 const
   greadHoeffding* {.intdefine.} = 20
@@ -40,10 +39,6 @@ type
                         p: Program[T]): Option[V] ##
   ## a fitness function that runs against a series of symbolsets
 
-  FitGenome*[T] = proc(g: T): float ##
-  ## a fitness function that runs against a Genome-like thing
-
-  GenomeOperator*[T] = proc(rng: var Rand; population: HeapQueue[T]; size: int): seq[T] {.nimcall.}
   Operator*[T, V] = proc(evo: var Evolver[T, V]): seq[Program[T]] {.nimcall.}
   OperatorWeight*[T, V] = tuple[operator: Operator[T, V]; weight: float64]
 
@@ -52,7 +47,6 @@ type
 
   LeanEvolver* = object of RootObj
     rng*: Rand                      # we essentially need to expose mutability
-    grammar: Grammar
     tableau: Tableau
 
     name*: string                   # for reporting purposes
@@ -64,6 +58,7 @@ type
     ken: PopMetrics
 
   HeavyEvolver*[T, V] = object of LeanEvolver
+    grammar: Grammar
     operators: AliasMethod[Operator[T, V]]
 
     fittest: Option[Program[T]]
@@ -144,7 +139,7 @@ proc nextGeneration*(evo: var Evolver): Generation =
   inc evo.generations
   result = evo.generations
 
-proc generation*(evo: Evolver): Generation =
+proc generation*(evo: LeanEvolver): Generation =
   ## return the current generation
   evo.generations
 
@@ -279,17 +274,24 @@ proc dataset*[T, V](evo: Evolver[T, V]): lent seq[SymbolSet[T, V]] =
   else:
     raise ValueError.newException "evolver lacks a dataset"
 
+proc initEvolver*(evo: var LeanEvolver; tableau: Tableau; rng: Rand = randState()) =
+  ## perform initial setup of the Evolver, binding tableau
+  evo.tableau = tableau
+  evo.rng = rng
+  evo.birthday = getMonoTime()
+
 proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau; rng: Rand = randState()) =
   ## perform initial setup of the Evolver, binding platform and tableau
-  evo = Evolver[T, V](platform: platform, tableau: tableau, rng: rng,
-                      birthday: getMonoTime())
+  evo.initEvolver(tableau, rng)
+  evo.platform = platform
   if evo.core.isNone:
     evo.core = platform.core
   evo.resetCache()
 
-func isEqualWeight*(evo: Evolver): bool = false
+func isEqualWeight*(evo: LeanEvolver): bool = false
 
-proc randomOperator*[T, V](evo: var Evolver[T, V]): Operator[T, V] =
+proc chooseOperator*[T, V](evo: var Evolver[T, V]): Operator[T, V] =
+  ## choose an operator at random
   if evo.operators.len == 0:
     raise ValueError.newException "evolver needs operators assigned"
   else:
@@ -639,6 +641,14 @@ proc confidentComparison*(evo: var Evolver; a, b: var Program; p = defaultP): in
   result = cmp(evo.strength(get a1), evo.strength(get b1))
   debug "returning cmp; ", a1.get, " vs ", b1.get, " = ", result
 
+type
+  Competitor[T] = tuple      # sorting by
+    valid: bool              # validity, then by
+    score: Score             # score, then by
+    len: int                 # program length
+    index: int
+    program: Program[T]
+
 proc discharge(evo: var Evolver; c: var Competitor) =
   ## a modern remover
   let s = evo.scoreFromCache(c.program)
@@ -711,39 +721,6 @@ proc tournament*[T, V](evo: var Evolver[T, V]; size: int;
   discharge(evo, result)
   result.valid = result.program.isValid
   result.score = result.program.score
-
-proc tournament*(rng: var Rand; bound: Natural; size: Positive;
-                 order = Descending): int =
-  var size = max(1, min(bound + 1, size))
-  while size > 0:
-    dec size
-    result =
-      case order
-      of Ascending:
-        min(result, rng.rand(bound))
-      of Descending:
-        max(result, rng.rand(bound))
-
-proc tournament*[T](rng: var Rand; population: HeapQueue[T]; size: int;
-                    order = Descending): T =
-  if population.len < 1:
-    raise ValueError.newException:
-      "cannot run a tournament with empty population"
-  if size < 1:
-    raise ValueError.newException:
-      "cannot run a tournament with less than one competitor"
-  let index = tournament(rng, population.high, size, order = order)
-  result = population[index]
-
-proc remove*[T](rng: var Rand; population: var HeapQueue[T]; size: int) =
-  if population.len < 1:
-    raise ValueError.newException:
-      "cannot run a tournament with empty population"
-  if size < 1:
-    raise ValueError.newException:
-      "cannot run a tournament with less than one competitor"
-  let index = tournament(rng, population.high, size, order = Ascending)
-  population.del(index)
 
 iterator trim*[T, V](evo: var Evolver[T, V]): Program[T] =
   ## emit the worst programs until the population is
@@ -860,12 +837,12 @@ proc discover*(evo: var Evolver; program: Program) =
   if program.zombie:
     inc evo.ken.zombies
 
-proc tableau*(evo: Evolver): Tableau = evo.tableau
+proc tableau*(evo: LeanEvolver): Tableau = evo.tableau
 
-proc `core=`*(evo: var Evolver; core: CoreSpec) =
+proc `core=`*(evo: var LeanEvolver; core: CoreSpec) =
   evo.core = core
   evo.ken.core = evo.core
 
-proc core*(evo: var Evolver): CoreSpec = evo.core
+proc core*(evo: var LeanEvolver): CoreSpec = evo.core
 
-proc birthday*(evo: Evolver): MonoTime = evo.birthday
+proc birthday*(evo: LeanEvolver): MonoTime = evo.birthday

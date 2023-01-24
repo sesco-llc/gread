@@ -457,7 +457,7 @@ proc dumpScore*(p: FProg) =
 proc dumpScore*(fnl: Fennel; p: FProg) {.deprecated: "use dumpScore/1".} =
   dumpScore p
 
-proc getStats*(evo: Evolver; evoTime: Time): string =
+proc getStats*(evo: Evolver): string =
   ## compose a report of some statistics regarding the vm and population
   let fnl = evo.platform
   template genTime: FennelStat = evo.generationTime
@@ -468,7 +468,7 @@ proc getStats*(evo: Evolver; evoTime: Time): string =
   # program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
   m.generation = evo.generation
   let age = int(m.generation.int.float - m.ages.mean)
-  let totalTime = getTime() - evoTime
+  let totalTime = getMonoTime() - evo.birthday
   let totalMs = totalTime.inMilliseconds.float
   let bestRuntime =
     if evo.fittest.isSome:
@@ -529,9 +529,9 @@ proc getStats*(evo: Evolver; evoTime: Time): string =
   result &= threadStats
   clearStats fnl
 
-proc dumpStats*(evo: Evolver; evoTime: Time) =
+proc dumpStats*(evo: Evolver) =
   ## a threadsafe echo of some statistics regarding the vm and population
-  checkpoint getStats(evo, evoTime) & "\n"
+  checkpoint evo.getStats() & "\n"
 
 proc programNode*[T: Fennel](a: var Ast[T]): AstNode[T] =
   ## create a head node for the program
@@ -656,7 +656,6 @@ when compileOption"threads":
         evo.toggleParsimony(off)
         evo.resetFittest()
 
-    var evoTime = getTime()
     # fittest -> finest due to nim bug
     var finest: Option[Program[Fennel]]
     while evo.generation <= evo.tableau.maxGenerations:
@@ -693,8 +692,13 @@ when compileOption"threads":
 
       if args.stats > 0:
         if evo.generation mod args.stats == 0:
-          evo.dumpStats(evoTime)
+          evo.dumpStats()
           evo.clearStats()
+
+      # terminate the evolver according to a supplied predicate
+      if not args.terminator.isNil and args.terminator(evo):
+        debug "terminator() killed evolver"
+        break
 
     when defined(greadShareEntirePopulationAtDeath):
       let shared = evo.population

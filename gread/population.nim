@@ -12,7 +12,6 @@ import pkg/adix/stat except variance, Option
 import gread/spec
 import gread/programs
 import gread/maths
-import gread/heapqueue
 
 {.experimental: "strictFuncs".}
 
@@ -63,15 +62,9 @@ type
     for v in c:
       v is Program[T]
 
-  LegacyPop[T] = PopLike[T] or Population[T]
-
-iterator items*[T](q: HeapQueue[T]): T =
-  ## helper for heapqueue-based populations
-  for i in 0..<q.len:
-    yield q[i]
+  LegacyPop[T] = Population[T] or PopLike[T]
 
 # make sure we aren't breaking concepts 🙄
-assert HeapQueue[Program[int]] is PopLike[int]
 assert seq[Program[int]] is PopLike[int]
 assert array[5, Program[int]] is PopLike[int]
 
@@ -371,7 +364,7 @@ func clone*[T](population: Population[T]; core = none CoreId): Population[T] =
 proc sort*(population: Population; order = SortOrder.Ascending) =
   sort(population.programs, order = order)
 
-proc randomRemoval*[T](q: var HeapQueue[T]; rng: var Rand): T =
+proc randomRemoval*[T](q: var PopLike[T]; rng: var Rand): T =
   let index = rng.rand(q.high)
   result = q[index]
   q.del(index)
