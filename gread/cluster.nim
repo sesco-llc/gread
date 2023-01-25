@@ -11,11 +11,13 @@ import std/osproc
 import std/random
 import std/sequtils
 import std/strformat
+import std/strutils
 
 import pkg/cps
-import pkg/sysinfo
-import pkg/insideout
+import pkg/cutelog
 import pkg/grok/kute
+import pkg/insideout
+import pkg/sysinfo
 
 import gread/spec
 import gread/programs
@@ -25,6 +27,8 @@ import gread/data
 import gread/evolver
 import gread/grammar
 import gread/audit
+
+const logLevel {.strdefine.} = "lvlInfo"
 
 type
   EvalResult*[T, V] = object
@@ -165,6 +169,9 @@ proc bounce*[T: Continuation](c: sink T): T {.inline.} =
 
 proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
   ## continuation worker
+  addHandler:
+    newCuteConsoleLogger(fmtStr = "$levelid: ", useStderr = false,
+                         levelThreshold = parseEnum[logging.Level](logLevel))
   var work: Deque[Continuation]
   {.gcsafe.}:
     while true:
