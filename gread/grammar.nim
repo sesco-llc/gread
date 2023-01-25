@@ -1,7 +1,6 @@
 import std/hashes
 import std/logging
 import std/macros
-import std/md5
 import std/sequtils
 import std/sets
 import std/strformat
@@ -45,7 +44,7 @@ type
     p: OrderedProductions
     #w: WeightedProductions
     t: HashSet[Terminal]
-    h: MD5Digest
+    h: Hash
     strings: BiTable[string]
     numbers: BiTable[BiggestInt]
     when defined(greadGrammarHeatMap):
@@ -205,15 +204,31 @@ proc bnf(s: string): seq[Component] =
   let p = peg "start":
     EOL        <- "\n" | "\r\n"
     s          <- *" "
-    start      <- *rule * s * !1
+    start      <- *line * s * !1
+    comment    <- s * "#" * *(1 - EOL) * EOL
+    line       <- comment | rule
+    token      <- (symbolNoS | Alpha) * *(symbolNoS | Alpha | Digit)
+    literal    <- '"' * text1 * '"' | "'" * text2 * "'"
+    text1      <- *("\"\"" | character1)
+    text2      <- *("''" | character2)
+    character  <- Alpha | Digit | symbol
+    symbolNoS  <- {'!','#','$','%','&','(',')','*','+',',','-','.','/',':',';','>','=','<','?','@','[','\\',']','^','_','`','{','}','~'}
+    symbol     <- {'|',' ','!','#','$','%','&','(',')','*','+',',','-','.','/',':',';','>','=','<','?','@','[','\\',']','^','_','`','{','}','~'}
+    character1 <- character | "'"
+    character2 <- character | '"'
+    rule_name  <- Alpha * *rule_char
+    rule_char  <- Alpha | Digit | "-"
+    expression <- list * s * *("|" * s * list)
+
+    list       <- *(term * s):
+      prods.add list
+      setLen(list, 0)
+
     rule       <- s * "<" * >rule_name * ">" * s * "::=" * s * expression * s * EOL:
       for list in prods.items:
         emits.add Component(kind: ckRule, name: $1, rule: list)
       setLen(prods, 0)
-    expression <- list * s * *("|" * s * list)
-    list       <- *(term * s):
-      prods.add list
-      setLen(list, 0)
+
     term       <- >literal | >token | >("<" * rule_name * ">"):
       let s = $1
       if s.startsWith("\"") or s.startsWith("\'"):
@@ -228,17 +243,6 @@ proc bnf(s: string): seq[Component] =
         list.add Component(kind: ckRule, name: s)
       else:
         list.add Component(kind: ckToken, text: s)
-    token      <- (symbolNoS | Alpha) * *(symbolNoS | Alpha | Digit)
-    literal    <- '"' * text1 * '"' | "'" * text2 * "'"
-    text1      <- *("\"\"" | character1)
-    text2      <- *("''" | character2)
-    character  <- Alpha | Digit | symbol
-    symbolNoS  <- {'!','#','$','%','&','(',')','*','+',',','-','.','/',':',';','>','=','<','?','@','[','\\',']','^','_','`','{','}','~'}
-    symbol     <- {'|',' ','!','#','$','%','&','(',')','*','+',',','-','.','/',':',';','>','=','<','?','@','[','\\',']','^','_','`','{','}','~'}
-    character1 <- character | "'"
-    character2 <- character | '"'
-    rule_name  <- Alpha * *rule_char
-    rule_char  <- Alpha | Digit | "-"
 
   let r = p.match(s)
   if r.ok:
@@ -280,8 +284,8 @@ proc initGrammar*(gram: var Grammar; parseToken: proc(s: string): int16;
                   syntax: string) =
   ## initialize a grammar with the provided bnf syntax specification
   initGrammar gram
-  gram[].h = toMD5(syntax)
   var rules = bnf(syntax)
+  gram[].h = hash rules
   var nonterminals = 0
   template learnString(s: string) =
     discard gram[].strings.getOrIncl s

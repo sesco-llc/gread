@@ -7,6 +7,7 @@ const
   manyGenerations = llsMany
   statFrequency = 5_000
   llsGrammar = """
+    # a comment
     <start>        ::= <numexpr>
     <varargs>      ::= <numexpr> | <numexpr> <varargs>
     <numexpr>      ::= ( <numbop> <numexpr> <varargs> )
