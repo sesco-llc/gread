@@ -669,7 +669,7 @@ when compileOption"threads":
           of ctControl:
             case transport.control
             of ckWorkerQuit:
-              info "terminating on request"
+              debug fmt"terminating {args.core} on request"
               break
           else:
             for program in programs(transport):
@@ -737,8 +737,6 @@ when compileOption"threads":
         evo.resetFittest()
 
     while true:
-      coop() # give other evolvers a chance
-
       let transport = recv args.io.input
       if transport.isNil:
         # we're done
@@ -752,12 +750,13 @@ when compileOption"threads":
         of ctControl:
           case transport.control
           of ckWorkerQuit:
-            info "terminating on request"
+            debug fmt"terminating {args.core} on request"
             break
-          #else:
-          #  warn "ignoring control: " & $transport.control
-        else:
-          for transit in programs(transport):
+        of ctProgram:
+          var programs = toSeq programs(transport)
+          while programs.len > 0:
+            coop()  # cps-friendly yield
+            var transit = pop programs
             transit.source = getThreadId()
             transit.core = args.core
             let score = evo.score(transit)
@@ -771,6 +770,9 @@ when compileOption"threads":
             let evaluated = EvalResult[Fennel, LuaValue](program: transit,
                                                          results: results)
             push(args.io.output, evaluated)
+        else:
+          raise Defect.newException:
+            "unsupported transport kind: " & $transport.kind
 
     push(args.io.output, ckWorkerQuit)
 
@@ -801,9 +803,7 @@ when compileOption"threads":
         evo.resetFittest()
 
     while true:
-      coop() # give other evolvers a chance
-
-      let transport = pop args.io.input
+      var transport = recv args.io.input
       if transport.isNil:
         # we're done
         break
@@ -812,12 +812,13 @@ when compileOption"threads":
         of ctControl:
           case transport.control
           of ckWorkerQuit:
-            info "terminating on request"
+            debug fmt"terminating {args.core} on request"
             break
-          #else:
-          #  warn "ignoring control: " & $transport.control
         else:
-          for transit in programs(transport):
+          var programs = toSeq programs(transport)
+          while programs.len > 0:
+            coop()  # cps-friendly yield
+            var transit = pop programs
             let s = evo.score(transit)
             if s.isSome:
               transit.score = strength(evo)(get s)
@@ -857,6 +858,8 @@ when compileOption"threads":
       args.rng = some initRand()
       clump.boot(whelp scorer(args))
       clump.redress args
+      # shut down the workers when they run out of work
+      push(inputs, ckWorkerQuit)
 
     result = newPopulation[T](population.len)
     maybeProgressBar(1..population.len):
@@ -893,6 +896,8 @@ when compileOption"threads":
       args.rng = some initRand()
       clump.boot(whelp runner(args))
       clump.redress args
+      # shut down the workers when they run out of work
+      push(inputs, ckWorkerQuit)
 
     maybeProgressBar(1..population.len):
       while true:
