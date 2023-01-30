@@ -52,7 +52,7 @@ proc terminator(evo: var Evolver[Fennel, LuaValue]): bool =
   result = evo.generation >= llsMany
   when compiles(evo.fittest.isSome):
     result = result or evo.fittest.isSome and evo.fittest.get.score >= goodEnough
-  result = result or (getMonoTime() - evo.birthday).inSeconds >= llsDuration
+  result = result or (getMonoTime() - evo.birthday).inMilliseconds >= evo.tableau.maxDurationInMs
   if result:
     info fmt"terminator terminating evolver {evo.core}"
 
@@ -133,45 +133,45 @@ when isMainModule:
       of ctPopulation:
         # thread shut-down
         discard
-      of ctProgram:
-        var p = transport.program
-        #if cores > 1:
-        #  push(outputs, p)
+      of ctPrograms:
+        for p in programs(transport):
+          p.score = Score NaN
+          evo.makeRoom()
+          evo.add p
 
-        p.score = Score NaN
-        evo.makeRoom()
-        evo.add p
+          if fittest == get(evo.fittest):
+            continue
 
-        if fittest == get(evo.fittest):
-          continue
+          fittest = get(evo.fittest)
+          dumpScore fittest
+          inc winners
 
-        fittest = get(evo.fittest)
-        dumpScore fittest
-        inc winners
+          if fittest.score < goodEnough:
+            continue
 
-        if fittest.score < goodEnough:
-          continue
+          notice fmt"winner, winner, chicken dinner: {fittest.score}"
 
-        notice fmt"winner, winner, chicken dinner: {fittest.score}"
-
-        once:
-          for index in 1..workerCount:
-            debug "shutting down worker " & $index
-            push(outputs, ckWorkerQuit)
-
+          once:
+            for index in 1..workerCount:
+              debug "shutting down worker " & $index
+              push(outputs, ckWorkerQuit)
       else:
-        raise Defect.newException "unsupported transport: " & $transport.kind
+        raiseBadTransportKind transport
+
     let secs = (getMonoTime() - evo.birthday).inMilliseconds.float / 1000.0
     notice fmt"last generation: {fittest.generation} secs: {ff(secs.float)}"
     #notice fmt"number of winners: {winners} ({ff(winners.float / secs.float)}/sec)"
+
+  # set the maximum evolver duration
+  tab.maxDurationInMs = llsDuration * 1_000
 
   # each worker gets a Work object as input to its thread
   let clump = newCluster[Fennel, LuaValue]()
   var args = clump.initWork()
   initWork(args, tab, grammar = gram, operators = operators,
            dataset = dataset, fitone = fitone, fitmany = fitmany,
-           terminator = terminator,
-           strength = fennel.strength, stats = statFrequency)
+           terminator = terminator, strength = fennel.strength,
+           stats = statFrequency)
 
   for core in 1..cores:
     when greadSeed == 0:

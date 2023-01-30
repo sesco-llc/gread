@@ -621,7 +621,7 @@ when compileOption"threads":
   import gread/cluster
   import gread/generation
 
-  proc coop(c: C): C {.cpsMagic.} = c
+  proc noop(c: C): C {.cpsMagic.} = c
 
   proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
     let fnl = newFennel(core = args.core)
@@ -659,7 +659,7 @@ when compileOption"threads":
     # fittest -> finest due to nim bug
     var finest: Option[Program[Fennel]]
     while evo.generation <= evo.tableau.maxGenerations:
-      coop() # give other evolvers a chance
+      noop() # give other evolvers a chance
 
       if evo.rng.rand(1.0) < args.tableau.sharingRate:
         # receive messages from other members of the cluster
@@ -738,41 +738,36 @@ when compileOption"threads":
 
     while true:
       let transport = recv args.io.input
-      if transport.isNil:
-        # we're done
-        break
+      case transport.kind
+      of ctControl:
+        case transport.control
+        of ckWorkerQuit:
+          debug fmt"terminating {args.core} on request"
+          break
+      of ctPrograms, ctPopulation:
+        var programs = toSeq programs(transport)
+        while programs.len > 0:
+          noop()  # cps-friendly yield
+          var results = newSeq[Option[LuaValue]](evo.dataset.len)
+          var transit = pop programs
+          transit.source = getThreadId()
+          transit.core = args.core
+          # score it at a macro level
+          let score = evo.score(transit)
+          if score.isSome:
+            # this is a fitmany result; ie. a single float
+            transit.score = strength(evo)(get score)
+          else:
+            transit.score = NaN
+          # now retrieve the individual results
+          for index, thing in results.mpairs:
+            thing = evo.score(index, transit)
+          #for index in 0..evo.dataset.high:
+          #  results[index] = evo.score(index, transit)
+          push args.io.output:
+            EvalResult[Fennel, LuaValue](program: transit, results: results)
       else:
-        # XXX: not using newSeq due to nim call operator bug
-        var results: seq[Option[LuaValue]]
-        setLen(results, evo.dataset.len)
-
-        case transport.kind
-        of ctControl:
-          case transport.control
-          of ckWorkerQuit:
-            debug fmt"terminating {args.core} on request"
-            break
-        of ctProgram:
-          var programs = toSeq programs(transport)
-          while programs.len > 0:
-            coop()  # cps-friendly yield
-            var transit = pop programs
-            transit.source = getThreadId()
-            transit.core = args.core
-            let score = evo.score(transit)
-            if score.isSome:
-              # this is a fitmany result; ie. a single float
-              transit.score = strength(evo)(get score)
-            else:
-              transit.score = NaN
-            for index in 0..evo.dataset.high:
-              results[index] = evo.score(index, transit)
-            let evaluated = EvalResult[Fennel, LuaValue](program: transit,
-                                                         results: results)
-            push(args.io.output, evaluated)
-        else:
-          raise Defect.newException:
-            "unsupported transport kind: " & $transport.kind
+        raiseBadTransportKind transport.kind
 
     push(args.io.output, ckWorkerQuit)
 
@@ -804,39 +799,27 @@ when compileOption"threads":
 
     while true:
       var transport = recv args.io.input
-      if transport.isNil:
-        # we're done
-        break
+      case transport.kind
+      of ctControl:
+        case transport.control
+        of ckWorkerQuit:
+          debug fmt"terminating {args.core} on request"
+          break
+      of ctPrograms, ctPopulation:
+        var programs = toSeq programs(transport)
+        while programs.len > 0:
+          noop()  # cps-friendly yield
+          var transit = pop programs
+          let s = evo.score(transit)
+          if s.isSome:
+            transit.score = strength(evo)(get s)
+          else:
+            transit.score = NaN
+          args.shareOutput(transit)
       else:
-        case transport.kind
-        of ctControl:
-          case transport.control
-          of ckWorkerQuit:
-            debug fmt"terminating {args.core} on request"
-            break
-        else:
-          var programs = toSeq programs(transport)
-          while programs.len > 0:
-            coop()  # cps-friendly yield
-            var transit = pop programs
-            let s = evo.score(transit)
-            if s.isSome:
-              transit.score = strength(evo)(get s)
-            else:
-              transit.score = NaN
-            transit.source = getThreadId()
-            transit.core = args.core
-            push(args.io.output, transit)
+        raiseBadTransportKind transport.kind
 
     push(args.io.output, ckWorkerQuit)
-
-  template maybeProgressBar(iter: typed; body: untyped): untyped =
-    when hasSuru:
-      for it in suru(toSeq iter):
-        body
-    else:
-      for it in iter:
-        body
 
   proc threadedScore*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]; cores = none int): Population[T] =
     ## score programs in the population using multiple threads
@@ -862,20 +845,19 @@ when compileOption"threads":
       push(inputs, ckWorkerQuit)
 
     result = newPopulation[T](population.len)
-    maybeProgressBar(1..population.len):
-      while true:
-        let transport = recv outputs
-        case transport.kind
-        of ctControl:
-          case transport.control
-          of ckWorkerQuit:
-            debug "worker terminated"
-          #else:
-          #  warn "ignoring control: " & $transport.control
-        else:
-          for program in programs(transport):
-            result.add program
-          break
+    while result.len < population.len:
+      noop()
+      let transport = recv outputs
+      case transport.kind
+      of ctControl:
+        case transport.control
+        of ckWorkerQuit:
+          debug "worker terminated"
+      of ctPrograms, ctPopulation:
+        for program in programs(transport):
+          result.add program
+      else:
+        raiseBadTransportKind transport.kind
 
   proc threadedEvaluate*[T: Fennel, V: LuaValue](args: var Work[T, V]; population: Population[T]; cores = none int): GreadTable[Program[T], seq[Option[V]]] =
     ## evaluate programs in the population using multiple threads
@@ -899,19 +881,17 @@ when compileOption"threads":
       # shut down the workers when they run out of work
       push(inputs, ckWorkerQuit)
 
-    maybeProgressBar(1..population.len):
-      while true:
-        let transport = recv args.io.output
-        case transport.kind
-        of ctControl:
-          case transport.control
-          of ckWorkerQuit:
-            debug "worker terminated"
-        of ctEvalResult:
-          result[transport.result.program] = transport.result.results
-          break
-        else:
-          warn "threadedEvaluate() ignoring " & $transport.control
+    while result.len < population.len:
+      let transport = recv args.io.output
+      case transport.kind
+      of ctControl:
+        case transport.control
+        of ckWorkerQuit:
+          debug "worker terminated"
+      of ctEvalResult:
+        result[transport.result.program] = transport.result.results
+      else:
+        raiseBadTransportKind transport.kind
 
 proc parseToken*[T: Fennel](s: string): FennelNodeKind =
   case s

@@ -12,12 +12,13 @@ type
     seedProgramSize*: int  ## initial bound on the size of random programs
     tournamentSize*: int   ## tournaments are comprised of N individuals
     sharingRate*: float    ## likelihood of sharing members between cores
+    maxDurationInMs*: int  ## convenient termination metric
 
 const
   defaultTableau* =
     Tableau(seedPopulation: 500, maxPopulation: 500,
             maxGenerations: 10_000_000, seedProgramSize: 200,
-            sharingRate: 3.0, tournamentSize: 10,
+            sharingRate: 3.0, tournamentSize: 10, maxDurationInMs: 60_000,
             flags: {UseParsimony, RequireValid})
 
 func contains*(tab: Tableau; flag: TableauFlag): bool =

@@ -42,11 +42,11 @@ type
     ctMetrics
     ctEvolver
     ctPopulation
-    ctProgram
     ctPrograms
     ctEvalResult
     ctMessage
     ctControl
+    ctSymbolSets
 
   ClusterTransport*[T, V] = ref object
     case kind*: TransportKind
@@ -56,10 +56,10 @@ type
       evolver*: Evolver[T, V]
     of ctPopulation:
       population*: Population[T]
-    of ctProgram:
-      program*: Program[T]
     of ctPrograms:
       programs*: seq[Program[T]]
+    of ctSymbolSets:
+      symbolsets*: seq[SymbolSet[T, V]]
     of ctEvalResult:
       result*: EvalResult[T, V]
     of ctMessage:
@@ -125,11 +125,11 @@ proc push*[T, V](tq: TransportQ[T, V]; control: ControlKind;
 
 proc tryPush*[T, V](tq: TransportQ[T, V]; program: sink Program[T]): bool =
   ## convenience for pushing into a transport queue
-  tq.tryPush ClusterTransport[T, V](kind: ctProgram, program: program)
+  tq.tryPush ClusterTransport[T, V](kind: ctPrograms, programs: @[program])
 
 proc push*[T, V](tq: TransportQ[T, V]; program: sink Program[T]) =
   ## convenience for pushing into a transport queue
-  tq.push ClusterTransport[T, V](kind: ctProgram, program: program)
+  tq.push ClusterTransport[T, V](kind: ctPrograms, programs: @[program])
 
 proc push*[T, V](tq: TransportQ[T, V]; population: sink Population[T]) =
   ## convenience for pushing into a transport queue
@@ -150,6 +150,10 @@ proc push*[T, V](tq: TransportQ[T, V]; programs: sink seq[Program[T]]) =
 proc push*[T, V](tq: TransportQ[T, V]; evaluated: sink EvalResult[T, V]) =
   ## convenience for pushing into a transport queue
   tq.push ClusterTransport[T, V](kind: ctEvalResult, result: evaluated)
+
+proc push*[T, V](tq: TransportQ[T, V]; dataset: sink seq[SymbolSet[T, V]]) =
+  ## convenience for pushing into a transport queue
+  tq.push ClusterTransport[T, V](kind: ctSymbolSets, symbolsets: dataset)
 
 template push*(cluster: Cluster; thing: untyped): untyped =
   push(cluster.io.input, thing)
@@ -173,29 +177,28 @@ proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
     newCuteConsoleLogger(fmtStr = "$levelid: ", useStderr = false,
                          levelThreshold = parseEnum[logging.Level](logLevel))
   var work: Deque[Continuation]
-  {.gcsafe.}:
-    while true:
-      var c: Continuation
-      if work.len == 0:
-        c = recv queue
-        if dismissed c:
-          break
-        work.addLast c
+  while true:
+    var c: Continuation
+    if work.len == 0:
+      c = recv queue
+      if dismissed c:
+        break
+      work.addLast c
+    else:
+      # trampoline that tolerates errors and coops
+      var c = popFirst work
+      if running c:
+        try:
+          work.addLast:
+            bounce(move c)
+        except CatchableError as e:
+          error fmt"{e.name}: {e.msg}"
+          error "dismissing continuation..."
       else:
-        # trampoline that tolerates errors and coops
-        var c = popFirst work
-        if running c:
-          try:
-            work.addLast:
-              bounce(move c)
-          except CatchableError as e:
-            error fmt"{e.name}: {e.msg}"
-            error "dismissing continuation..."
-        else:
-          if queue.tryRecv c:
-            if dismissed c:
-              break
-            work.addLast c
+        if queue.tryRecv c:
+          if dismissed c:
+            break
+          work.addLast c
   when false and defined(useMalloc) and not defined(valgrind):
     echo fmt"thread exit; {Kute memoryUsed()} of {Kute memoryArena()}"
 
@@ -280,8 +283,6 @@ iterator programs*[T, V](transport: ClusterTransport[T, V]): var Program[T] =
     raise Defect.newException "attempt to iterate nil transport"
   else:
     case transport.kind
-    of ctProgram:
-      yield transport.program
     of ctPrograms:
       for program in transport.programs.mitems:
         yield program
@@ -291,11 +292,11 @@ iterator programs*[T, V](transport: ClusterTransport[T, V]): var Program[T] =
     else:
       raise Defect.newException "programs iterator called on " & $transport.kind
 
-proc search*(work: Work; evo: var Evolver) =
+proc search*[T, V](work: Work[T, V]; evo: var Evolver[T, V]) =
   ## try to get some fresh genes from another thread
   ## and add them to the supplied population
-  var transport = pop work.io.input
-  if not transport.isNil:
+  var transport: ClusterTransport[T, V]
+  if tryRecv(work.io.input, transport):
     for program in programs(transport):
       evo.introduce program
 
@@ -328,10 +329,11 @@ proc initWork*[T, V](cluster: Cluster[T, V]): Work[T, V] =
   ## instantiate a new Work object which is already redress(ed)
   cluster.redress result
 
-proc boot*[T, V](cluster: Cluster[T, V]; worker: sink C; core: CoreSpec) {.deprecated.} =
-  ## boot a cluster with a worker continuation
-  mailbox.send worker
-  cluster.cores.incl(get core)
+when false:
+  proc boot*[T, V](cluster: Cluster[T, V]; worker: sink C; core: CoreSpec) {.deprecated.} =
+    ## boot a cluster with a worker continuation
+    mailbox.send worker
+    cluster.cores.incl(get core)
 
 proc boot*[T, V](cluster: Cluster[T, V]; worker: sink C) =
   ## boot a cluster with a worker continuation
@@ -363,3 +365,10 @@ proc name*(cluster: Cluster): string =
     "gread cluster"
   else:
     cluster.name
+
+proc raiseBadTransportKind*(kind: TransportKind) =
+  raise Defect.newException:
+    fmt"unsupported transport kind: {kind}"
+
+proc raiseBadTransportKind*[T, V](transport: ClusterTransport[T, V]) =
+  raiseBadTransportKind transport.kind
