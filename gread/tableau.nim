@@ -2,7 +2,6 @@ type
   TableauFlag* = enum
     UseParsimony           ## whether to attempt to use parsimony
     RequireValid           ## the population ignores invalid additions
-    EqualWeight            ## each data point is equally impactful to result
 
   Tableau* = object
     flags*: set[TableauFlag]  ## optional toggles
@@ -29,9 +28,6 @@ func useParsimony*(tab: Tableau): bool {.deprecated: "use flags".} =
 
 func requireValid*(tab: Tableau): bool {.deprecated: "use flags".} =
   RequireValid in tab.flags
-
-func equalWeight*(tab: Tableau): bool {.deprecated: "use flags".} =
-  EqualWeight in tab.flags
 
 func `+=`*(tab: var Tableau; value: set[TableauFlag]) =
   tab.flags = tab.flags + value

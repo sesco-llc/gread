@@ -21,8 +21,7 @@ const
 
 # define the parameters for the evolvers
 var tab = defaultTableau
-tab -= {UseParsimony}
-tab -= {RequireValid, EqualWeight}
+tab -= {UseParsimony, RequireValid}
 tab.seedProgramSize = 500
 tab.seedPopulation = 100
 tab.maxPopulation = tab.seedPopulation

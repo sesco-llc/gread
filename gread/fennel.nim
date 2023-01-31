@@ -46,13 +46,12 @@ const
 
 type
   FennelObj = object
-    core*: Option[int]
-    vm*: PState
-    runs*: uint
-    nans*: FennelStat
-    errors*: FennelStat
-    runtime*: FennelStat
-  Fennel* = ref FennelObj
+    vm: PState
+    runs: uint
+    nans: FennelStat
+    errors: FennelStat
+    runtime: FennelStat
+  Fennel* = AtomicRef[FennelObj]
 
   FennelStat* = MovingStat[float32, uint32]
 
@@ -67,8 +66,6 @@ type
 proc `=destroy`(dest: var FennelObj) =
   if not dest.vm.isNil:
     close dest.vm
-  for key, value in dest.fieldPairs:
-    reset value
 
 func isValid*(score: LuaValue): bool {.inline.} =
   unlikely score.kind != TInvalid
@@ -95,9 +92,6 @@ proc deserialize*[S](input: var S; output: var LuaValue) =
   new js
   deserialize(input, js[])
   output = js.toLuaValue
-
-proc memoryGraphSize[T](thing: T): int =
-  freeze(thing).len
 
 proc asTable*[T](locals: SymbolSet[Fennel, LuaValue]): GreadTable[string, T] =
   ## given locals, select values of the given type into a table
@@ -167,9 +161,22 @@ proc newVM(): PState =
   result = newState()
   setupVM result
 
+proc runtime*(fnl: Fennel): FennelStat = fnl[].runtime
+proc errors*(fnl: Fennel): FennelStat = fnl[].errors
+proc nans*(fnl: Fennel): FennelStat = fnl[].nans
+proc runs*(fnl: Fennel): uint = fnl[].runs
+proc vm*(fnl: Fennel): var PState = fnl[].vm
+
+proc core*(fnl: Fennel): CoreSpec {.deprecated: "no cores".} = discard
+
+proc `vm=`(fnl: Fennel; vm: PState) =
+  if not fnl[].vm.isNil:
+    close fnl[].vm
+  fnl[].vm = vm
+
 proc tidyVM*(fnl: Fennel) =
   let began = getMonoTime()
-  when true:
+  when false:
     close fnl.vm
     fnl.vm = newVM()
     #echo fmt"reboot vm in {(getMonoTime() - began).inMilliseconds} ms"
@@ -180,14 +187,18 @@ proc tidyVM*(fnl: Fennel) =
 
 proc clearStats*(fnl: Fennel) =
   ## reset the MovingStat values in the Fennel object
-  clear fnl.nans
-  clear fnl.errors
-  clear fnl.runtime
+  clear fnl[].nans
+  clear fnl[].errors
+  clear fnl[].runtime
   fnl.tidyVM()
 
-proc newFennel*(core = none int): Fennel =
+proc newFennel*(): Fennel =
   ## reset a Fennel instance and prepare it for running programs
-  result = Fennel(vm: newVM(), core: core)
+  new result
+  result.vm = newVM()
+
+proc newFennel*(core: CoreSpec): Fennel {.deprecated: "omit core".} =
+  newFennel()
 
 proc fun*(s: string; arity = 0; args = arity..int.high): Fun =
   Fun(ident: s, arity: max(arity, args.a), args: args)
@@ -395,15 +406,15 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack {.deprecated.} =
 
 proc evaluateLua*(fnl: Fennel; code: string; locals: Locals): LuaValue =
   result = LuaValue(kind: TInvalid)
-  inc fnl.runs
-  if fnl.runs mod 50_000 == 0:
+  inc fnl[].runs
+  if fnl[].runs mod 50_000 == 0:
     fnl.tidyVM()
   try:
     # pass the program and the training inputs
     let began = getMonoTime()
     let stack = evaluateLua(fnl.vm, code, locals)
-    fnl.runtime.push (getMonoTime() - began).inNanoseconds.float
-    fnl.errors.push 0.0
+    fnl[].runtime.push (getMonoTime() - began).inNanoseconds.float
+    fnl[].errors.push 0.0
     # score a resultant value if one was produced
     if not stack.isNil:
       result = stack.value
@@ -413,10 +424,10 @@ proc evaluateLua*(fnl: Fennel; code: string; locals: Locals): LuaValue =
       quit 1
     else:
       discard e
-    fnl.errors.push 1.0
+    fnl[].errors.push 1.0
 
   # any failure to produce a scorable value
-  fnl.nans.push:
+  fnl[].nans.push:
     if result.isValid:
       0.0
     else:
@@ -441,9 +452,8 @@ proc injectLocals*(p: FProg; locals: Locals): string =
 
 proc threadName*(core: CoreSpec): string =
   ## render the core with local thread-id `when compileOption"threads"`
-  when compileOption"threads":
-    result.add $getThreadId()
-    result.add ":"
+  result.add $getThreadId()
+  result.add ":"
   result.add $core
 
 proc dumpScore*(p: FProg) =
@@ -621,10 +631,10 @@ when compileOption"threads":
   import gread/cluster
   import gread/generation
 
-  proc noop(c: C): C {.cpsMagic.} = c
+  proc noop(c: Continuation): Continuation {.cpsMagic.} = c
 
-  proc worker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
-    let fnl = newFennel(core = args.core)
+  proc worker*(args: Work[Fennel, LuaValue]) {.cps: Continuation.} =
+    let fnl = newFennel()
     var evo: Evolver[Fennel, LuaValue]
     let rng =
       if args.rng.isSome:
@@ -637,7 +647,7 @@ when compileOption"threads":
     evo.grammar = args.grammar
     evo.operators = args.operators
     evo.dataset = args.dataset
-    evo.core = fnl.core
+    evo.core = args.core
     evo.fitone = args.fitone
     evo.fitmany = args.fitmany
     if args.population.isNil:
@@ -710,9 +720,9 @@ when compileOption"threads":
 
     push(args.io.output, ckWorkerQuit)
 
-  proc runner*(args: Work[Fennel, LuaValue]) {.cps: C.} =
+  proc runner*(args: Work[Fennel, LuaValue]) {.cps: Continuation.} =
     ## a continuation that maps a population against a dataset
-    let fnl = newFennel(core = args.core)
+    let fnl = newFennel()
     var evo: Evolver[Fennel, LuaValue]
     initEvolver(evo, fnl, args.tableau)
     if args.rng.isSome:
@@ -722,7 +732,7 @@ when compileOption"threads":
     evo.grammar = args.grammar
     evo.operators = args.operators
     evo.dataset = args.dataset
-    evo.core = fnl.core
+    evo.core = args.core
     evo.fitone = args.fitone
     evo.fitmany = args.fitmany
     # just trying to do a sorta-correct thing here...
@@ -771,7 +781,7 @@ when compileOption"threads":
 
     push(args.io.output, ckWorkerQuit)
 
-  proc scorer*(args: Work[Fennel, LuaValue]) {.cps: C.} =
+  proc scorer*(args: Work[Fennel, LuaValue]) {.cps: Continuation.} =
     ## a continuation that simply scores programs in the input
     let fnl = newFennel(core = args.core)
     var evo: Evolver[Fennel, LuaValue]
@@ -783,7 +793,7 @@ when compileOption"threads":
     evo.grammar = args.grammar
     evo.operators = args.operators
     evo.dataset = args.dataset
-    evo.core = fnl.core
+    evo.core = args.core
     evo.fitone = args.fitone
     evo.fitmany = args.fitmany
     # just trying to do a sorta-correct thing here...
@@ -846,7 +856,7 @@ when compileOption"threads":
 
     result = newPopulation[T](population.len)
     while result.len < population.len:
-      noop()
+      #noop()
       let transport = recv outputs
       case transport.kind
       of ctControl:

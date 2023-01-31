@@ -82,42 +82,10 @@ type
 
   Evolver*[T, V] = ManyEvolver[T, V]
 
-import frosty/streams as brrr
-
-proc memoryGraphSize[T](thing: T): int =
-  mixin freeze
-  mixin deserialize
-  mixin serialize
-  freeze(thing).len
-
-proc audit*(evo: Evolver) =
-
-  let evomem = memoryGraphSize(evo)
-  let datamem = memoryGraphSize(evo.dataset)
-  let popmem = memoryGraphSize(evo.population)
-  let cachemem = memoryGraphSize(evo.cache)
-  let indexmem = memoryGraphSize(evo.indexes)
-  let unnovelmem = memoryGraphSize(evo.unnovel)
-  let scoremem = memoryGraphSize(evo.scoreCache)
-
-  echo fmt"evo mem: {evomem}"
-  echo fmt"data mem: {datamem}"
-  echo fmt"pop mem: {popmem}"
-  echo fmt"cache mem: {cachemem}"
-  echo fmt"index mem: {indexmem}"
-  echo fmt"noob mem: {unnovelmem}"
-  echo fmt"score mem: {scoremem}"
-  echo fmt"memory consumption minus suspects: {evomem-cachemem-unnovelmem}"
-  echo fmt"memory consumption per ast node: {evomem div evo.population.len}"
-
 proc paintScore*(evo: var Evolver; program: var Program; inPop = false): Score =
   ## do the score assignment dance
   mixin isValid
-  let score =
-    if evo.isEqualWeight:
-      evo.scoreRandomly(program)
-    else:
-      evo.score(program)
+  let score = evo.score(program)
   program.score =
     if score.isSome:
       let str = evo.strength(get score)
@@ -284,11 +252,7 @@ proc initEvolver*[T, V](evo: var Evolver[T, V]; platform: T; tableau: Tableau; r
   ## perform initial setup of the Evolver, binding platform and tableau
   evo.initEvolver(tableau, rng)
   evo.platform = platform
-  if evo.core.isNone:
-    evo.core = platform.core
   evo.resetCache()
-
-func isEqualWeight*(evo: LeanEvolver): bool = false
 
 proc chooseOperator*[T, V](evo: var Evolver[T, V]): Operator[T, V] =
   ## choose an operator at random
@@ -530,11 +494,7 @@ proc randomPop*[T, V](evo: var Evolver[T, V]): Population[T] =
       var p = randProgram[T](evo.rng, evo.grammar, evo.tableau.seedProgramSize)
       p.core = evo.core
       # FIXME: optimization point
-      let s =
-        if evo.isEqualWeight:
-          evo.scoreRandomly(p)
-        else:
-          evo.score(p)
+      let s = evo.score(p)
       p.score =
         if s.isSome:
           evo.strength(get s)
@@ -691,7 +651,7 @@ proc tournament*[T, V](evo: var Evolver[T, V]; size: int;
       else:
         var cmp: int
         # we have an encumbent; see what's better when
-        if evo.isEqualWeight:
+        if false:
           cmp = confidentComparison(evo, victim.program, result.program)
         else:
           # XXX: temporary hack?  needs to be profiled...

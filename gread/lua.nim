@@ -460,9 +460,9 @@ when compileOption"threads":
   import gread/cluster
   import gread/generation
 
-  proc noop(c: C): C {.cpsMagic.} = c
+  proc noop(c: Continuation): Continuation {.cpsMagic.} = c
 
-  proc worker*(args: Work[Lua, LuaValue]) {.cps: C.} =
+  proc worker*(args: Work[Lua, LuaValue]) {.cps: Continuation.} =
     let lua = newLua args.core
     var evo: Evolver[Lua, LuaValue]
     initEvolver(evo, lua, args.tableau)

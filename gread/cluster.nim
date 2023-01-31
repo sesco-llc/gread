@@ -81,7 +81,7 @@ type
 
   Work*[T, V] = object
     name*: string                          ## for reporting purposes
-    core*: Option[CoreId]                  ## threadId-like concept
+    core*: CoreSpec                        ## threadId-like concept
     stats*: int                            ## how often to emit stats
     rng*: Option[Rand]                     ## seeded RNG
     tableau*: Tableau
@@ -98,19 +98,11 @@ type
 
 proc tryPush*[T, V](tq: TransportQ[T, V]; item: sink ClusterTransport[T, V]): bool {.inline.} =
   tq.trySend item
-  #tq.send item
 
 proc push*[T, V](tq: TransportQ[T, V]; item: sink ClusterTransport[T, V]) {.inline.} =
   tq.send item
 
-proc pop*[T, V](tq: TransportQ[T, V]): ClusterTransport[T, V] {.deprecated.} =
-  discard tryRecv(tq, result)
-
-when false:
-  proc recv*[T, V](tq: TransportQ[T, V]): ClusterTransport[T, V] {.deprecated.} =
-    result = insideout.recv tq
-else:
-  export recv
+export recv
 
 proc push*[T, V](tq: TransportQ[T, V]; control: ControlKind;
                  argument: JsonNode = nil) =
@@ -256,20 +248,27 @@ proc shareOutput*(work: Work; program: Program) =
   var transit = program.toTransit(work.core)
   push(work.io.output, transit)
 
+proc calculateSharing*(rng: var Rand; sharingRate: float): int =
+  ## produce a count of shares from a rate
+  # if the sharing rate is < 1.0, it's a weight
+  if sharingRate < 1.0:
+    if rng.rand(1.0) < sharingRate:
+      1
+    else:
+      0
+  # else, it's a multiplier
+  else:
+    int sharingRate
+
+proc calculateSharing*(evo: var LeanEvolver): int =
+  ## produce a count of shares from an evolver
+  calculateSharing(evo.rng, evo.tableau.sharingRate)
+
 proc shareInput*(work: Work; p: Program): int {.discardable.} =
   ## try to send a better program to other threads
   ## if we meet the tableau's sharing rate.
   ## returns the number of copies shared to the input pipe
-  let sharing =
-    # if the sharing rate is < 1.0, it's a weight
-    if work.tableau.sharingRate < 1.0:
-      if rand(1.0) < work.tableau.sharingRate:
-        1
-      else:
-        0
-    # else, it's a multiplier
-    else:
-      int work.tableau.sharingRate
+  let sharing = calculateSharing(randState(), work.tableau.sharingRate)
 
   # share the program as widely as is requested
   for copies in 0..<max(0, sharing):
@@ -329,13 +328,7 @@ proc initWork*[T, V](cluster: Cluster[T, V]): Work[T, V] =
   ## instantiate a new Work object which is already redress(ed)
   cluster.redress result
 
-when false:
-  proc boot*[T, V](cluster: Cluster[T, V]; worker: sink C; core: CoreSpec) {.deprecated.} =
-    ## boot a cluster with a worker continuation
-    mailbox.send worker
-    cluster.cores.incl(get core)
-
-proc boot*[T, V](cluster: Cluster[T, V]; worker: sink C) =
+proc boot*[T, V](cluster: Cluster[T, V]; worker: sink Continuation) =
   ## boot a cluster with a worker continuation
   let core = nextCore()
   mailbox.send worker
