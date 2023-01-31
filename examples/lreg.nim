@@ -336,31 +336,28 @@ when isMainModule:
           dumpScore program
         echo ""
 
-      of ctProgram:
-        var p = transport.program
-        #if cores > 1:
-        #  push(outputs, p)
+      of ctPrograms:
+        for p in programs(transport):
+          p.score = Score NaN
+          evo.makeRoom()
+          evo.add p
 
-        p.score = Score NaN
-        evo.makeRoom()
-        evo.add p
+          if fittest == get(evo.fittest):
+            continue
 
-        if fittest == get(evo.fittest):
-          continue
+          fittest = get(evo.fittest)
+          dumpScore fittest
+          inc winners
 
-        fittest = get(evo.fittest)
-        dumpScore fittest
-        inc winners
+          if fittest.score < goodEnough:
+            continue
 
-        if fittest.score < goodEnough:
-          continue
+          notice fmt"winner, winner, chicken dinner: {fittest.score}"
 
-        notice fmt"winner, winner, chicken dinner: {fittest.score}"
-
-        once:
-          for index in 1..workerCount:
-            debug "shutting down worker " & $index
-            push(outputs, ckWorkerQuit)
+          once:
+            for index in 1..workerCount:
+              debug "shutting down worker " & $index
+              push(outputs, ckWorkerQuit)
 
       else:
         raise Defect.newException "unsupported transport: " & $transport.kind
