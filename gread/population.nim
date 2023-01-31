@@ -49,7 +49,7 @@ type
     usurper*: CoreSpec
     size*: int
 
-  Population*[T: ref] = ref object
+  Population*[T] = ref object
     programs: seq[Program[T]]
     ken*: PopMetrics
     when populationCache:
