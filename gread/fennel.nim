@@ -183,7 +183,7 @@ proc tidyVM*(fnl: Fennel) =
   else:
     fnl.vm.checkLua fnl.vm.gc(GcCollect, 0):
       discard
-    echo fmt"gccollect in {(getMonoTime() - began).inMilliseconds} ms"
+    debug fmt"gccollect in {(getMonoTime() - began).inMilliseconds} ms"
 
 proc clearStats*(fnl: Fennel) =
   ## reset the MovingStat values in the Fennel object
