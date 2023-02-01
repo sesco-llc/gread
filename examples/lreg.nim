@@ -23,17 +23,6 @@ import pkg/insideout
 
 include preamble
 
-let
-  cores =
-    when not defined(release) and greadSeed != 0:
-      1
-    else:
-      processors
-      #max(1, getNumTotalCores())
-
-var gram: Grammar
-initFennelGrammar(gram, llsGrammar)
-
 # you can adjust these weights to change mutation rates
 let operatorWeights = {
   geCrossover[Genome]:        1.0,
@@ -44,38 +33,6 @@ let operatorWeights = {
   geNoise2pt0[Genome]:        1.0,
   geNoise4pt0[Genome]:        1.0,
 }
-
-const
-  # given a line of (x, y) points, solve for y given x
-  data = @[(1,6), (2,5), (3,7), (4,10)]
-
-# preparing the data for use in the fitness()
-var dataset: seq[Locals]
-for (x, y) in data.items:
-  dataset.add:
-    initLocals [("x", x.toLuaValue), ("y", y.toLuaValue)]
-
-proc fitone(fnl: Fennel; locals: Locals; p: var FProg): Option[LuaValue] =
-  ## given a datapoint, run the program and return the residual
-  let s = evaluate(fnl, p, locals)
-  if s.isValid:
-    result =
-      some:
-        toLuaValue -abs(locals["y"].toFloat - s.toFloat)
-
-proc fitmany(fnl: Fennel; iter: iterator(): (ptr Locals, ptr LuaValue);
-             p: FProg): Option[LuaValue] =
-  ## given several residuals, return the sum of squares
-  var results = newSeqOfCap[float](data.len)
-  for locals, s in iter():
-    if s[].isValid:
-      results.add s[]
-    else:
-      return none LuaValue
-  if results.len > 0:
-    let s = toLuaValue -ss(results)
-    if s.isValid:
-      result = some s
 
 type
   CacheNode = object
@@ -144,7 +101,7 @@ when isMainModule:
 
   randomize()
 
-  proc coop(c: C): C {.cpsMagic.} = c
+  proc coop(c: Continuation): Continuation {.cpsMagic.} = c
 
   proc pop*[T](rng: var Rand; population: var HeapPop[T]; size: int): T =
     if population.len < 1:
@@ -174,7 +131,7 @@ when isMainModule:
     if result:
       info fmt"terminator terminating evolver {evo.core}"
 
-  proc leanWorker*(args: Work[Fennel, LuaValue]) {.cps: C.} =
+  proc leanWorker*(args: Work[Fennel, LuaValue]) {.cps: Continuation.} =
     initGreadTable cache
 
     if fnl.isNil:
@@ -220,7 +177,6 @@ when isMainModule:
               of ctControl:
                 case transport.control
                 of ckWorkerQuit:
-                  info "terminating on request"
                   break
               else:
                 for program in programs(transport):
