@@ -416,7 +416,7 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr GreadSet[int];
     discard render p
     let p = addr p
     let e = addr evo
-    # the iterator evaluates each symbol set in the dataset
+    # the iterator evaluates each symbol set in the dataset[indices]
     iterator iter(): (ptr SymbolSet[T, V], ptr V) =
       for index in indices[].items:
         var v: ptr V
@@ -427,8 +427,8 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr GreadSet[int];
           if s.isNone:
             raise UnfitError.newException "fitone fail"
           else:
-            v = unsafeAddr (get s)
-        yield (unsafeAddr e[].dataset[index], v)
+            v = addr (get s)
+        yield (addr e[].dataset[index], v)
 
     # pass the iterator to fitmany() and check the result
     try:
