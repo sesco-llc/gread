@@ -212,7 +212,7 @@ proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
         # remove extant unsupported keys
         raise StoreError.newException:
           "deserialization failure: no tree-sitter available"
-    if not program.isNil:
+    if program.isInitialized:
       result = some program
   except ThawError as e:
     raise StoreError.newException "deserialization failure: " & e.msg
