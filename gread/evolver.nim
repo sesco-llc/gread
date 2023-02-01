@@ -191,6 +191,7 @@ proc maybeResetFittest*(evo: var Evolver; program: var Program) =
 
 proc resetFittest*(evo: var Evolver) =
   ## reset the fittest program metric, clearing all other FinestKnown flags
+  reset evo.fittest
   for p in evo.population.mitems:
     evo.maybeResetFittest(p)
     p.flags.excl FinestKnown
