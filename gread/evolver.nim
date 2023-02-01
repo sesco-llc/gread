@@ -265,7 +265,7 @@ proc chooseOperator*[T, V](evo: var Evolver[T, V]): Operator[T, V] =
   else:
     choose(evo.operators, evo.rng)
 
-proc hasSampled(evo: Evolver; p: Program; index: int): bool =
+proc hasSampled*(evo: Evolver; p: Program; index: int): bool =
   ## true if the program has been sampled with the symbol set at `index`
   try:
     result = index in evo.unnovel[p.hash]
@@ -295,14 +295,16 @@ iterator sampleSets(evo: var Evolver; a, b: Program): GreadSet[int] =
   # next, make them both more precise with novel samples
   yield evo.indexes - (x + y)
 
-proc getScoreFromCache[T, V](evo: var Evolver[T, V]; p: Program;
-                             index: int): ptr V =
+proc getScoreFromCache*[T, V](evo: var Evolver[T, V]; p: Program;
+                              index: int): ptr V =
   ## load score using dataset[index] (symbol set)
-  assert evo.hasSampled(p, index)
   try:
-    result = addr evo.cache[p.hash][index]
+    if index <= evo.cache[p.hash].high:
+      result = addr evo.cache[p.hash][index]
+    else:
+      raise IndexDefect.newException "index not yet cached"
   except KeyError:
-    result = nil
+    raise KeyError.newException "program not yet cached"
 
 template initCache[T, V](evo: var Evolver[T, V]; p: Program[T]; index: int; score: V) =
   var s = newSeq[V](evo.dataset.len)
@@ -385,6 +387,13 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
       p.pushRuntime (getMonoTime() - began).inNanoseconds.float
       if result.isSome:
         evo.addScoreToCache(p, index, get result)
+      else:
+        # XXX: can't wait to remove this...
+        when V is float:
+          evo.addScoreToCache(p, index, NaN)
+        else:
+          evo.addScoreToCache(p, index, default V)
+        warn fmt"destroy score for index {index} program {p.hash}"
 
 proc score[T, V](evo: Evolver[T, V]; ss: ptr SymbolSet[T, V];
                  p: var Program[T]): Option[V] {.deprecated: "use index".} =
@@ -805,8 +814,7 @@ proc discover*(evo: var Evolver; program: Program) =
     inc evo.ken.zombies
 
 proc add*[T, V](evo: var HeavyEvolver[T, V]; symbolset: sink SymbolSet[T, V]) =
-  setLen(evo.dataset, evo.dataset.len + 1)
-  evo.dataset[^1] = symbolset
+  evo.dataset.add symbolset
   evo.indexes.incl evo.dataset.high
 
 proc tableau*(evo: LeanEvolver): Tableau = evo.tableau
@@ -835,3 +843,9 @@ proc indexLength*[T, V](evo: HeavyEvolver[T, V]): int =
 proc discardIndex*[T, V](evo: var HeavyEvolver[T, V]; index: int) =
   ## discard an active dataset entry by index
   evo.indexes.excl index
+
+proc clearScoreCache*[T, V](evo: var HeavyEvolver[T, V]; program: Program[T]) =
+  try:
+    evo.scoreCache.del(program.hash)
+  except KeyError:
+    discard
