@@ -229,13 +229,6 @@ proc pushGlobal*(vm: PState; name: string; value: Terminal) =
     raise ValueError.newException "unsupported term"
   vm.setGlobal name
 
-proc hash(p: FProg; locals: Locals): Hash {.deprecated.} =
-  ## produce a unique value according to program and training input
-  var h: Hash = 0
-  h = h !& p.hash
-  h = h !& locals.hash
-  result = !$h
-
 converter toInt16(n: FennelNodeKind): int16 {.inline.} = int16 n
 
 template fnk(n: typed): FennelNodeKind = FennelNodeKind n
@@ -375,34 +368,39 @@ proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
       error e.name, ": ", e.msg
       writeStackTrace()
       raise
+    else:
+      discard e
   except CatchableError as e:
     error e.name, ": ", e.msg
     writeStackTrace()
     raise
 
-proc evaluate(vm: PState; s: string; locals: Locals): LuaStack {.deprecated.} =
-  ## compile and evaluate the program as fennel; the result of
-  ## the expression is assigned to the variable `result`.
-  vm.pushGlobal("result", term 0.0)
-  for point in locals.items:
-    discard vm.push point.value
-    vm.setGlobal point.name.cstring
-  let fennel = """
-    result = fennel.eval([==[$#]==], {compilerEnv=_G})
-  """ % [ s ]
-  try:
-    vm.checkLua vm.doString fennel.cstring:
-      vm.getGlobal "result"
-      result = popStack vm
-  except LuaError as e:
-    when greadSemanticErrorsAreFatal:
+when false:
+  proc evaluate(vm: PState; s: string; locals: Locals): LuaStack {.deprecated.} =
+    ## compile and evaluate the program as fennel; the result of
+    ## the expression is assigned to the variable `result`.
+    vm.pushGlobal("result", term 0.0)
+    for point in locals.items:
+      discard vm.push point.value
+      vm.setGlobal point.name.cstring
+    let fennel = """
+      result = fennel.eval([==[$#]==], {compilerEnv=_G})
+    """ % [ s ]
+    try:
+      vm.checkLua vm.doString fennel.cstring:
+        vm.getGlobal "result"
+        result = popStack vm
+    except LuaError as e:
+      when greadSemanticErrorsAreFatal:
+        error e.name, ": ", e.msg
+        writeStackTrace()
+        raise
+      else:
+        discard e
+    except CatchableError as e:
       error e.name, ": ", e.msg
       writeStackTrace()
       raise
-  except CatchableError as e:
-    error e.name, ": ", e.msg
-    writeStackTrace()
-    raise
 
 proc evaluateLua*(fnl: Fennel; code: string; locals: Locals): LuaValue =
   result = LuaValue(kind: TInvalid)
@@ -506,6 +504,7 @@ proc getStats*(evo: Evolver): string =
   result = fmt"""
                thread and core: {m.core.threadName} -- {evo.name}
                   dataset size: {evo.dataset.len}
+           active dataset size: {evo.indexLength}
           virtual machine runs: {fnl.runs} (never reset)
             average vm runtime: {fnl.runtime.mean / 1_000_000.0:>8.4f} ms
          total population size: {m.size}
@@ -534,7 +533,7 @@ proc getStats*(evo: Evolver): string =
              total generations: {m.generation} / {evo.tableau.maxGenerations}
         vm runs per generation: {ff(fnl.runs.float / m.generation.float)}
                generation time: {ff genTime.mean} ms
-        generations per second: {ff(1000.0 * m.generation.float / totalMs)}
+        generations per second: {ff(1000.0 / genTime.mean)}
                 evolution time: {ff(totalMs / 1000.0)} sec"""
   result &= threadStats
   clearStats fnl
@@ -783,7 +782,7 @@ when compileOption"threads":
 
   proc scorer*(args: Work[Fennel, LuaValue]) {.cps: Continuation.} =
     ## a continuation that simply scores programs in the input
-    let fnl = newFennel(core = args.core)
+    let fnl = newFennel()
     var evo: Evolver[Fennel, LuaValue]
     initEvolver(evo, fnl, args.tableau)
     if args.rng.isSome:
