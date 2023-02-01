@@ -801,12 +801,29 @@ proc discover*(evo: var Evolver; program: Program) =
   if program.zombie:
     inc evo.ken.zombies
 
+proc add*[T, V](evo: var HeavyEvolver[T, V]; symbolset: sink SymbolSet[T, V]) =
+  setLen(evo.dataset, evo.dataset.len + 1)
+  evo.dataset[^1] = symbolset
+  evo.indexes.incl evo.dataset.high
+
 proc tableau*(evo: LeanEvolver): Tableau = evo.tableau
 
 proc `core=`*(evo: var LeanEvolver; core: CoreSpec) =
   evo.core = core
   evo.ken.core = evo.core
 
-proc core*(evo: var LeanEvolver): CoreSpec = evo.core
+proc core*(evo: LeanEvolver): CoreSpec = evo.core
+
+proc rebirth*(evo: var LeanEvolver) =
+  evo.birthday = getMonoTime()
+  evo.generations = 1.Generation
 
 proc birthday*(evo: LeanEvolver): MonoTime = evo.birthday
+
+proc indexLength*[T, V](evo: HeavyEvolver[T, V]): int =
+  ## find the number of active dataset entries
+  evo.indexes.len
+
+proc discardIndex*[T, V](evo: var HeavyEvolver[T, V]; index: int) =
+  ## discard an active dataset entry by index
+  evo.indexes.excl index
