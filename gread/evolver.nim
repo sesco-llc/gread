@@ -225,7 +225,7 @@ proc resetCache*(evo: var Evolver) =
   ## clear the cache of previously-evaluated symbol sets, per each program
   initGreadTable(evo.cache, evo.tableau.maxPopulation)
   initGreadTable(evo.scoreCache, evo.tableau.maxPopulation)
-  initGreadTable(evo.unnovel, evo.tableau.maxPopulation)
+  initGreadTable(evo.unnovel, evo.dataset.len)
   clear evo.indexes
   for index in evo.dataset.low .. evo.dataset.high:
     evo.indexes.incl index
