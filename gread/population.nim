@@ -223,9 +223,13 @@ type
     index: int
     program: Program[T]
 
-proc `[]`*[T](pop: Population[T]; index: int): Program[T] =
+proc `[]`*[T](population: Population[T]; index: int): var Program[T] =
   ## retrieve a program via (unstable?) index
-  pop.programs[index]
+  population.programs[index]
+
+proc high*(population: Population): int =
+  ## retrieve the highest index of a population
+  population.programs.high
 
 proc randomMember*[T](population: Population[T];
                       rng: var Rand): IndexedProgram[T] =
