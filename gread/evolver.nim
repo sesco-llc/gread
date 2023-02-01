@@ -189,9 +189,12 @@ proc maybeResetFittest*(evo: var Evolver; program: var Program) =
         evo.fittest = some program
         maybeReportFittest(evo, program)
 
+proc clearFittest*(evo: var Evolver) =
+  reset evo.fittest
+
 proc resetFittest*(evo: var Evolver) =
   ## reset the fittest program metric, clearing all other FinestKnown flags
-  reset evo.fittest
+  evo.clearFittest()
   for p in evo.population.mitems:
     evo.maybeResetFittest(p)
     p.flags.excl FinestKnown
@@ -815,8 +818,13 @@ proc `core=`*(evo: var LeanEvolver; core: CoreSpec) =
 proc core*(evo: LeanEvolver): CoreSpec = evo.core
 
 proc rebirth*(evo: var LeanEvolver) =
+  ## reset the evolver's birthday
   evo.birthday = getMonoTime()
-  evo.generations = 1.Generation
+
+proc rebirth*(evo: var LeanEvolver; generations: int) =
+  ## reset the evolver's birthday and maximum generations
+  rebirth evo
+  evo.tableau.maxGenerations = generations
 
 proc birthday*(evo: LeanEvolver): MonoTime = evo.birthday
 
