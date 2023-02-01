@@ -316,6 +316,9 @@ proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: var Program; index: int;
   if not evo.unnovel[p.hash].containsOrIncl(index):
     inc evo.cacheCounter
     try:
+      # grow the cache if necessary
+      if evo.cache[p.hash].high < index:
+        setLen(evo.cache[p.hash], index+1)
       evo.cache[p.hash][index] = score
     except KeyError:
       initCache(evo, p, index, score)
