@@ -726,7 +726,8 @@ proc resetParsimony*(evo: var Evolver): PopMetrics =
       return
     if evo.strength.isNil:
       raise ValueError.newException "evolver needs strength assigned"
-    profile "reset parsimony":
+    #profile "reset parsimony":
+    block:
       # reset their scores
       for program in evo.population.mitems:
         var s: Option[float]
