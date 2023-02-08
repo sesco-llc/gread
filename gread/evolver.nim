@@ -210,7 +210,7 @@ proc `population=`*[T, V](evo: var Evolver[T, V]; population: Population[T]) =
   evo.population = population
   if not evo.population.isNil:
     for p in evo.population.mitems:
-      discard evo.paintScore(p)
+      discard evo.paintScore(p, inPop=false)  # ie. don't reset fittest
     if UseParsimony in evo.tableau:
       evo.toggleParsimony(on)
     else:
