@@ -311,8 +311,8 @@ template initCache[T, V](evo: var Evolver[T, V]; p: Program[T]; index: int; scor
   s[index] = score
   evo.cache[p.hash] = s
 
-proc addScoreToCache[T, V](evo: var Evolver[T, V]; p: var Program; index: int;
-                           score: V) =
+proc addScoreToCache*[T, V](evo: var Evolver[T, V]; p: var Program; index: int;
+                            score: V) =
   ## store score using dataset[index] (symbol set)
   demandValid score
   if p.hash notin evo.unnovel:
