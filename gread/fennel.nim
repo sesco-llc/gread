@@ -328,8 +328,7 @@ proc `$`*(program: FProg): string =
   if Rendered in program.flags:
     programs.`$`(program)
   else:
-    warn "had to render an immutable program"
-    render program.ast
+    raise Defect.newException "attempt to render an immutable program"
 
 proc compileFennel(vm: PState; source: string): string =
   vm.pushGlobal("result", term false)
