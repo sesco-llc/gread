@@ -166,7 +166,7 @@ proc bounce*[T: Continuation](c: sink T): T {.inline.} =
 proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
   ## continuation worker
   addHandler:
-    newCuteConsoleLogger(fmtStr = "$levelid: ", useStderr = false,
+    newCuteConsoleLogger(fmtStr = fmt"{getThreadId()} $levelid: ", useStderr = false,
                          levelThreshold = parseEnum[logging.Level](logLevel))
   var work: Deque[Continuation]
   while true:
