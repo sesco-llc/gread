@@ -324,12 +324,6 @@ proc render*(a: Ast[Fennel]): string =
   stripSpace()
   compact result
 
-proc `$`*(program: FProg): string =
-  if Rendered in program.flags:
-    programs.`$`(program)
-  else:
-    raise Defect.newException "attempt to render an immutable program"
-
 proc compileFennel(vm: PState; source: string): string =
   vm.pushGlobal("result", term false)
   let fennel = fmt"""

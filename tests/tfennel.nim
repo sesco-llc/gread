@@ -98,7 +98,8 @@ suite "basic fennel stuff":
     checkpoint s
     checkpoint "genome length: ", p.genome.len
     let (pc1, ast1) = πGE[Fennel](gram, p.genome)
-    check $p == $newProgram(ast1, p.genome[0..<pc1.int])
+    var q = newProgram(ast1, p.genome[0..<pc1.int])
+    check $p == $q
     var locals = initSymbolSet[Fennel, LuaValue]:
       {
         "a": 3.toLuaValue,
