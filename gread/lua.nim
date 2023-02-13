@@ -278,13 +278,6 @@ proc evaluate*(lua: Lua; p: var LProg; locals: Locals): LuaValue =
       p.zombie = true
       1.0
 
-proc `$`*(program: LProg): string =
-  if Rendered in program.flags:
-    programs.`$`(program)
-  else:
-    warn "had to render an immutable program"
-    render program.ast
-
 proc dumpScore*(p: LProg) =
   var s = fmt"{p.score} {p.core}/{p.generation}[{p.len}]: "
   s.add $p
