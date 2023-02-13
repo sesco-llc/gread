@@ -150,19 +150,6 @@ proc push*[T, V](tq: TransportQ[T, V]; dataset: sink seq[SymbolSet[T, V]]) =
 template push*(cluster: Cluster; thing: untyped): untyped =
   push(cluster.io.input, thing)
 
-proc bounce*[T: Continuation](c: sink T): T {.inline.} =
-  var c: Continuation = move c
-  if c.running:
-    try:
-      var y = c.fn
-      var x = y(c)
-      c = x
-    except CatchableError:
-      if not c.dismissed:
-        writeStackFrames c
-      raise
-  result = T c
-
 proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
   ## continuation worker
   addHandler:
