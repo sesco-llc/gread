@@ -58,7 +58,7 @@ import std/private/since
 type HeapPop*[T] = object
   ## A heap queue, commonly known as a priority queue.
   data: seq[T]
-  cmp: proc(a, b: T): bool
+  cmp*: proc(a, b: T): bool
 
 proc initHeapPop*[T](cmp: proc(a, b: T): bool; initialSize: Natural = 4): HeapPop[T] =
   ## Creates a new empty heap.
@@ -321,3 +321,13 @@ proc worst*[T](population: HeapPop[T]): T = population[population.low]
 
 proc randomMember*[T](evo: var HeapEvolver[T]): T =
   evo.population[evo.rng.rand(evo.population.high)]
+
+proc sort*[T](population: var HeapPop[T]) =
+  let worse = population.cmp
+  proc compare(a, b: T): int =
+    if worse(a, b):
+      -1
+    else:
+      1
+
+  sort(population.data, compare, Ascending)
