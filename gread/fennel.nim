@@ -458,7 +458,7 @@ proc dumpScore*(p: FProg) =
 proc dumpScore*(fnl: Fennel; p: FProg) {.deprecated: "use dumpScore/1".} =
   dumpScore p
 
-proc getStats*(evo: Evolver): string =
+proc getStats*[T, V](evo: Evolver[T, V]): string =
   ## compose a report of some statistics regarding the vm and population
   let fnl = evo.platform
   template genTime: FennelStat = evo.generationTime
@@ -486,14 +486,7 @@ proc getStats*(evo: Evolver): string =
   threadStats.add "\n" & """
                    memory used: {Kute memoryUsed()} of {Kute memoryArena()}""".fmt
   threadStats.add "\n" & """
-                process memory: {Kute process.maxResidentBytes} ({processors} threads)""".fmt
-  when false:
-    if m.generation.int == 0:
-      raise ValueError.newException "no generations yet"
-    if evo.tableau.maxGenerations == 0:
-      raise ValueError.newException "no generation limit"
-    if m.size == 0:
-      raise ValueError.newException "empty population"
+                process memory: {Kute process.maxResidentBytes}""".fmt
   result = fmt"""
                thread and core: {m.core.threadName} -- {evo.name}
                   dataset size: {evo.dataset.len}
@@ -531,9 +524,66 @@ proc getStats*(evo: Evolver): string =
   result &= threadStats
   clearStats fnl
 
-proc dumpStats*(evo: Evolver) =
+proc dumpStats*[T, V](evo: Evolver[T, V]) =
   ## a threadsafe echo of some statistics regarding the vm and population
   checkpoint evo.getStats() & "\n"
+
+proc getStats*(evo: LeanEvolver; fnl: Fennel): string =
+  ## compose a report of some statistics regarding the vm and population
+  template genTime: FennelStat = evo.generationTime
+  var m: PopMetrics
+  #m.paintMetrics(evo)
+
+  var dumb = m.lengths.variance.int  # work around nim bug
+  # program cache usage: {(m.caches.mean / evo.dataset.len.float).percent}
+  m.generation = evo.generation
+  let age = int(m.generation.int.float - m.ages.mean)
+  let totalTime = getMonoTime() - evo.birthday
+  let totalMs = totalTime.inMilliseconds.float
+  var threadStats: string
+  var process: ProcessResources
+  sample process
+  threadStats.add "\n" & """
+    voluntary context switches: {process.voluntaryContextSwitches}""".fmt
+  threadStats.add "\n" & """
+  involuntary context switches: {process.involuntaryContextSwitches}""".fmt
+  threadStats.add "\n" & """
+                   memory used: {Kute memoryUsed()} of {Kute memoryArena()}""".fmt
+  threadStats.add "\n" & """
+                process memory: {Kute process.maxResidentBytes}""".fmt
+  result = fmt"""
+               thread and core: {m.core.threadName} -- {evo.name}
+          virtual machine runs: {fnl.runs} (never reset)
+            average vm runtime: {fnl.runtime.mean / 1_000_000.0:>8.4f} ms
+         total population size: {m.size}
+          validity rate in pop: {m.validity.mean.percent} <= 100%
+            average age in pop: {age}
+            age vs generations: {percent(age.float / m.generation.int.float)} >= 0%
+           average valid score: {Score m.scores.mean}
+          greatest of all time: {m.bestScore}
+          average program size: {m.lengths.mean.int}
+         program size variance: {dumb}
+          size of best program: {m.bestSize}
+         parsimony coefficient: {ff m.parsimony}
+            insufficiency rate: {fnl.nans.mean.percent} >= 0%
+           semantic error rate: {fnl.errors.mean.percent} >= 0%
+             foreign influence: {m.usurper}
+              total immigrants: {m.immigrants}
+             invention recency: {m.staleness.percent} <= 100%
+              total inventions: {m.inventions}
+                leader changes: {m.leaders}
+               zombies created: {m.zombies}
+             total generations: {m.generation} / {evo.tableau.maxGenerations}
+        vm runs per generation: {ff(fnl.runs.float / m.generation.float)}
+               generation time: {ff genTime.mean} ms
+        generations per second: {ff(1000.0 / genTime.mean)}
+                evolution time: {ff(totalMs / 1000.0)} sec"""
+  result &= threadStats
+
+proc dumpStats*(evo: LeanEvolver; fnl: Fennel) =
+  ## a threadsafe echo of some statistics regarding the vm and population
+  checkpoint evo.getStats(fnl) & "\n"
+  clearStats fnl
 
 proc programNode*[T: Fennel](a: var Ast[T]): AstNode[T] =
   ## create a head node for the program
