@@ -167,7 +167,7 @@ proc bestGenomes*(r: var Redis; key: ScoredGenomeMapName; count: Natural = 1): s
   let genes = r.zrange($key, -int(count), -1)
   setLen(result, genes.len)
   for index, gene in genes.pairs:
-    result[index] = gene.Genome
+    result[index] = gene.fromString
 
 proc bestPrograms*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
                       count: Natural = 1; core = none int): Population[T] =
