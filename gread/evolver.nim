@@ -102,7 +102,7 @@ proc paintScore*(evo: var Evolver; program: var Program; inPop = false): Score =
     program.zombie = true
   result = program.score
 
-proc nextGeneration*(evo: var Evolver): Generation =
+proc nextGeneration*(evo: var LeanEvolver): Generation =
   ## inform the evolver of a new generation
   inc evo.generations
   result = evo.generations
@@ -157,15 +157,15 @@ proc shortGenome*(evo: var Evolver; tooShort: bool) =
   ## record a short (true) or sufficient (false) genome result due to mapping
   evo.shorties.push float(ord tooShort)
 
-proc generationTime*(evo: Evolver): MovingStat[float32, uint32] =
+proc generationTime*(evo: LeanEvolver): MovingStat[float32, uint32] =
   ## fetch the generation time statistics
   evo.gentime
 
-proc generationTime*(evo: var Evolver; ms: float) =
+proc generationTime*(evo: var LeanEvolver; ms: float) =
   ## add a generation time (in millis) for recordkeeping
   evo.gentime.push ms
 
-proc clearStats*(evo: var Evolver) =
+proc clearStats*(evo: var LeanEvolver) =
   ## reset any statistics recorded by the Evolver
   clear evo.gentime
 
