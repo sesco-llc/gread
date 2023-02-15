@@ -77,7 +77,7 @@ proc `==`(a, b: Component): bool =
   cmp(a, b) == 0
 
 proc hash*(gram: Grammar): Hash =
-  hash gram[].h
+  gram[].h
 
 proc start*[T](gram: Grammar): Component =
   gram[].s
