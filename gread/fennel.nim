@@ -395,10 +395,13 @@ when false:
       writeStackTrace()
       raise
 
+const
+  greadTidyTime* {.intdefine.} = 50_000
+
 proc evaluateLua*(fnl: Fennel; code: string; locals: Locals): LuaValue =
   result = LuaValue(kind: TInvalid)
   inc fnl[].runs
-  if fnl[].runs mod 50_000 == 0:
+  if fnl[].runs mod greadTidyTime == 0:
     fnl.tidyVM()
   try:
     # pass the program and the training inputs

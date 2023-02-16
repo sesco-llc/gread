@@ -1,4 +1,4 @@
-version = "0.0.58"
+version = "0.0.59"
 author = "disruptek"
 description = "grammar-evolving algorithm designer"
 license = "GPLv3"
