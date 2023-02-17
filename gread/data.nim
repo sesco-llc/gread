@@ -1,5 +1,6 @@
-import std/sequtils
 import std/hashes
+import std/sequtils
+import std/strutils
 
 import gread/ast
 import gread/audit
