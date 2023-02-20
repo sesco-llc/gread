@@ -70,8 +70,9 @@ proc cmp(a, b: Component): int =
     of ckRule:
       result = system.cmp(a.name, b.name)
 
-proc `<`(a, b: Component): bool =
-  cmp(a, b) == -1
+when false:
+  proc `<`(a, b: Component): bool =
+    cmp(a, b) == -1
 
 proc `==`(a, b: Component): bool =
   cmp(a, b) == 0
