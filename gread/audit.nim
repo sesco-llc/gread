@@ -7,13 +7,6 @@ proc cap(s: string): int =
 proc size*(s: string): int {.inline.} =
   s.cap + 1 + sizeof(int)
 
-proc compact*(s: var string) {.inline.} =
-  if s.capacity != s.len:
-    var x = newStringOfCap s.len
-    x.add s
-    s = x
-  #doAssert s.capacity == s.len, "cap of " & $s.capacity & " vs len " & $s.len
-
 when defined(useMalloc) and not defined(valgrind):
   {.pragma: malloc, header: "<malloc.h>", importc.}
   type

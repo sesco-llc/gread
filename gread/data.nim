@@ -2,8 +2,8 @@ import std/hashes
 import std/sequtils
 import std/strutils
 
+import gread/spec
 import gread/ast
-import gread/audit
 
 type
   SymbolSet*[T, V] = object       ## group of symbolName=value associations

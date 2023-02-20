@@ -147,11 +147,13 @@ const
 
 proc setupVM(vm: PState) =
   # setup the lua vm with the fennel compiler and any shims
-  vm.openLibs()
-  vm.checkLua vm.doString """fennel = require("fennel")""":
-    let sham =
+  const
+    flam: cstring = """fennel = require("fennel")"""
+    sham: cstring =
       """fennel.eval([==[$#]==], {compilerEnv=_G})""" % shims
-    vm.checkLua vm.doString sham.cstring:
+  vm.openLibs()
+  vm.checkLua vm.doString flam:
+    vm.checkLua vm.doString sham:
       discard
 
 proc newVM(): PState =
@@ -326,7 +328,7 @@ proc compileFennel(vm: PState; source: string): string =
   let fennel = fmt"""
     result = fennel.compileString([==[{source}]==], {{compilerEnv=_G}})
   """
-  let code: cstring = fennel
+  var code = fennel.cstring
   try:
     vm.checkLua vm.doString code:
       vm.getGlobal "result"
@@ -350,7 +352,8 @@ proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
     discard vm.push point.value
     vm.setGlobal point.name.cstring
   try:
-    vm.checkLua loadString(vm, s.cstring):
+    let s: cstring = s
+    vm.checkLua loadString(vm, s):
       vm.checkLua pcall(vm, 0, MultRet, 0):
         result = popStack vm
   except LuaError as e:

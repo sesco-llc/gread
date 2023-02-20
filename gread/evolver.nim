@@ -28,7 +28,6 @@ import gread/genotype
 const
   greadHoeffding* {.intdefine.} = 20
   defaultP* = 1.0 / greadHoeffding
-  evolverCache = not programCache
 
 type
   UnfitError* = object of ValueError
@@ -397,9 +396,7 @@ proc score*[T, V](evo: var Evolver[T, V]; index: int;
 
 proc score[T, V](evo: Evolver[T, V]; ss: ptr SymbolSet[T, V];
                  p: var Program[T]): Option[V] {.deprecated: "use index".} =
-  ## score the program against a single symbol set; if the program cache
-  ## is enabled via its `programCache` constant, then we might simply
-  ## fetch the score from there. otherwise, we'll run the evolver's
+  ## score the program against a single symbol set; we'll run the evolver's
   ## `fitone` function against the platform and data record to evaluate
   ## the program. this scoring function also runs a stopwatch over
   ## `fitone()` and updates the programs runtime statistics.

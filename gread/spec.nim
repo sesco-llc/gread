@@ -1,7 +1,7 @@
 import std/math
 import std/options
 import std/strutils
-import std/tables
+#import std/tables
 
 import pkg/cps
 
@@ -160,6 +160,13 @@ template demandValid*[T](s: Option[T]) =
   mixin isValid
   if s.isSome:
     demandValid(get s)
+
+proc compact*(s: var string) {.inline.} =
+  ## realloc a string, if necessary, to reduce its size in memory
+  if s.capacity != s.len:
+    var x = newStringOfCap s.len
+    x.add s
+    s = x
 
 when defined(greadMemoryAudit):
   import std/logging

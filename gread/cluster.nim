@@ -24,7 +24,6 @@ import gread/tableau
 import gread/data
 import gread/evolver
 import gread/grammar
-import gread/audit
 
 const logLevel {.strdefine.} = "lvlInfo"
 

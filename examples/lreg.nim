@@ -15,6 +15,7 @@ import gread
 import gread/fennel except variance
 import gread/genotype
 import gread/aliasmethod
+import gread/audit
 import gread/heappops
 
 import pkg/cps
@@ -343,7 +344,6 @@ when isMainModule:
   main(args, outputs, inputs)
   import grok/resources
   import grok/kute
-  import gread/audit
   var process: ProcessResources
   sample process
   echo """

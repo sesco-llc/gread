@@ -1,8 +1,6 @@
 import std/algorithm
 import std/random
 
-import gread/spec
-
 export SortOrder
 
 proc tournament*(rng: var Rand; bound: Natural; size: Positive;

@@ -338,8 +338,6 @@ func paintMetrics*(metrics: var PopMetrics; population: Population) =
       metrics.lengths.push program.len.float
       if program.core == metrics.core:
         metrics.ages.push float(int program.generation)
-      when programCache:
-        metrics.caches.push program.cacheSize.float
 
 func paintFittest*(metrics: var PopMetrics; fittest: Program) =
   metrics.bestSize = fittest.len

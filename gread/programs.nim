@@ -10,10 +10,6 @@ import pkg/adix/lptabz
 import gread/ast
 import gread/genotype
 import gread/spec
-import gread/audit
-
-const
-  programCache* = false
 
 type
   ProgramFlag* = enum
@@ -35,8 +31,6 @@ type
     flags*: set[ProgramFlag]  ## flag enums associated with the program
     ast*: Ast[T]              ## the ast of the program itself
     scores*: MovingStat[float64, uint32] ## statistics around valid scores
-    when programCache:
-      cache: GreadCache[Hash, Option[Score]] ## cache of score given symbol set hash
 
 func isInitialized*(program: Program): bool {.inline.} =
   program.hash != default Hash
@@ -134,8 +128,6 @@ proc initProgram*[T](result: var Program[T]; ast: Ast[T]; genome: Genome) =
       hash result.ast
     else:
       hash result.genome
-  when programCache:
-    init(result.cache, initialSize = 2)
 
 proc newProgram*[T](ast: Ast[T]; genome: Genome): Program[T] =
   ## instantiate a new program from the given ast and genome
@@ -154,25 +146,6 @@ proc isValid*(p: Program): bool =
     false
   else:
     p.score.isValid
-
-proc addScoreToCache*(p: Program; h: Hash; s: Option[Score]) {.deprecated.} =
-  ## record the score for a given input hash
-  when programCache:
-    if not p.zombie:
-      p.cache[h] = s
-
-proc getScoreFromCache*(p: Program; h: Hash): Option[Score] {.deprecated.} =
-  ## attempt to retrieve the cached score for a given hash of the input
-  # FIXME: use withValue when cb fixes adix
-  when programCache:
-    if not p.zombie:
-      if h in p.cache:
-        result = p.cache[h]
-
-proc cacheSize*(p: Program): int {.deprecated.} =
-  ## the size of a program's score cache
-  when programCache:
-    result = p.cache.len
 
 func hash*(p: Program): Hash {.inline.} =
   ## hash() symbol for table purposes

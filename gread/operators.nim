@@ -11,7 +11,6 @@ import gread/genotype
 import gread/grammar
 import gread/mutation
 import gread/programs
-import gread/tableau
 import gread/tournament
 import gread/heappops
 
