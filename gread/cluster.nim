@@ -9,7 +9,6 @@ import std/options
 import std/os
 import std/osproc
 import std/random
-import std/sequtils
 import std/strformat
 import std/strutils
 
@@ -17,7 +16,6 @@ import pkg/cps
 import pkg/cutelog
 import pkg/grok/kute
 import pkg/insideout
-import pkg/sysinfo
 
 import gread/spec
 import gread/programs

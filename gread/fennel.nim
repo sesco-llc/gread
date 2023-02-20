@@ -41,9 +41,6 @@ export lunacy
 export lrucache
 export stat except Option  # nim bug workaround
 
-const
-  greadLuaCacheSize {.intdefine.} = 2048
-
 type
   FennelObj = object
     vm: PState

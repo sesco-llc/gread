@@ -12,7 +12,6 @@ export refs
 
 import gread/aliasmethod
 import gread/ast
-import gread/audit
 import gread/genotype
 import gread/programs
 import gread/spec
