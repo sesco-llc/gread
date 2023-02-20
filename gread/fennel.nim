@@ -284,7 +284,7 @@ proc render[T](a: Ast[T]; n: AstNode[T]; i = 0): string =
     raise Defect.newException:
       "unimpl node kind: $# ($#)" % [ strRepr(fnk n.kind), $n.kind ]
 
-proc render*(a: Ast[Fennel]): string =
+func render*(a: Ast[Fennel]): string =
   ## render fennel ast in a form that can be compiled
   var i = 0
   var s = newSeqOfCap[tuple[index: int, ending: string]](a.len)
