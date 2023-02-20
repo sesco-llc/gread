@@ -37,12 +37,10 @@ type
       term: Terminal
 
   Production* = seq[Component]
-  WeightedProductions = GreadOrderedTable[string, AliasMethod[Production]]
 
   GrammarObj = object
     s: Component
     p: OrderedProductions
-    #w: WeightedProductions
     t: HashSet[Terminal]
     h: Hash
     strings: BiTable[string]
