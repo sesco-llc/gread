@@ -84,13 +84,13 @@ proc score(genome: Genome): float =
   except KeyError:
     result = computeScore(genome)
 
-proc worseThan(a, b: Genome): bool =
+proc betterThan(a, b: Genome): bool =
   let x = a.score
   let y = b.score
-  x < y
+  x > y
 
 proc newGenomeHeap(initialSize: Natural): HeapPop[Genome] =
-  initHeapPop(worseThan, initialSize = initialSize)
+  initHeapPop(betterThan, initialSize = initialSize)
 
 when isMainModule:
   import pkg/cutelog
@@ -104,20 +104,9 @@ when isMainModule:
 
   proc coop(c: Continuation): Continuation {.cpsMagic.} = c
 
-  proc pop*[T](rng: var Rand; population: var HeapPop[T]; size: int): T =
-    if population.len < 1:
-      raise ValueError.newException:
-        "cannot run a tournament with empty population"
-    if size < 1:
-      raise ValueError.newException:
-        "cannot run a tournament with less than one competitor"
-    let index = tournament(rng, population.high, size, order = Ascending)
-    result = population[index]
-    population.del(index)
-
   proc makeRoom[T](evo: var HeapEvolver[T]) =
     while evo.population.len >= evo.tableau.maxPopulation:
-      var genome = pop(evo.rng, evo.population, max(1, evo.tableau.tournamentSize))
+      var genome = evict(evo.rng, evo.population, max(1, evo.tableau.tournamentSize))
       cache.del(genome)
 
   proc add[T](evo: var HeapEvolver[T]; item: sink T) =

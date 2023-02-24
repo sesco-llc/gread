@@ -262,7 +262,7 @@ proc `$`*[T](heap: HeapPop[T]): string =
     result.addQuoted(x)
   result.add("]")
 
-proc high*[T](heap: HeapPop[T]): int {.inline.} =
+proc high[T](heap: HeapPop[T]): int {.inline.} =
   heap.len - 1
 
 proc capacity*[T](heap: HeapPop[T]): int {.inline.} =
@@ -296,7 +296,7 @@ proc initEvolver*[T](evo: var HeapEvolver[T]; tableau: Tableau; rng: Rand = rand
   initEvolver(evo.LeanEvolver, tableau, rng)
 
 proc tournament*[T](rng: var Rand; population: HeapPop[T]; size: int;
-                    order = Descending): T =
+                    order = Ascending): T =
   if population.len < 1:
     raise ValueError.newException:
       "cannot run a tournament with empty population"
@@ -306,28 +306,46 @@ proc tournament*[T](rng: var Rand; population: HeapPop[T]; size: int;
   let index = tournament(rng, population.high, size, order = order)
   result = population[index]
 
-proc remove*[T](rng: var Rand; population: var HeapPop[T]; size: int) =
+proc evict*[T](rng: var Rand; population: var HeapPop[T]; size: int): T =
   if population.len < 1:
     raise ValueError.newException:
       "cannot run a tournament with empty population"
   if size < 1:
     raise ValueError.newException:
       "cannot run a tournament with less than one competitor"
-  let index = tournament(rng, population.high, size, order = Ascending)
+  let index = tournament(rng, population.high, size, order = Descending)
+  result = population[index]
   population.del(index)
 
-proc best*[T](population: HeapPop[T]): T = population[population.high]
-proc worst*[T](population: HeapPop[T]): T = population[population.low]
+proc remove*[T](rng: var Rand; population: var HeapPop[T]; size: int;
+                count: Positive = 1) =
+  var count = count
+  while count > 0:
+    if population.len < 1:
+      raise ValueError.newException:
+        "cannot run a tournament with empty population"
+    if size < 1:
+      raise ValueError.newException:
+        "cannot run a tournament with less than one competitor"
+    let index = tournament(rng, population.high, size, order = Descending)
+    population.del(index)
+    dec count
+
+proc best*[T](population: HeapPop[T]): T =
+  if population.len == 0:
+    raise ValueError.newException "population is empty"
+  else:
+    result = population[0]
 
 proc randomMember*[T](evo: var HeapEvolver[T]): T =
   evo.population[evo.rng.rand(evo.population.high)]
 
 proc sort*[T](population: var HeapPop[T]) =
-  let worse = population.cmp
+  let better = population.cmp
   proc compare(a, b: T): int =
-    if worse(a, b):
+    if better(a, b):
       -1
     else:
       1
 
-  sort(population.data, compare, Ascending)
+  sort(population.data, compare, Descending)
