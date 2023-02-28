@@ -45,9 +45,6 @@ type
     kind*: int16
     operand*: int32  # length for parents, LitId for leaves
     # flags are similarly advisory only; they have no semantic bearing
-    when false:
-      flags*: NodeFlags
-      origin: AstOrigin
 
   Ast*[T] = object
     nodes*: seq[AstNode[T]]          # avoid games with a distinct seq
@@ -64,9 +61,6 @@ type
 proc `$`*[T](n: AstNode[T]): string =
   mixin `$`
   result = $n.kind & "." & $n.operand
-  when false:
-    if n.flags != {}:
-      result.add "/" & $n.flags
 
 proc `$`*[T](a: Ast[T]): string =
   mixin `$`
@@ -257,27 +251,14 @@ iterator children*[T](a: Ast[T]; index: int): Ast[T] =
 
 template copyAst[T](a, b: typed; size: int) =
   ## sugar around copying ast of `size` nodes
-  if size > 0:
-    copyMem(addr a, unsafeAddr b, sizeof(AstNode[T])*size)
+  let z = size
+  if z > 0:
+    copyMem(addr a, unsafeAddr b, sizeof(AstNode[T])*z)
 
-when false:
-  proc learnString*(a: var Ast; s: string): LitId =
-    try:
-      result = a.strings[s]
-    except KeyError:
-      error "missing string: ", s
-      raise
-  proc learnNumber*(a: var Ast; n: SomeOrdinal): LitId =
-    try:
-      result = a.numbers[cast[BiggestInt](n.int64)]
-    except KeyError:
-      error "missing number: ", n.int64
-      raise
-else:
-  template learnString*(a: var Ast; s: string): LitId =
-    a.strings.getOrIncl s
-  template learnNumber*(a: var Ast; n: SomeOrdinal): LitId =
-    a.numbers.getOrIncl cast[BiggestInt](n.int64)
+template learnString*(a: var Ast; s: string): LitId =
+  a.strings.getOrIncl s
+template learnNumber*(a: var Ast; n: SomeOrdinal): LitId =
+  a.numbers.getOrIncl cast[BiggestInt](n.int64)
 template learnNumber*(a: var Ast; n: SomeFloat): LitId =
   a.learnNumber(cast[BiggestInt](n.float64))
 
@@ -289,21 +270,6 @@ template stringOp*(a: Ast; node: AstNode): string =
   stringOp(a, node.operand)
 template numberOp*(a: Ast; node: AstNode): BiggestInt =
   numberOp(a, node.operand)
-
-when false:
-  proc mergeLiterals[T](a: var Ast[T]; b: Ast[T]) =
-    ## we currently just use resetLiterals subsequent to insertion
-    mixin isSymbol
-    mixin isStringLit
-    mixin isNumberLit
-    mixin isParent
-    for node in b.nodes.items:
-      if node.isSymbol or node.isStringLit:
-        discard a.learnString b.stringOp(node)
-      elif node.isNumberLit:
-        discard a.learnNumber b.numberOp(node)
-      elif not node.isParent and node.operand != 0:  # NOTE: assume it's a token
-        discard a.learnString b.stringOp(node)
 
 proc resetLiterals[T](a: var Ast[T]; index: int; b: Ast[T]) =
   ## fixup the operands for nodes that use string/number storage
