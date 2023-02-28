@@ -21,6 +21,7 @@ import gread/heappops
 import pkg/cps
 import pkg/lunacy
 import pkg/insideout
+import pkg/insideout/coz
 
 include preamble
 
@@ -145,7 +146,6 @@ when isMainModule:
         evo.population.push(genome)
     else:
       for program in args.population.items:
-        evo.makeRoom()
         evo.add(program.genome)
 
     var finest: Option[Genome]
@@ -170,7 +170,6 @@ when isMainModule:
                   break
               else:
                 for program in programs(transport):
-                  evo.makeRoom()
                   evo.add(program.genome)
         else:
           try:
@@ -194,9 +193,9 @@ when isMainModule:
         let operator = evo.chooseOperator()
         var discoveries = 0
         try:
-          for genome in operator(evo.rng, evo.population, args.tableau.tournamentSize):
+          let genomes = operator(evo.rng, evo.population, args.tableau.tournamentSize)
+          for genome in genomes.items:
             inc discoveries
-            evo.makeRoom()
             evo.add(genome)
           break
         except ShortGenome:
@@ -205,6 +204,8 @@ when isMainModule:
         except CatchableError as e:
           echo repr(e)
           quit 1
+
+      progress "loop"
 
       # terminate the evolver according to a supplied predicate
       if terminator evo:
@@ -285,7 +286,6 @@ when isMainModule:
       of ctPrograms:
         for p in programs(transport):
           p.score = Score NaN
-          evo.makeRoom()
           evo.add p
 
           if fittest == get(evo.fittest):
@@ -318,15 +318,23 @@ when isMainModule:
            dataset = dataset, fitone = fitone, fitmany = fitmany,
            strength = fennel.strength, stats = statFrequency)
 
-  for core in 1..cores:
+  when insideoutCoz:
     when greadSeed == 0:
       args.rng = some: initRand()
     else:
       args.rng = some: initRand(greadSeed)
-    if cores == 1:
-      args.tableau.sharingRate = 0.0
-    clump.boot(whelp leanWorker(args))
-    clump.redress args
+    leanWorker(args)
+    quit 0
+  else:
+    for core in 1..cores:
+      when greadSeed == 0:
+        args.rng = some: initRand()
+      else:
+        args.rng = some: initRand(greadSeed)
+      if cores == 1:
+        args.tableau.sharingRate = 0.0
+      clump.boot(whelp leanWorker(args))
+      clump.redress args
 
   # run the main loop to gatekeep inventions
   let (inputs, outputs) = clump.programQueues()
