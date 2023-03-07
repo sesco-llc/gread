@@ -14,6 +14,15 @@ type
     name*: string
     value*: V
 
+proc rehash(ss: var SymbolSet) =
+  ss.hash = hash ss.values
+
+template rehashAfter(ss: var SymbolSet; logic: untyped): untyped =
+  try:
+    logic
+  finally:
+    rehash ss
+
 converter toValue*[T, V](point: DataPoint[T, V]): V =
   point.value
 
@@ -39,8 +48,8 @@ proc initDataPoint*[T, V](name: string; value: V): DataPoint[T, V] =
 
 proc initSymbolSet*[T, V](values: openArray[DataPoint[T, V]]): SymbolSet[T, V] =
   ## convert an openArray of DataPoints into a suitable SymbolSet
-  result.values = @values
-  result.hash = hash result.values
+  result.rehashAfter:
+    result.values = @values
   #assert result.values.capacity == values.len
 
 proc initSymbolSet*[T, V](values: openArray[(string, V)]): SymbolSet[T, V] =
@@ -50,8 +59,8 @@ proc initSymbolSet*[T, V](values: openArray[(string, V)]): SymbolSet[T, V] =
   for name, value in values.items:
     points.add:
       initDataPoint[T, V](name, value)
-  result.values = points
-  result.hash = hash result.values
+  result.rehashAfter:
+    result.values = points
 
 type
   NamePoint[T, V] = tuple  # only for pairs iteration; no export
@@ -84,6 +93,10 @@ iterator values*[T, V](ss: ptr SymbolSet[T, V]): ptr DataPoint[T, V] =
 proc values*[T, V](ss: SymbolSet[T, V]): lent seq[DataPoint[T, V]] =
   ss.values
 
+proc setLen*(ss: var SymbolSet; size: Natural) =
+  ss.values.setLen(size)
+  ss.hash = hash ss.values
+
 proc hash*(ss: SymbolSet): Hash = ss.hash
 
 proc `[]`*[T, V](ss: SymbolSet[T, V]; name: string): DataPoint[T, V] =
@@ -91,3 +104,7 @@ proc `[]`*[T, V](ss: SymbolSet[T, V]; name: string): DataPoint[T, V] =
   for key, value in ss.pairs:
     if name == key:
       return value
+
+proc add*[T, V](ss: var SymbolSet[T, V]; point: DataPoint[T, V]) =
+  ss.rehashAfter:
+    ss.values.add point
