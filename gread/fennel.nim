@@ -148,9 +148,8 @@ const
 proc setupVM(vm: PState) =
   # setup the lua vm with the fennel compiler and any shims
   const
-    flam: cstring = """fennel = require("fennel")"""
-    sham: cstring =
-      """fennel.eval([==[$#]==], {compilerEnv=_G})""" % shims
+    flam = """fennel = require("fennel")"""
+    sham = """fennel.eval([==[$#]==], {compilerEnv=_G})""" % shims
   vm.openLibs()
   vm.checkLua vm.doString flam:
     vm.checkLua vm.doString sham:
@@ -221,7 +220,7 @@ proc pushGlobal*(vm: PState; name: string; value: Terminal) =
   of Boolean:
     vm.pushNumber value.boolVal.float
   of String:
-    vm.pushString value.strVal.cstring
+    vm.pushString value.strVal
   of Integer:
     vm.pushNumber value.intVal.float
   else:
@@ -323,77 +322,113 @@ func render*(a: Ast[Fennel]): string =
   stripSpace()
   compact result
 
-proc compileFennel(vm: PState; source: string): string =
-  vm.pushGlobal("result", term false)
-  let fennel = fmt"""
-    result = fennel.compileString([==[{source}]==], {{compilerEnv=_G}})
-  """
-  var code = fennel.cstring
+template raiseErrors(vm: PState; err: cint): untyped =
+  if err != 0:
+    raise LuaError.newException:
+      $vm.toString(-1)
+
+template wrapErrors(logic: untyped): untyped =
   try:
-    vm.checkLua vm.doString code:
-      vm.getGlobal "result"
-      result = vm.popStack.value.strung
+    logic
   except LuaError as e:
-    when greadSemanticErrorsAreFatal:
-      error e.name, ": ", e.msg
-      writeStackTrace()
-      raise
-  except CatchableError as e:
     error e.name, ": ", e.msg
     writeStackTrace()
     raise
+
+proc compileFennel(vm: PState; source: string): string =
+  vm.push LuaValue(kind: TNil)
+  vm.setGlobal "result"
+  let lua = fmt"""
+    result = fennel.compileString([==[{source}]==], {{compilerEnv=_G}})
+  """
+  wrapErrors:
+    vm.raiseErrors vm.loadString(lua)
+    vm.raiseErrors vm.pcall(0, MultRet, 0)
+    vm.getGlobal "result"
+    var tipe = vm.luaType(-1).toLuaType
+    doAssert tipe == TString
+    result = $vm.toString(-1)
+    vm.pop(1)
 
 proc compileFennel*(fnl: Fennel; source: string): string =
   compileFennel(fnl.vm, source)
 
+proc readFromString(vm: PState; ps: pointer; size: ptr cint): cstring {.cdecl.} =
+  template s: string = cast[ptr string](ps)[]
+  size[] = s.len
+  result = s
+
+proc writeToString(vm: PState; p: pointer; size: cint; ps: pointer): cint {.cdecl.} =
+  template s: string = cast[ptr string](ps)[]
+  let l = s.len
+  setLen(s, l + size)
+  copyMem(addr s[l], p, size)
+
+proc compileChunk(vm: PState; s: string): string =
+  ## compile lua source-code string `s` and return the result as a string
+  wrapErrors:
+    vm.raiseErrors vm.loadString(s)
+    vm.raiseErrors vm.dump(writeToString, addr result)
+    doAssert vm.isFunction(-1)
+    vm.pop(1)
+
+proc compileChunk*(fnl: Fennel; s: string): string =
+  compileChunk(fnl.vm, s)
+
+proc loadChunk(vm: PState; s: string) =
+  ## load a chunk `s` as returned by `compileChunk`
+  const name = "loadChunk()"
+  wrapErrors:
+    #vm.raiseErrors vm.load(readFromString, addr s, name)
+    vm.raiseErrors vm.loadBuffer(s, s.len, name)
+    doAssert vm.isFunction(-1)
+
+proc evalChunk(vm: PState; s: string; locals: Locals): LuaValue =
+  ## load a chunk `s` as returned by `compileChunk`, install the
+  ## provided locals, and return the result of running the chunk.
+  loadChunk(vm, s)
+  for point in locals.items:
+    vm.push point.value
+    vm.setGlobal point.name
+  wrapErrors:
+    doAssert vm.isFunction(-1)
+    vm.raiseErrors vm.pcall(0, MultRet, 0)
+  result = vm.popStack(expand=true).value
+
+proc evalChunk*(fnl: Fennel; s: string; locals: Locals): LuaValue =
+  evalChunk(fnl.vm, s, locals)
+
+proc evalChunk(vm: PState; s: string; data: seq[Locals]): seq[LuaValue] =
+  ## a faster map of the chunk `s` across inputs in `data`
+  result = newSeqOfCap[LuaValue](data.len)
+  const fun = "fun"
+  loadChunk(vm, s)
+  vm.setGlobal fun
+  for locals in data.items:
+    {.warning: "store the dataset in the vm".}
+    for point in locals.items:
+      vm.push point.value
+      vm.setGlobal point.name
+    vm.getGlobal fun
+    wrapErrors:
+      doAssert vm.isFunction(-1)
+      vm.raiseErrors vm.pcall(0, MultRet, 0)
+    result.add:
+      {.warning: "optimize popStack".}
+      vm.popStack(expand=true).value
+
+proc evalChunk*(fnl: Fennel; s: string; data: seq[Locals]): seq[LuaValue] =
+  evalChunk(fnl.vm, s, data)
+
 proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
   ## evaluate the string as lua and pop the stack for the result
   for point in locals.items:
-    discard vm.push point.value
-    vm.setGlobal point.name.cstring
-  try:
-    let s: cstring = s
+    vm.push point.value
+    vm.setGlobal point.name
+  wrapErrors:
     vm.checkLua loadString(vm, s):
       vm.checkLua pcall(vm, 0, MultRet, 0):
         result = popStack vm
-  except LuaError as e:
-    when greadSemanticErrorsAreFatal:
-      error e.name, ": ", e.msg
-      writeStackTrace()
-      raise
-    else:
-      discard e
-  except CatchableError as e:
-    error e.name, ": ", e.msg
-    writeStackTrace()
-    raise
-
-when false:
-  proc evaluate(vm: PState; s: string; locals: Locals): LuaStack {.deprecated.} =
-    ## compile and evaluate the program as fennel; the result of
-    ## the expression is assigned to the variable `result`.
-    vm.pushGlobal("result", term 0.0)
-    for point in locals.items:
-      discard vm.push point.value
-      vm.setGlobal point.name.cstring
-    let fennel = """
-      result = fennel.eval([==[$#]==], {compilerEnv=_G})
-    """ % [ s ]
-    try:
-      vm.checkLua vm.doString fennel.cstring:
-        vm.getGlobal "result"
-        result = popStack vm
-    except LuaError as e:
-      when greadSemanticErrorsAreFatal:
-        error e.name, ": ", e.msg
-        writeStackTrace()
-        raise
-      else:
-        discard e
-    except CatchableError as e:
-      error e.name, ": ", e.msg
-      writeStackTrace()
-      raise
 
 const
   greadTidyTime* {.intdefine.} = 50_000
@@ -413,11 +448,8 @@ proc evaluateLua*(fnl: Fennel; code: string; locals: Locals): LuaValue =
     if not stack.isNil:
       result = stack.value
   except LuaError as e:
-    when greadSemanticErrorsAreFatal:
-      debugEcho e.msg
-      quit 1
-    else:
-      discard e
+    writeStackTrace()
+    quit 1
     fnl[].errors.push 1.0
 
   # any failure to produce a scorable value

@@ -262,12 +262,9 @@ proc evaluate*(lua: Lua; p: var LProg; locals: Locals): LuaValue =
     if not stack.isNil:
       result = stack.value
   except LuaError as e:
-    when greadSemanticErrorsAreFatal:
-      debugEcho $p
-      debugEcho e.msg
-      quit 1
-    else:
-      discard e
+    debugEcho $p
+    debugEcho e.msg
+    quit 1
     lua.errors.push 1.0
 
   # any failure to produce a scorable value

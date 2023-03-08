@@ -57,11 +57,12 @@ proc computeScore(genome: Genome): float =
       if genome in cache:
         cache[genome].code
       else:
-        compileFennel(fnl, render p)
-    #var results = newSeq[float](dataset.len)
+        fnl.compileChunk:
+          fnl.compileFennel:
+            render p
     block complete:
       for index, locals in dataset.pairs:
-        let s = evaluateLua(fnl, source, locals)
+        let s = evalChunk(fnl, source, locals)
         if s.isValid:
           results[index] = -abs(data[index][1].float - s.toFloat)
         else:
