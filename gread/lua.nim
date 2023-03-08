@@ -242,7 +242,7 @@ proc evaluate(vm: PState; s: string; locals: Locals): LuaStack =
   ## evaluate the lua program; the result of the expression is
   ## assigned to the variable `result`.
   for point in locals.items:
-    discard vm.push point.value
+    vm.push point.value
     vm.setGlobal point.name.cstring
   vm.checkLua vm.doString s.cstring:
     result = popStack vm
