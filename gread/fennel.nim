@@ -1,11 +1,12 @@
+import std/deques
 import std/hashes
-import std/packedsets
 import std/json
 import std/logging
 import std/math
 import std/monotimes
 import std/options
 import std/os
+import std/packedsets
 import std/random
 import std/sequtils
 import std/strformat
@@ -345,8 +346,7 @@ proc compileFennel(vm: PState; source: string): string =
     vm.raiseErrors vm.loadString(lua)
     vm.raiseErrors vm.pcall(0, MultRet, 0)
     vm.getGlobal "result"
-    var tipe = vm.luaType(-1).toLuaType
-    doAssert tipe == TString
+    assert vm.isString(-1)
     result = $vm.toString(-1)
     vm.pop(1)
 
@@ -369,7 +369,7 @@ proc compileChunk(vm: PState; s: string): string =
   wrapErrors:
     vm.raiseErrors vm.loadString(s)
     vm.raiseErrors vm.dump(writeToString, addr result)
-    doAssert vm.isFunction(-1)
+    assert vm.isFunction(-1)
     vm.pop(1)
 
 proc compileChunk*(fnl: Fennel; s: string): string =
@@ -381,7 +381,10 @@ proc loadChunk(vm: PState; s: string) =
   wrapErrors:
     #vm.raiseErrors vm.load(readFromString, addr s, name)
     vm.raiseErrors vm.loadBuffer(s, s.len, name)
-    doAssert vm.isFunction(-1)
+    assert vm.isFunction(-1)
+
+proc loadChunk*(fnl: Fennel; s: string) =
+  loadChunk(fnl.vm, s)
 
 proc evalChunk(vm: PState; s: string; locals: Locals): LuaValue =
   ## load a chunk `s` as returned by `compileChunk`, install the
@@ -391,14 +394,14 @@ proc evalChunk(vm: PState; s: string; locals: Locals): LuaValue =
     vm.push point.value
     vm.setGlobal point.name
   wrapErrors:
-    doAssert vm.isFunction(-1)
+    assert vm.isFunction(-1)
     vm.raiseErrors vm.pcall(0, MultRet, 0)
   result = vm.popStack(expand=true).value
 
 proc evalChunk*(fnl: Fennel; s: string; locals: Locals): LuaValue =
   evalChunk(fnl.vm, s, locals)
 
-proc evalChunk(vm: PState; s: string; data: seq[Locals]): seq[LuaValue] =
+proc evalChunk(vm: PState; s: string; data: Deque[Locals] | openArray[Locals]): seq[LuaValue] =
   ## a faster map of the chunk `s` across inputs in `data`
   result = newSeqOfCap[LuaValue](data.len)
   const fun = "fun"
@@ -411,13 +414,13 @@ proc evalChunk(vm: PState; s: string; data: seq[Locals]): seq[LuaValue] =
       vm.setGlobal point.name
     vm.getGlobal fun
     wrapErrors:
-      doAssert vm.isFunction(-1)
+      assert vm.isFunction(-1)
       vm.raiseErrors vm.pcall(0, MultRet, 0)
     result.add:
       {.warning: "optimize popStack".}
       vm.popStack(expand=true).value
 
-proc evalChunk*(fnl: Fennel; s: string; data: seq[Locals]): seq[LuaValue] =
+proc evalChunk*(fnl: Fennel; s: string; data: Deque[Locals] | openArray[Locals]): seq[LuaValue] =
   evalChunk(fnl.vm, s, data)
 
 proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
