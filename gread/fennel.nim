@@ -353,10 +353,11 @@ proc compileFennel(vm: PState; source: string): string =
 proc compileFennel*(fnl: Fennel; source: string): string =
   compileFennel(fnl.vm, source)
 
-proc readFromString(vm: PState; ps: pointer; size: ptr cint): cstring {.cdecl.} =
-  template s: string = cast[ptr string](ps)[]
-  size[] = s.len
-  result = s
+when false:
+  proc readFromString(vm: PState; ps: pointer; size: ptr cint): cstring {.cdecl.} =
+    template s: string = cast[ptr string](ps)[]
+    size[] = s.len
+    result = s
 
 proc writeToString(vm: PState; p: pointer; size: cint; ps: pointer): cint {.cdecl.} =
   template s: string = cast[ptr string](ps)[]
