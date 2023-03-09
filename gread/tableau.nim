@@ -9,7 +9,7 @@ type
     maxPopulation*: int    ## evict via tournament due to over-crowding
     seedPopulation*: int   ## initial size of the population
     seedProgramSize*: int  ## initial bound on the size of random programs
-    tournamentSize*: int   ## tournaments are comprised of N individuals
+    tournamentSize*: Positive   ## tournaments are comprised of N individuals
     sharingRate*: float    ## likelihood of sharing members between cores
     maxDurationInMs*: int  ## convenient termination metric
 
