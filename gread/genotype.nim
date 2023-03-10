@@ -33,7 +33,9 @@ type
 const greadReportOperators* {.booldefine.} = false
 
 proc report(spec: OperatorSpec) =
-  notice fmt"{spec.name} ran: {spec.count} won: {spec.winners} mean: {spec.stat.mean} over {spec.stat.n}"
+  let rate = spec.winners.float / spec.count.float * 100.0
+  let map = spec.stat.mean * 100.0
+  notice fmt"{spec.name} #{spec.count} win:{rate:>5.3f}% map:{map:>5.3f}% new:{spec.stat.n}"
 
 proc report*(spec: GenomeOperatorSpec) =
   report spec[]
