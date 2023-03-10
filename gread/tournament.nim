@@ -5,7 +5,8 @@ export SortOrder
 
 proc tournament*(rng: var Rand; bound: Natural; size: Positive;
                  order = Descending): Natural =
-  var size = max(1, min(bound + 1, size))
+  var size = size - 1
+  result = rng.rand(bound)
   while size > 0:
     dec size
     result =
