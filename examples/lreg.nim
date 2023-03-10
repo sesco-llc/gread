@@ -117,12 +117,12 @@ when isMainModule:
   proc leanWorker*(args: Work[Fennel, LuaValue]) {.cps: Continuation.} =
     # you can adjust these weights to change mutation rates
     var operatorWeights = {
-      operator("crossover", crossoverGroup[Genome]):              300.0,
+      operator("crossover", crossoverGroup[Genome]):              0.1,
       #operator("asymmetric", asymmetricCrossoverGroup[Genome]):   100.0,
       #operator("random asym", randomAsymmetricCrossoverGroup[Genome]):   100.0,
-      operator("1% noise", geNoisy1pt0_Group[Genome]):            100.0,
-      operator("2% noise", geNoisy2pt0_Group[Genome]):            100.0,
-      operator("4% noise", geNoisy4pt0_Group[Genome]):            100.0,
+      operator("1% noise", geNoisy1pt0_Group[Genome]):            0.3,
+      operator("2% noise", geNoisy2pt0_Group[Genome]):            0.1,
+      operator("4% noise", geNoisy4pt0_Group[Genome]):            0.1,
     }
 
     initGreadTable cache

@@ -31,6 +31,8 @@ proc initAliasMethod*[T](am: var AliasMethod;
   # rescale the probabilities according to the quantity
   var rescaled = newSeqOfCap[tuple[value: T, weight: float64]](n)
   for (op, weight) in input.items:
+    if weight > 1.0:
+      raise ValueError.newException "weights should be <= 1.0"
     rescaled.add (op, float64(weight) * n.float64)
 
   # sort the ops into deques of indices, according probability
@@ -45,7 +47,8 @@ proc initAliasMethod*[T](am: var AliasMethod;
   # consume and accumulate weights
   while small.len > 0 and large.len > 0:
     # consume
-    let (l, g) = (popFirst small, popFirst large)
+    let l = popFirst small
+    let g = popFirst large
     am.prob[l] = rescaled[l].weight
     am.alias[l] = g
     # accumulate remainder
