@@ -4,56 +4,8 @@ import std/random
 import gread/aliasmethod
 import gread/evolver
 import gread/tableau
+import gread/genotype
 
-#
-#
-#            Nim's Runtime Library
-#        (c) Copyright 2016 Yuriy Glukhov
-#
-#    See the file "copying.txt", included in this
-#    distribution, for details about the copyright.
-
-## (adaptations of nim's heapqueue for genome populations)
-##
-## The `heapqueue` module implements a
-## `binary heap data structure<https://en.wikipedia.org/wiki/Binary_heap>`_
-## that can be used as a `priority queue<https://en.wikipedia.org/wiki/Priority_queue>`_.
-## They are represented as arrays for which `a[k] <= a[2*k+1]` and `a[k] <= a[2*k+2]`
-## for all indices `k` (counting elements from 0). The interesting property of a heap is that
-## `a[0]` is always its smallest element.
-##
-## Basic usage
-## -----------
-##
-runnableExamples:
-  var heap = [8, 2].toHeapPop
-  heap.push(5)
-  # the first element is the lowest element
-  assert heap[0] == 2
-  # remove and return the lowest element
-  assert heap.pop() == 2
-  # the lowest element remaining is 5
-  assert heap[0] == 5
-
-## Usage with custom objects
-## -------------------------
-## To use a `HeapPop` with a custom object, the `<` operator must be
-## implemented.
-
-runnableExamples:
-  type Job = object
-    priority: int
-
-  proc `<`(a, b: Job): bool = a.priority < b.priority
-
-  var jobs = initHeapPop[Job]()
-  jobs.push(Job(priority: 1))
-  jobs.push(Job(priority: 2))
-
-  assert jobs[0].priority == 1
-
-
-import std/private/since
 
 type HeapPop*[T] = object
   ## A heap queue, commonly known as a priority queue.
@@ -148,21 +100,6 @@ proc push*[T](heap: var HeapPop[T], item: sink T) =
   heap.data.add(item)
   siftup(heap, 0, len(heap) - 1)
 
-proc toHeapPop*[T](x: openArray[T]): HeapPop[T] {.since: (1, 3).} =
-  ## Creates a new HeapPop that contains the elements of `x`.
-  ##
-  ## **See also:**
-  ## * `initHeapPop proc <#initHeapPop>`_
-  runnableExamples:
-    var heap = [9, 5, 8].toHeapPop
-    assert heap.pop() == 5
-    assert heap[0] == 8
-
-  # see https://en.wikipedia.org/wiki/Binary_heap#Building_a_heap
-  result.data = @x
-  for i in countdown(x.len div 2 - 1, 0):
-    siftdown(result, i)
-
 proc pop*[T](heap: var HeapPop[T]): T =
   ## Pops and returns the smallest item from `heap`,
   ## maintaining the heap invariant.
@@ -178,7 +115,7 @@ proc pop*[T](heap: var HeapPop[T]): T =
   else:
     result = lastelt
 
-proc find*[T](heap: HeapPop[T], x: T): int {.since: (1, 3).} =
+proc find*[T](heap: HeapPop[T], x: T): int =
   ## Linear scan to find the index of the item `x` or -1 if not found.
   runnableExamples:
     let heap = [9, 5, 8].toHeapPop
@@ -274,59 +211,46 @@ iterator items*[T](q: HeapPop[T]): T =
     yield q[i]
 
 type
-  HeapOperator*[T] = proc(rng: var Rand; population: HeapPop[T]; size: int): seq[T] {.nimcall.}
+  HeapOperator*[T] = proc(evo: var HeapEvolver[T]): seq[T] {.nimcall.}
 
-  HeapEvolver*[T] = object of LeanEvolver
-    operators: AliasMethod[HeapOperator[T]]
+  HeapEvolver*[T] = object of GenomeEvolver[T]
     population*: HeapPop[T]
-
-proc chooseOperator*[T](evo: var HeapEvolver[T]): HeapOperator[T] =
-  ## choose an operator at random
-  if evo.operators.len == 0:
-    raise ValueError.newException "evolver needs operators assigned"
-  else:
-    choose(evo.operators, evo.rng)
-
-proc `operators=`*[T](evo: var HeapEvolver[T];
-                      weighted: openArray[(HeapOperator[T], float64)]) =
-  initAliasMethod(evo.operators, weighted)
 
 proc initEvolver*[T](evo: var HeapEvolver[T]; tableau: Tableau; rng: Rand = randState()) =
   ## perform initial setup of the Evolver, binding tableau
   initEvolver(evo.LeanEvolver, tableau, rng)
 
-proc tournament*[T](rng: var Rand; population: HeapPop[T]; size: int;
-                    order = Ascending): T =
-  if population.len < 1:
+proc tournament*[T](evo: var HeapEvolver[T]; size: Positive;
+                    order = Descending): T =
+  if evo.population.len < 1:
     raise ValueError.newException:
       "cannot run a tournament with empty population"
-  if size < 1:
-    raise ValueError.newException:
-      "cannot run a tournament with less than one competitor"
-  let index = tournament(rng, population.high, size, order = order)
-  result = population[index]
+  let order =
+    # swap the order because this is a max heap
+    case order
+    of Descending: Ascending
+    of Ascending: Descending
+  let index = tournament(evo.rng, evo.population.high, size, order = order)
+  result = evo.population[index]
 
-proc evict*[T](rng: var Rand; population: var HeapPop[T]; size: int): T =
+proc tournament*[T](evo: var HeapEvolver[T]; order = Descending): T =
+  tournament(evo, evo.tableau.tournamentSize, order = order)
+
+proc evict*[T](rng: var Rand; population: var HeapPop[T]; size: Positive): T =
   if population.len < 1:
     raise ValueError.newException:
       "cannot run a tournament with empty population"
-  if size < 1:
-    raise ValueError.newException:
-      "cannot run a tournament with less than one competitor"
   let index = tournament(rng, population.high, size, order = Descending)
   result = population[index]
   population.del(index)
 
-proc remove*[T](rng: var Rand; population: var HeapPop[T]; size: int;
+proc remove*[T](rng: var Rand; population: var HeapPop[T]; size: Positive;
                 count: Positive = 1) =
   var count = count
   while count > 0:
     if population.len < 1:
       raise ValueError.newException:
         "cannot run a tournament with empty population"
-    if size < 1:
-      raise ValueError.newException:
-        "cannot run a tournament with less than one competitor"
     let index = tournament(rng, population.high, size, order = Descending)
     population.del(index)
     dec count
@@ -349,3 +273,9 @@ proc sort*[T](population: var HeapPop[T]) =
       1
 
   sort(population.data, compare, Descending)
+
+proc run*[T](evo: var HeapEvolver[T]; op: GenomeOperatorSpec[T]): GenomeGroup[T] =
+  var group: GenomeGroup[T]
+  group.add evo.tournament()
+  group.add evo.tournament()
+  result = op.fn(evo.rng, group)

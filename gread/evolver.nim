@@ -262,7 +262,7 @@ proc chooseOperator*[T, V](evo: var Evolver[T, V]): Operator[T, V] =
   if evo.operators.len == 0:
     raise ValueError.newException "evolver needs operators assigned"
   else:
-    choose(evo.operators, evo.rng)
+    result = choose(evo.operators, evo.rng)
 
 proc hasSampled*(evo: Evolver; p: Program; index: int): bool =
   ## true if the program has been sampled with the symbol set at `index`
@@ -446,7 +446,7 @@ proc score*[T, V](evo: var Evolver[T, V]; indices: ptr GreadSet[int];
     except UnfitError:
       result = none V
     except CatchableError as e:
-      echo $e.name & ": " & e.msg
+      error $e.name & ": " & e.msg
       writeStackTrace()
       raise
 
@@ -633,15 +633,12 @@ proc discharge(evo: var Evolver; c: var Competitor) =
   # update the population's metrics, etc.
   scoreChanged(evo.population, c.program, score, c.index)
 
-proc tournament*[T, V](evo: var Evolver[T, V]; size: int;
+proc tournament*[T, V](evo: var Evolver[T, V]; size: Positive;
                        order = Descending): Competitor[T] =
   ## v3 baby
   if evo.population.len < 1:
     raise ValueError.newException:
       "cannot run a tournament with empty population"
-  if size < 1:
-    raise ValueError.newException:
-      "cannot run a tournament with less than one competitor"
 
   # figure out the size of the tourney
   let size = max(1, min(evo.population.len, size))
@@ -698,11 +695,12 @@ proc tournament*[T, V](evo: var Evolver[T, V]; size: int;
 iterator trim*[T, V](evo: var Evolver[T, V]): Program[T] =
   ## emit the worst programs until the population is
   ## within the maximum defined by the tableau
-  while evo.population.len > evo.tableau.maxPopulation:
-    let loser = tournament(evo, evo.population.len, order = Ascending)
-    del(evo, loser.program)
-    del(evo.population, loser.index)
-    yield loser.program
+  if evo.population.len > 0:
+    while evo.population.len > evo.tableau.maxPopulation:
+      let loser = tournament(evo, evo.population.len.Positive, order = Ascending)
+      del(evo, loser.program)
+      del(evo.population, loser.index)
+      yield loser.program
 
 func paintMetrics*(ken: var PopMetrics; evo: Evolver) =
   ## recover validity, score, and parsimony metrics of the population; O(n)
@@ -847,3 +845,29 @@ proc clearScoreCache*[T, V](evo: var HeavyEvolver[T, V]; program: Program[T]) =
     evo.scoreCache.del(program.hash)
   except KeyError:
     discard
+
+type
+  GenomeEvolver*[T] = object of LeanEvolver
+    operators: AliasMethod[GenomeOperatorSpec[T]]
+
+proc chooseOperator*[T](evo: var GenomeEvolver[T]): GenomeOperatorSpec[T] =
+  ## choose an operator at random
+  if evo.operators.len == 0:
+    raise ValueError.newException "evolver needs operators assigned"
+  else:
+    result = choose(evo.operators, evo.rng)
+    when greadReportOperators:
+      inc result.count
+      if result.count mod 10000 == 0:
+        report result
+
+proc `operators=`*[T](evo: var GenomeEvolver[T];
+                      weighted: openArray[(GenomeOperatorSpec[T], float64)]) =
+  initAliasMethod(evo.operators, weighted)
+
+proc tournament[T](evo: var GenomeEvolver[T]; size: Positive;
+                    order = Descending): T =
+  raise Defect.newException "impossible without a population"
+
+proc tournament[T](evo: var GenomeEvolver[T]; order = Descending): T =
+  raise Defect.newException "impossible without a population"

@@ -41,6 +41,23 @@ iterator geCrossover*[T](rng: var Rand; a, b: T): T =
     yield a[0..<n] & b[n..b.high]
     yield b[0..<n] & a[n..a.high]
 
+iterator geCrossover*[T](rng: var Rand; gram: Grammar;
+                         a, b: Genome): ResultForm[T] =
+  ## perform GE crossover between two parents to form a new child
+  for r in geCrossover(rng, a, b):
+    yieldInvention[T](gram, r)
+
+proc crossoverGroup*[T](rng: var Rand;
+                        genomes: GenomeGroup[T]): GenomeGroup[T] =
+  template a: T = genomes[0]
+  template b: T = genomes[1]
+  if a.len == 0 or b.len == 0:
+    raise Defect.newException "attempt to crossover empty genome"
+  let n = rng.rand(min(a.high, b.high))
+  if n > 0:
+    result.add: a[0..<n] & b[n..b.high]
+    result.add: b[0..<n] & a[n..a.high]
+
 iterator asymmetricCrossover*[T](rng: var Rand; a, b: T): T =
   if a.len == 0 or b.len == 0:
     raise Defect.newException "attempt to crossover empty genome"
@@ -53,11 +70,20 @@ iterator asymmetricCrossover*[T](rng: var Rand; a, b: T): T =
   if m.len > 0:
     yield m
 
-iterator geCrossover*[T](rng: var Rand; gram: Grammar;
-                         a, b: Genome): ResultForm[T] =
-  ## perform GE crossover between two parents to form a new child
-  for r in geCrossover(rng, a, b):
-    yieldInvention[T](gram, r)
+proc asymmetricCrossoverGroup*[T](rng: var Rand;
+                                  genomes: GenomeGroup[T]): GenomeGroup[T] =
+  template a: T = genomes[0]
+  template b: T = genomes[1]
+  if a.len == 0 or b.len == 0:
+    raise Defect.newException "attempt to crossover empty genome"
+  let x = rng.rand(a.high)
+  let y = rng.rand(b.high)
+  let n = a[0..<x] & b[y..b.high]
+  let m = b[0..<y] & a[x..a.high]
+  if n.len > 0:
+    result.add n
+  if m.len > 0:
+    result.add m
 
 iterator asymmetricCrossover*[T](rng: var Rand; gram: Grammar;
                                  a, b: Genome): ResultForm[T] =
@@ -71,6 +97,15 @@ iterator randomAsymmetricCrossover*[T](rng: var Rand; gram: Grammar;
   let b = randomGenome(size)
   for r in asymmetricCrossover(rng, a, b):
     yieldInvention[T](gram, r)
+
+proc randomAsymmetricCrossoverGroup*[T](rng: var Rand;
+                                        genomes: GenomeGroup[T]): GenomeGroup[T] =
+  for genome in genomes.items:
+    var inputs: GenomeGroup[T]
+    inputs.add genome
+    inputs.add randomGenome(rng, genome.len)
+    for output in asymmetricCrossoverGroup(rng, inputs).items:
+      result.add output
 
 iterator randomSubtreeXover*[T](rng: var Rand; gram: Grammar;
                                 a: Genome): ResultForm[T] =

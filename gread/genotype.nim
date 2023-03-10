@@ -1,5 +1,9 @@
 import std/hashes
+import std/logging
 import std/random
+import std/strformat
+
+import pkg/adix/stat except Option
 
 const
   greadWrapping* {.booldefine.} = false
@@ -10,6 +14,67 @@ type
   PC* = distinct int32         ## a program counter
 
   Genes = uint8 or uint16 or uint32 or uint64  ## optional types of genes
+
+type
+  GroupData[T] = array[4, T]
+  GenomeGroup*[T] = object
+    len: Natural
+    data: GroupData[T]
+  GenomeOperator*[T] = proc(rng: var Rand; genomes: GenomeGroup[T]): GenomeGroup[T]
+  OperatorSpec[T] = object
+    name*: string
+    fn*: GenomeOperator[T]
+    stat*: MovingStat[float32, uint32]
+    count*: int
+    winners*: int
+  GenomeOperatorSpec*[T] = ref OperatorSpec[T]
+  GenomeWeight*[T] = tuple[spec: GenomeOperatorSpec[T]; weight: float64]
+
+const greadReportOperators* {.booldefine.} = false
+
+proc report(spec: OperatorSpec) =
+  notice fmt"{spec.name} ran: {spec.count} won: {spec.winners} mean: {spec.stat.mean} over {spec.stat.n}"
+
+proc report*(spec: GenomeOperatorSpec) =
+  report spec[]
+
+proc `=destroy`[T](spec: var OperatorSpec[T]) =
+  when greadReportOperators:
+    report spec
+
+func operator*[T](name: string; fn: GenomeOperator[T]): GenomeOperatorSpec[T] =
+  ## instantiate an operator spec for use in an operator weights alias method
+  new result
+  result.name = name
+  result.fn = fn
+
+func high*[T](group: GenomeGroup[T]): Natural {.inline.} =
+  group.len - 1
+
+func `[]`*[T](group: var GenomeGroup[T]; index: Natural): var T {.inline.} =
+  if index <= group.high:
+    result = group.data[index]
+  else:
+    raise IndexDefect.newException "bogus index"
+
+func `[]`*[T](group: GenomeGroup[T]; index: Natural): T {.inline.} =
+  if index <= group.high:
+    group.data[index]
+  else:
+    raise IndexDefect.newException "bogus index"
+
+func add*[T](group: var GenomeGroup[T]; item: sink T) {.inline.} =
+  if item.len == 0:
+    raise Defect.newException "empty genomes aren't terribly useful"
+  group.data[group.len] = item
+  inc group.len
+
+iterator items*[T](group: GenomeGroup[T]): T =
+  for index in 0..group.high:
+    yield group.data[index]
+
+func len*[T](group: GenomeGroup[T]): Natural {.inline.} =
+  group.len
 
 const
   EmptyGenome* = Genome""

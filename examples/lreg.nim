@@ -17,6 +17,8 @@ import gread/genotype
 import gread/aliasmethod
 import gread/audit
 import gread/heappops
+import gread/crossover
+import gread/mutation
 
 import pkg/cps
 import pkg/lunacy
@@ -24,17 +26,6 @@ import pkg/insideout
 import pkg/insideout/coz
 
 include preamble
-
-# you can adjust these weights to change mutation rates
-let operatorWeights = {
-  geCrossover[Genome]:        1.0,
-  #asymmetricCrossover[Genome]:        6.0,
-  #randomAsymmetricCrossover[Genome]:        1.0,
-
-  geNoise1pt0[Genome]:        1.0,
-  geNoise2pt0[Genome]:        1.0,
-  geNoise4pt0[Genome]:        1.0,
-}
 
 type
   CacheNode = object
@@ -124,6 +115,16 @@ when isMainModule:
       info fmt"terminator terminating evolver {evo.core}"
 
   proc leanWorker*(args: Work[Fennel, LuaValue]) {.cps: Continuation.} =
+    # you can adjust these weights to change mutation rates
+    var operatorWeights = {
+      operator("crossover", crossoverGroup[Genome]):              300.0,
+      #operator("asymmetric", asymmetricCrossoverGroup[Genome]):   100.0,
+      #operator("random asym", randomAsymmetricCrossoverGroup[Genome]):   100.0,
+      operator("1% noise", geNoisy1pt0_Group[Genome]):            100.0,
+      operator("2% noise", geNoisy2pt0_Group[Genome]):            100.0,
+      operator("4% noise", geNoisy4pt0_Group[Genome]):            100.0,
+    }
+
     initGreadTable cache
 
     if fnl.isNil:
@@ -190,21 +191,24 @@ when isMainModule:
             quit 1
 
       # lean generational loop
-      while true:
-        let operator = evo.chooseOperator()
-        var discoveries = 0
-        try:
-          let genomes = operator(evo.rng, evo.population, args.tableau.tournamentSize)
-          for genome in genomes.items:
-            inc discoveries
+      var discoveries = 0
+      while discoveries == 0:
+        let op = evo.chooseOperator()
+        let group = evo.run(op)
+        for genome in group.items:
+          inc discoveries
+          when greadReportOperators:
+            let fine = evo.population.best
             evo.add(genome)
-          break
-        except ShortGenome:
-          if discoveries > 0:
-            break
-        except CatchableError as e:
-          echo repr(e)
-          quit 1
+            if fine != evo.population.best:
+              inc op.winners
+            try:
+              var program = πMap[Fennel](gram, genome)
+              op.stat.push 1.0
+            except ShortGenome:
+              op.stat.push -1.0
+          else:
+            evo.add(genome)
 
       progress "loop"
 
