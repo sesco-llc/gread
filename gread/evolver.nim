@@ -856,10 +856,6 @@ proc chooseOperator*[T](evo: var GenomeEvolver[T]): GenomeOperatorSpec[T] =
     raise ValueError.newException "evolver needs operators assigned"
   else:
     result = choose(evo.operators, evo.rng)
-    when greadReportOperators:
-      inc result.count
-      if result.count mod 10000 == 0:
-        report result
 
 proc `operators=`*[T](evo: var GenomeEvolver[T];
                       weighted: openArray[(GenomeOperatorSpec[T], float64)]) =

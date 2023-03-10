@@ -1,5 +1,6 @@
 import std/hashes
 import std/logging
+import std/monotimes
 import std/random
 import std/strformat
 
@@ -7,6 +8,8 @@ import pkg/adix/stat except Option
 
 const
   greadWrapping* {.booldefine.} = false
+  greadReportOperators* {.booldefine.} = false
+  greadReportOperatorsInterval* {.intdefine.} = 1000
 
 type
   ShortGenome* = object of ValueError
@@ -25,24 +28,23 @@ type
     name*: string
     fn*: GenomeOperator[T]
     stat*: MovingStat[float32, uint32]
+    timing*: MovingStat[float32, uint32]
     count*: int
     winners*: int
   GenomeOperatorSpec*[T] = ref OperatorSpec[T]
   GenomeWeight*[T] = tuple[spec: GenomeOperatorSpec[T]; weight: float64]
 
-const greadReportOperators* {.booldefine.} = false
-
 proc report(spec: OperatorSpec) =
-  let rate = spec.winners.float / spec.count.float * 100.0
-  let map = spec.stat.mean * 100.0
-  notice fmt"{spec.name} #{spec.count} win:{rate:>5.3f}% map:{map:>5.3f}% new:{spec.stat.n}"
+  when greadReportOperators:
+    let rate = spec.winners.float / spec.count.float * 100.0
+    let map = spec.stat.mean * 100.0
+    notice fmt"{spec.name} #{spec.count} win:{rate:>5.3f}% map:{map:>5.3f}% new:{spec.stat.n} time:{spec.timing.mean:>.0f}"
 
 proc report*(spec: GenomeOperatorSpec) =
   report spec[]
 
 proc `=destroy`[T](spec: var OperatorSpec[T]) =
-  when greadReportOperators:
-    report spec
+  report spec
 
 func operator*[T](name: string; fn: GenomeOperator[T]): GenomeOperatorSpec[T] =
   ## instantiate an operator spec for use in an operator weights alias method
@@ -50,8 +52,11 @@ func operator*[T](name: string; fn: GenomeOperator[T]): GenomeOperatorSpec[T] =
   result.name = name
   result.fn = fn
 
-func high*[T](group: GenomeGroup[T]): Natural {.inline.} =
-  group.len - 1
+proc high*[T](group: GenomeGroup[T]): Natural {.inline.} =
+  if group.len == 0:
+    raise IndexDefect.newException "group is empty"
+  else:
+    result = group.len - 1
 
 func `[]`*[T](group: var GenomeGroup[T]; index: Natural): var T {.inline.} =
   if index <= group.high:
@@ -72,11 +77,29 @@ func add*[T](group: var GenomeGroup[T]; item: sink T) {.inline.} =
   inc group.len
 
 iterator items*[T](group: GenomeGroup[T]): T =
-  for index in 0..group.high:
-    yield group.data[index]
+  if group.len > 0:
+    for index in 0..group.high:
+      yield group.data[index]
 
 func len*[T](group: GenomeGroup[T]): Natural {.inline.} =
   group.len
+
+proc inc(spec: GenomeOperatorSpec) =
+  when greadReportOperators:
+    inc spec.count
+    if spec.count mod greadReportOperatorsInterval == 0:
+      report spec
+
+template measureOperator*(op: GenomeOperatorSpec; logic: untyped): untyped =
+  when greadReportOperators:
+    var began = getMonoTime()
+    try:
+      logic
+    finally:
+      op.timing.push (getMonoTime() - began).inNanoseconds.float
+      inc op
+  else:
+    logic
 
 const
   EmptyGenome* = Genome""
