@@ -7,19 +7,12 @@ import gread/tableau
 import gread/genotype
 
 
-type HeapPop*[T] = object
-  ## A heap queue, commonly known as a priority queue.
-  data: seq[T]
-  cmp*: proc(a, b: T): bool
+type
+  HeapPop*[T] = object
+    data: seq[T]
+    cmp*: proc(a, b: T): bool
 
 proc initHeapPop*[T](cmp: proc(a, b: T): bool; initialSize: Natural = 4): HeapPop[T] =
-  ## Creates a new empty heap.
-  ##
-  ## Heaps are initialized by default, so it is not necessary to call
-  ## this function explicitly.
-  ##
-  ## **See also:**
-  ## * `toHeapPop proc <#toHeapPop,openArray[T]>`_
   result.cmp = cmp
   result.data = newSeqOfCap[T](initialSize)
 
@@ -278,4 +271,5 @@ proc run*[T](evo: var HeapEvolver[T]; op: GenomeOperatorSpec[T]): GenomeGroup[T]
   var group: GenomeGroup[T]
   group.add evo.tournament()
   group.add evo.tournament()
-  result = op.fn(evo.rng, group)
+  op.measureOperator:
+    result = op.fn(evo.rng, group)
