@@ -919,7 +919,10 @@ when compileOption"threads":
     let clump = newCluster[T, V]()
     clump.redress args
 
-    let (inputs, outputs) = clump.programQueues()
+    # workaround nim bug
+    let bug = clump.programQueues()
+    let inputs = bug[0]
+    let outputs = bug[1]
     for p in population.items:
       push(inputs, p)
 
@@ -956,7 +959,10 @@ when compileOption"threads":
     let clump = newCluster[T, V]()
     clump.redress args
 
-    let (inputs, outputs) = clump.programQueues()
+    # workaround nim bug
+    let bug = clump.programQueues()
+    let inputs = bug[0]
+    let outputs = bug[1]
     for p in population.items:
       push(inputs, p)
 
