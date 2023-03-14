@@ -203,8 +203,9 @@ proc bnf(s: string): seq[Component] =
     EOL        <- "\n" | "\r\n"
     s          <- *" "
     start      <- *line * s * !1
+    empty      <- s * EOL
     comment    <- s * "#" * *(1 - EOL) * EOL
-    line       <- comment | rule
+    line       <- empty | comment | rule
     token      <- (symbolNoS | Alpha) * *(symbolNoS | Alpha | Digit)
     literal    <- '"' * text1 * '"' | "'" * text2 * "'"
     text1      <- *("\"\"" | character1)
@@ -215,7 +216,7 @@ proc bnf(s: string): seq[Component] =
     character1 <- character | "'"
     character2 <- character | '"'
     rule_name  <- Alpha * *rule_char
-    rule_char  <- Alpha | Digit | "-"
+    rule_char  <- Alpha | Digit | "-" | "_" | "~" | "?" | "!" | "/" | "."
     expression <- list * s * *("|" * s * list)
 
     list       <- *(term * s):
