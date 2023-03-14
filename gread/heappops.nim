@@ -273,3 +273,7 @@ proc run*[T](evo: var HeapEvolver[T]; op: GenomeOperatorSpec[T]): GenomeGroup[T]
   group.add evo.tournament()
   op.measureOperator:
     result = op.fn(evo.rng, group)
+
+proc makeRoom*[T](evo: var HeapEvolver[T]; count = 1) =
+  while evo.population.len > evo.tableau.maxPopulation - count:
+    discard evo.evict(evo.rng, evo.population, evo.tableau.tournamentSize)
