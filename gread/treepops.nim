@@ -20,9 +20,12 @@ proc push*[T](tree: var TreePop[T]; score: float; item: sink T) =
   tree.insert((score, item.hash), item)
 
 proc pop*[T](tree: var TreePop[T]): T =
-  let bug = tree.select(tree.len)
-  result = bug.val
-  doAssert tree.remove(bug.key)
+  if tree.len == 0:
+    raise ValueError.newException "population is empty"
+  else:
+    let bug = tree.min()
+    result = bug.val
+    doAssert tree.remove(bug.key)
 
 proc del*[T](tree: var TreePop[T], index: Natural) =
   let bug = tree.select(1 + index)
@@ -81,7 +84,7 @@ proc best*[T](population: TreePop[T]): T =
   if population.len == 0:
     raise ValueError.newException "population is empty"
   else:
-    let bug = population.select(population.len)
+    let bug = population.max()
     result = bug.val
 
 proc randomMember*[T](evo: var TreeEvolver[T]): T =
