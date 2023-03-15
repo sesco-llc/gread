@@ -1,4 +1,5 @@
 import std/algorithm
+import std/hashes
 import std/random
 
 import gread/aliasmethod
@@ -10,22 +11,22 @@ import trees/avl
 export avl
 
 type
-  TreePop*[T] = AVLTree[(float, T), T]
+  TreePop*[T] = AVLTree[(float, Hash), T]
 
 proc initTreePop*[T](initialSize: Natural = 4): TreePop[T] =
   discard
 
 proc push*[T](tree: var TreePop[T]; score: float; item: sink T) =
-  tree.insert((score, item), item)
+  tree.insert((score, item.hash), item)
 
 proc pop*[T](tree: var TreePop[T]): T =
-  let bug = tree.select(1)
+  let bug = tree.select(tree.len)
   result = bug.val
-  tree.remove(bug.key)
+  doAssert tree.remove(bug.key)
 
 proc del*[T](tree: var TreePop[T], index: Natural) =
-  let bug = tree.select(index+1)
-  tree.remove(bug.key)
+  let bug = tree.select(1 + index)
+  doAssert tree.remove(bug.key)
 
 proc high*[T](tree: TreePop[T]): Natural {.inline.} =
   tree.len - 1
@@ -60,10 +61,10 @@ proc evict*[T](rng: var Rand; population: var TreePop[T]; size: Positive): T =
   if population.len < 1:
     raise ValueError.newException:
       "cannot run a tournament with empty population"
-  let index = tournament(rng, population.high, size, order = Descending)
-  let bug = population.select(1+index)
+  let index = tournament(rng, population.high, size, order = Ascending)
+  let bug = population.select(1 + index)
   result = bug.val
-  population.del(index)
+  doAssert population.remove(bug.key)
 
 proc remove*[T](rng: var Rand; population: var TreePop[T]; size: Positive;
                 count: Positive = 1) =
