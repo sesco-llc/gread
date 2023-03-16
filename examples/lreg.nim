@@ -6,6 +6,7 @@ import std/options
 import std/os
 import std/random
 import std/sets
+import std/sequtils
 import std/strformat
 import std/strutils
 import std/tables
@@ -114,6 +115,25 @@ when isMainModule:
     if result:
       info fmt"terminator terminating evolver {evo.core}"
 
+  proc mapGenome*[T](grammar: Grammar; genome: sink Genome; truncate = false): Option[Program[T]] =
+    ## map a genome to the given grammar; optionally truncate the genome
+    ## before installation in the resulting Program
+    try:
+      let (pc, ast) = πGE[T](grammar, genome)
+      if truncate:
+        genome = genome[0..<pc.int]
+      result = some newProgram(ast, genome)
+    except ShortGenome:
+      result = none Program[T]
+
+  proc dumpPopulation(population: HeapPop[Genome]) =
+    for genome in population.items:
+      var program = mapGenome[Fennel](gram, genome)
+      if program.isSome:
+        var program = get program
+        program.score = score(genome)
+        dumpScore program
+
   proc leanWorker*(args: Work[Fennel, LuaValue]) {.cps: Continuation.} =
     # you can adjust these weights to change mutation rates
     var operatorWeights = {
@@ -160,35 +180,38 @@ when isMainModule:
         if gen mod args.stats == 0:
           echo args.core, " ", gen
 
-      if evo.rng.rand(1.0) < args.tableau.sharingRate:
-        if evo.rng.rand(1.0) < 0.60:
-          when true:
-            var transport: ClusterTransport[Fennel, LuaValue]
-            if tryRecv(args.io.input, transport):
-              case transport.kind
-              of ctControl:
-                case transport.control
-                of ckWorkerQuit:
-                  break
-              else:
-                for program in programs(transport):
-                  evo.add(program.genome)
+      if evo.calculateSharing() > 0:
+        var transport: ClusterTransport[Fennel, LuaValue]
+        if tryRecv(args.io.input, transport):
+          case transport.kind
+          of ctControl:
+            case transport.control
+            of ckWorkerQuit:
+              break
+          else:
+            for program in programs(transport):
+              evo.add(program.genome)
         else:
           try:
             let stale = evo.randomMember()
             var program = πMap[Fennel](gram, stale)
             program.generation = gen
-            if args.shareInput(program) == 0:
-              if finest.isNone or get(finest) != evo.population.best:
-                var program = πMap[Fennel](gram, evo.population.best)
-                program.generation = gen
-                args.shareOutput(program)
-                finest = some program.genome
+            discard args.shareInput(program)
+
           except ShortGenome:
             discard
           except CatchableError as e:
             echo repr(e)
             quit 1
+
+      # update winner
+      if finest.isNone or get(finest) != evo.population.best:
+        if calculateSharing(evo.rng, 10 * evo.tableau.sharingRate) > 0:
+          var program = πMap[Fennel](gram, evo.population.best)
+          program.generation = gen
+          args.shareOutput(program)
+          finest = some program.genome
+          dumpPopulation evo.population
 
       # lean generational loop
       var discoveries = 0
@@ -336,8 +359,6 @@ when isMainModule:
         args.rng = some: initRand()
       else:
         args.rng = some: initRand(greadSeed)
-      if cores == 1:
-        args.tableau.sharingRate = 0.0
       clump.boot(whelp leanWorker(args))
       clump.redress args
 
