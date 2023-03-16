@@ -126,7 +126,7 @@ when isMainModule:
     except ShortGenome:
       result = none Program[T]
 
-  proc dumpPopulation(population: HeapPop[Genome]) =
+  proc dumpPopulation(population: TreePop[Genome]) =
     for genome in population.items:
       var program = mapGenome[Fennel](gram, genome)
       if program.isSome:
