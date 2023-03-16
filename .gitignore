@@ -2,3 +2,6 @@ deps
 nimblemeta.json
 bin/
 nim.cfg
+perf.data
+massif.out.*
+profile.coz
