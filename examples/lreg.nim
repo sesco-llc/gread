@@ -17,7 +17,7 @@ import gread/fennel except variance
 import gread/genotype
 import gread/aliasmethod
 import gread/audit
-import gread/heappops
+import gread/treepops
 import gread/crossover
 import gread/mutation
 
@@ -83,8 +83,8 @@ proc betterThan(a, b: Genome): bool =
   let y = b.score
   x > y
 
-proc newGenomeHeap(initialSize: Natural): HeapPop[Genome] =
-  initHeapPop(betterThan, initialSize = initialSize)
+proc newGenomeTree(initialSize: Natural): TreePop[Genome] =
+  initTreePop[Genome](initialSize = initialSize)
 
 when isMainModule:
   import pkg/cutelog
@@ -98,16 +98,16 @@ when isMainModule:
 
   proc coop(c: Continuation): Continuation {.cpsMagic.} = c
 
-  proc makeRoom[T](evo: var HeapEvolver[T]) =
+  proc makeRoom[T](evo: var TreeEvolver[T]) =
     while evo.population.len >= evo.tableau.maxPopulation:
       var genome = evict(evo.rng, evo.population, max(1, evo.tableau.tournamentSize))
       cache.del(genome)
 
-  proc add[T](evo: var HeapEvolver[T]; item: sink T) =
+  proc add[T](evo: var TreeEvolver[T]; item: sink T) =
     evo.makeRoom()
-    evo.population.push(item)
+    evo.population.push(score(item), item)
 
-  proc terminator[T](evo: var HeapEvolver[T]): bool =
+  proc terminator[T](evo: var TreeEvolver[T]): bool =
     result = evo.generation >= llsMany
     when compiles(evo.fittest.isSome):
       result = result or evo.fittest.isSome and evo.fittest.get.score >= goodEnough
@@ -156,16 +156,16 @@ when isMainModule:
       else:
         initRand()
 
-    var evo: HeapEvolver[Genome]
+    var evo: TreeEvolver[Genome]
     evo.initEvolver(args.tableau, rng = prng)
     evo.operators = operatorWeights
-    evo.population = newGenomeHeap(evo.tableau.maxPopulation)
+    evo.population = newGenomeTree(evo.tableau.maxPopulation)
 
     if args.population.isNil:
       while evo.population.len < args.tableau.seedPopulation:
         let genome = randomGenome(evo.rng, evo.tableau.seedProgramSize)
         assert genome.len > 0
-        evo.population.push(genome)
+        evo.population.push(score(genome), genome)
     else:
       for program in args.population.items:
         evo.add(program.genome)
