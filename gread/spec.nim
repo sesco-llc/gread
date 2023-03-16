@@ -50,16 +50,9 @@ else:
     table.init(initialSize=initialSize)
     table.clear()
 
-when defined(greadLargeCache):
-  type GreadCache*[K, V] = GreadTable[K, V]
-  proc initGreadCache*(cache: var GreadCache; initialSize = defaultInitialSize) =
-    initGreadTable(cache, initialSize=initialSize)
-else:
-  import pkg/lrucache
-  export lrucache
-  type GreadCache*[K, V] = LruCache[K, V]
-  func initGreadCache*[K, V](cache: var GreadCache[K, V]; initialSize = defaultInitialSize) =
-    cache = newLruCache[K, V](initialSize)
+type GreadCache*[K, V] = GreadTable[K, V]
+proc initGreadCache*(cache: var GreadCache; initialSize = defaultInitialSize) =
+  initGreadTable(cache, initialSize=initialSize)
 
 type
   Score* = distinct float

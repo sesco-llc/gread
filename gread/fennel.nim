@@ -21,7 +21,6 @@ import pkg/grok/kute
 import pkg/grok/resources
 import pkg/htsparse/fennel/fennel_core_only as parsefen
 import pkg/insideout
-import pkg/lrucache
 import pkg/lunacy except Integer
 import pkg/lunacy/json as luajs
 
@@ -39,7 +38,6 @@ import gread/audit
 import gread/genotype
 
 export lunacy
-export lrucache
 export stat except Option  # nim bug workaround
 
 type
