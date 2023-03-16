@@ -704,9 +704,6 @@ proc newFennelProgram*(s: string): Program[Fennel] =
     tsTreeDelete node.TSNode.tree
 
 when compileOption"threads":
-  const hasSuru = compiles do: import suru
-  when hasSuru:
-    import suru
   import gread/cluster
   import gread/generation
 
