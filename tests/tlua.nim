@@ -4,7 +4,6 @@ import std/json
 import std/options
 
 import pkg/balls
-import pkg/frosty/streams as brrr
 
 import gread
 import gread/lua
@@ -80,14 +79,6 @@ suite "basic lua stuff":
     let score = lua.evaluate(p, locals)
     checkpoint score
     check score.float == 3.0
-
-  block:
-    ## serde some lua ast
-    let popsicle = freeze p
-    var puddle: LProg
-    thaw(popsicle, puddle)
-    checkpoint render(p.ast)
-    check render(p.ast) == render(puddle.ast)
 
   block:
     ## run a lua program with inputs

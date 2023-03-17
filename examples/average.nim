@@ -5,7 +5,7 @@ import std/math
 import std/options
 import std/random
 import std/sequtils
-import std/times
+import std/strformat
 
 import gread
 import gread/fennel
@@ -13,24 +13,38 @@ import gread/fennel
 import pkg/balls
 import pkg/lunacy
 import pkg/lunacy/json as shhh
-import pkg/adix/lptabz
-import pkg/adix/stat except Option
 
-randomize()
 
 const
+  dataLength = 20
+  greadSeed {.intdefine.} = 0
   goodEnough = -0.00         ## quit when you reach this score
-  dataInaccurate = false     ## use faulty data
   statFrequency = 10000      ## how often to output statistics
 
   # define the grammar for our programs; note the balancing
   averageGrammar = """
-    <start>        ::= <numexpr>
-    <numexpr>      ::= ( <numbop> <numexpr> <numexpr> )
-    <numexpr>      ::= <value>
-    <numbop>       ::= "+" | "-" | "*" | "/"
-    <value>        ::= "1" | "0" | "0.5" | "2"
-    <value>        ::= "hi" | "lo"
+<start>            ::= <n-expr>
+
+# numeric symbols
+#<n-value>          ::= "hi" | "lo" | "0.5" | "2.0" | "0.0" | "1.0"
+<n-value>          ::= "hi" | "lo"
+
+# n-arity operators upon numeric expressions
+<n-nop>            ::= "+" | "-" | "*" | "/"
+
+# perform n-arity operation on two or more numeric expressions
+<n-expr-narity>    ::= ( <n-nop> <n-expr> <n-args> )
+<n-expr-narity>    ::= <n-value>
+
+# numeric arguments are arity/n
+<n-args>           ::= <n-expr> | <n-expr> <n-args>
+# numeric arguments are arity/2
+#<n-args>           ::= <n-expr>
+<n-args>           ::= <n-value>
+
+# balancing numeric expressions
+<n-expr>           ::= <n-expr-narity>
+#<n-expr>           ::= <n-value>
   """
 
 var gram: Grammar
@@ -42,49 +56,42 @@ tab -= {UseParsimony}
 tab -= {RequireValid}
 tab.seedProgramSize = 400
 tab.seedPopulation = 400
-tab.maxPopulation = 400
-tab.tournamentSize = 12
-tab.maxGenerations = 1_000_000
+tab.maxPopulation = tab.seedPopulation
+tab.tournamentSize = max(2, int(0.03 * tab.maxPopulation.float))
+tab.maxGenerations = 100_000
+
+# allow reproducability
+if greadSeed == 0:
+  checkpoint "rng was randomized"
+  randomize()
+else:
+  checkpoint fmt"rng was seeded with {greadSeed}"
+  randomize(greadSeed)
 
 # define the different ways in which we evolve, and their weights
 let operators = {
-  geCrossover[Fennel, LuaValue]:        1.0,
-  geMutation[Fennel, LuaValue]:         1.0,
-  subtreeXover[Fennel, LuaValue]:       1.0,
-  randomSubtreeXover[Fennel, LuaValue]: 1.0,
-  randomCrossover[Fennel, LuaValue]:    1.0,
+  geCrossover[Fennel, LuaValue]:        0.5,
+  #geNoise1pt0[Fennel, LuaValue]:        0.5,
+  geNoise4pt0[Fennel, LuaValue]:        0.5,
+  #subtreeXover[Fennel, LuaValue]:       0.5,
+  #randomSubtreeXover[Fennel, LuaValue]: 0.5,
+  #randomCrossover[Fennel, LuaValue]:    0.5,
 }
 
-var
-  fnl = newFennel()
-  evo: FEvo
-  # we want to make a function that returns the median of `lo` and `hi` inputs
-  inputData = @[
-    # the training data is also the test data; no hold-outs, everybody fights
-    (%* {"hi": 24.0,   "lo": 7.0},      15.5),
-    (%* {"hi": 11.0,   "lo": 6.0},       8.5),
-    (%* {"hi": 98.0,   "lo": 71.0},     84.5),
-  ]
+# we want to make a function that returns the median of `lo` and `hi` inputs
+var fnl = newFennel()
+var evo: Evolver[Fennel, LuaValue]
 
-when dataInaccurate:
-  # not quite perfect data doesn't matter; we'll find the best approximation
-  inputData.add @[
-    (%* {"hi": 298,    "lo": 171},     244.5),
-    (%* {"hi": 65,     "lo": 60},       63.0),
-    (%* {"hi": 9000,   "lo": 7000},   8017.0),
-    (%* {"hi": 25.0,   "lo": 24.0},     24.8),
-    (%* {"hi": 101.0,  "lo": 1.0},      49.0),
-    (%* {"hi": 2200.0, "lo": 1000.0}, 1500.0),
-  ]
-else:
-  inputData.add @[
-    (%* {"hi": 298,    "lo": 171},     234.5),
-    (%* {"hi": 65,     "lo": 60},       62.5),
-    (%* {"hi": 7000,   "lo": 9000},   8000.0),
-    (%* {"hi": 25.0,   "lo": 24.0},     24.5),
-    (%* {"hi": 101.0,  "lo": 1.0},      51.0),
-    (%* {"hi": 2200.0, "lo": 1000.0}, 1600.0),
-  ]
+var inputData = newSeqOfCap[(JsonNode, float)](dataLength)
+
+block:
+  # the training data is also the test data; no hold-outs, everybody fights
+  for n in 1..dataLength:
+    var a, b: float
+    while a == b:
+      (a, b) = (rand(0.0 .. 1.0), rand(0.0 .. 1.0))
+      (a, b) = (min(a, b), max(a, b))
+    inputData.add (%* {"lo": a, "hi": b}, avg([a, b]))
 
 # convert the json into lua values;
 var training: seq[Locals]
@@ -117,14 +124,13 @@ proc fitmany(fnl: Fennel; iter: iterator(): (ptr Locals, ptr LuaValue);
     if s.isValid:
       result = some s
 
-import pkg/insideout
+proc dumpPopulation(population: Population[Fennel]) =
+  var programs = toSeq population
+  sort programs
+  for program in programs.mitems:
+    dumpScore program
 
 suite "simulation":
-  var et = getTime()
-  block:
-    ## kill threads
-    drain threads
-
   block:
     ## created a random population of programs
     checkpoint "creating", tab.seedPopulation, "random programs..."
@@ -138,40 +144,39 @@ suite "simulation":
     evo.population = evo.randomPop()
 
   block:
-    ## dumped some statistics
-    dumpStats(evo, et)
+    ## dumped the initial population
+    dumpPopulation evo.population
 
-  et = getTime()
+  block:
+    ## dumped some statistics
+    evo.dumpStats()
+
   var best = NaN
   block:
     ## ran until we can average two numbers
     var seen: GreadSet[Hash]
     initGreadSet seen
     while evo.generation < tab.maxGenerations:
-      if best > goodEnough or best.almostEqual(goodEnough):
-        break
       for discovery in evo.generation():
         discard
       if evo.fittest.isSome:
         let p = get evo.fittest
-        if evo.cacheSize(p) == training.len:
-          if not seen.containsOrIncl(p.hash):
-            let s = p.score
-            if s > best or best.isNaN:
-              best = s
-              dumpScore p
+        if not seen.containsOrIncl(p.hash):
+          let s = p.score
+          if s > best or best.isNaN:
+            best = s
+            if best > goodEnough or best.almostEqual(goodEnough):
+              break
+            checkpoint "new leader!"
+            dumpPopulation evo.population
 
       if evo.generation mod statFrequency == 0:
-        dumpStats(evo, et)
+        evo.dumpStats()
 
   block:
-    ## showed the top-10 programs
-    const N = 10
-    var programs = toSeq evo.population.items
-    sort programs
-    for i in 1..N:
-      fnl.dumpScore programs[^(N-i+1)]
+    ## dumped the final population
+    dumpPopulation evo.population
 
   block:
     ## dumped some statistics
-    dumpStats(evo, et)
+    evo.dumpStats()

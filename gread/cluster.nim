@@ -70,7 +70,6 @@ type
 
   Cluster*[T, V] = ref object
     name: string
-    cores: GreadSet[CoreId]
     io: IO[T, V]                   ## how we move data between threads
 
   Terminator*[T; V] = proc(evo: var Evolver[T, V]): bool ##
@@ -175,8 +174,6 @@ proc continuationRunner*(queue: Mailbox[Continuation]) {.cps: Continuation.} =
           if dismissed c:
             break
           work.addLast c
-  when false and defined(useMalloc) and not defined(valgrind):
-    echo fmt"thread exit; {Kute memoryUsed()} of {Kute memoryArena()}"
 
 # we'll run as many as (processors) threads, though we
 # may not recommend more than (cores) concurrency
@@ -288,14 +285,6 @@ proc programQueues*[T, V](cluster: Cluster[T, V]): IO[T, V] =
   ## members will use to exchange novel programs
   cluster.io
 
-proc size*(cluster: Cluster): int =
-  ## returns the number of evolvers in the cluster
-  cluster.cores.len
-
-proc clusterSize*(work: Work): int =
-  ## exposes the size of the parent cluster
-  work.cluster.size
-
 var nextId: Atomic[CoreId]         ## the value of the next core identity
 
 proc nextCore*(): CoreId =
@@ -314,15 +303,7 @@ proc initWork*[T, V](cluster: Cluster[T, V]): Work[T, V] =
 
 proc boot*[T, V](cluster: Cluster[T, V]; worker: sink Continuation) =
   ## boot a cluster with a worker continuation
-  let core = nextCore()
   mailbox.send worker
-  cluster.cores.incl(core)
-
-when false:
-  proc halt*(cluster: Cluster; core = none CoreId) =
-    ## halt a cluster or a particular core
-    for i, thread in threads.mitems:
-      joinThread thread
 
 proc newTransportQ*[T, V](): TransportQ[T, V] =
   ## create a new transport queue for messaging between threads
@@ -330,9 +311,7 @@ proc newTransportQ*[T, V](): TransportQ[T, V] =
 
 proc newCluster*[T, V](name = ""): Cluster[T, V] =
   ## create a new cluster
-  var cores: GreadSet[CoreId]
-  initGreadSet cores
-  result = Cluster[T, V](name: name, cores: cores,
+  result = Cluster[T, V](name: name,
                          io: (input: newTransportQ[T, V](),
                               output: newTransportQ[T, V]()))
 

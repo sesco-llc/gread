@@ -57,16 +57,6 @@ proc clone*[T](t: BiTable[T]): BiTable[T] =
     else:
       result = BiTable[T](keys: t.keys, vals: t.vals)
 
-when false:
-  #[
-
-  omitting these until a need presents itself
-
-  ]#
-  proc contains*[T](t: BiTable[T]; x: LitId): bool =
-    let idx = idToIdx(x)
-    result = idx >= 0 and idx <= t.vals.high
-
 proc `[]`*[T](t: BiTable[T]; v: T): LitId =
   withRLock L:
     let origH = hash(v)

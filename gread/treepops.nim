@@ -76,7 +76,7 @@ proc remove*[T](rng: var Rand; population: var TreePop[T]; size: Positive;
     if population.len < 1:
       raise ValueError.newException:
         "cannot run a tournament with empty population"
-    let index = tournament(rng, population.high, size, order = Descending)
+    let index = tournament(rng, population.high, size, order = Ascending)
     population.del(index)
     dec count
 

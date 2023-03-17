@@ -14,7 +14,6 @@ import pkg/adix/lptabz
 import pkg/adix/stat except Option
 import pkg/balls
 import pkg/cps
-import pkg/frosty/streams as brrr
 import pkg/htsparse/lua/lua_core_only as parselua
 
 import gread/spec
@@ -61,18 +60,6 @@ proc strength*(score: LuaValue): float =
 proc `$`*[T: Lua](n: AstNode[T]): string =
   ## rendering lua ast kinds
   result = $(LuaNodeKind n.kind) & "." & $n.operand
-
-proc serialize*[S](output: var S; input: LuaValue) =
-  ## serialize a LuaValue; used internally by frosty
-  let js = input.toJson
-  serialize(output, js[])
-
-proc deserialize*[S](input: var S; output: var LuaValue) =
-  ## deserialize a LuaValue; used internally by frosty
-  var js: JsonNode
-  new js
-  deserialize(input, js[])
-  output = js.toLuaValue
 
 proc asTable*[T](locals: SymbolSet[Lua, LuaValue]): LPTab[string, T] =
   ## given locals, select values of the given type into a table

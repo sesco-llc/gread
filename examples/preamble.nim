@@ -1,32 +1,47 @@
 
 const
   greadSeed {.intdefine.} = 0
-  goodEnough = -0.00000     # termination condition
+  goodEnough = -0.01000     # termination condition
   llsMany {.intdefine.} = 10_000_000
-  llsDuration {.intdefine.} = 60
+  llsDuration {.intdefine.} = 300
   manyGenerations = llsMany
   statFrequency = 5_000
   llsGrammar = """
-    # a comment
-    <start>        ::= <numexpr>
-    <varargs>      ::= <numexpr> | <numexpr> <varargs>
-    <numexpr>      ::= ( <numbop> <numexpr> <varargs> )
-    <numexpr>      ::= <value>
-    <numexpr>      ::= <value>
-    <numbop>       ::= "+" | "*" | "-" | "/"
-    <value>        ::= "1.0" | "2.0" | "0.5" | "0.1"
-    <value>        ::= "x"
+<start>            ::= <n-expr>
+
+# numeric symbols
+<n-value>          ::= "x"
+<n-value>          ::= "1" | "2" | "4" | "8" | "16"
+
+# n-arity operators upon numeric expressions
+<n-nop>            ::= "+" | "-" | "*" | "/"
+
+# perform n-arity operation on two or more numeric expressions
+<n-expr-narity>    ::= ( <n-nop> <n-expr> <n-args> )
+<n-expr-narity>    ::= <n-value>
+
+# numeric arguments are arity/n
+<n-args>           ::= <n-expr> | <n-expr> <n-args>
+# numeric arguments are arity/2
+#<n-args>           ::= <n-expr>
+<n-args>           ::= <n-value>
+
+# balancing numeric expressions
+<n-expr>           ::= <n-expr-narity>
+<n-expr>           ::= <n-value>
   """
-  tourney = 0.04
+
+
+  tourney = 0.01
 
 # define the parameters for the evolvers
 var tab = defaultTableau
 tab -= {UseParsimony, RequireValid}
 tab.seedProgramSize = 500
-tab.seedPopulation = 100
+tab.seedPopulation = 2000
 tab.maxPopulation = tab.seedPopulation
-tab.tournamentSize = int(tourney * tab.maxPopulation.float)
-tab.sharingRate = 0.030
+tab.tournamentSize = max(2, int(tourney * tab.maxPopulation.float))
+tab.sharingRate = 0.006
 tab.maxGenerations = manyGenerations
 
 let

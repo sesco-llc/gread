@@ -5,8 +5,6 @@ import std/options
 import pkg/adix/stat except Option
 import pkg/adix/lptabz
 
-#from pkg/frosty import frostyError, FreezeError, ThawError
-
 import gread/ast
 import gread/genotype
 import gread/spec
@@ -150,16 +148,3 @@ proc isValid*(p: Program): bool =
 func hash*(p: Program): Hash {.inline.} =
   ## hash() symbol for table purposes
   p.hash
-
-when false:
-  proc serialize*[S, T](output: var S; input: ProgramObj[T]) =
-    serialize(output, input.ast)
-    serialize(output, input.genome)
-    serialize(output, input.flags)
-
-  proc deserialize*[S, T](input: var S; output: var ProgramObj[T]) =
-    var ast: Ast[T]
-    deserialize(input, ast)
-    output = newProgram(ast)
-    deserialize(input, output.genome)
-    deserialize(input, output.flags)

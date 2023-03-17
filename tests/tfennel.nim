@@ -5,7 +5,6 @@ import std/json
 import std/options
 
 import pkg/balls
-import pkg/frosty/streams as brrr
 
 import gread
 import gread/decompile
@@ -62,14 +61,6 @@ proc main =
       let score = fnl.evaluate(p, locals)
       checkpoint score
       check score.float == 3.0
-
-    block:
-      ## serde some fennel ast
-      let popsicle = freeze p
-      var puddle: FProg
-      thaw(popsicle, puddle)
-      checkpoint render(p.ast)
-      check render(p.ast) == render(puddle.ast)
 
     block:
       ## run a fennel program with inputs

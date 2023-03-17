@@ -16,7 +16,6 @@ import std/times
 import pkg/adix/stat except Option
 import pkg/balls
 import pkg/cps
-import pkg/frosty/streams as brrr
 import pkg/grok/kute
 import pkg/grok/resources
 import pkg/htsparse/fennel/fennel_core_only as parsefen
@@ -76,18 +75,6 @@ func strength*(score: LuaValue): float =
 proc `$`*[T: Fennel](n: AstNode[T]): string =
   ## rendering fennel ast kinds
   result = $(FennelNodeKind n.kind) & "." & $n.operand
-
-proc serialize*[S](output: var S; input: LuaValue) =
-  ## serialize a LuaValue; used internally by frosty
-  let js = input.toJson
-  serialize(output, js[])
-
-proc deserialize*[S](input: var S; output: var LuaValue) =
-  ## deserialize a LuaValue; used internally by frosty
-  var js: JsonNode
-  new js
-  deserialize(input, js[])
-  output = js.toLuaValue
 
 proc asTable*[T](locals: SymbolSet[Fennel, LuaValue]): GreadTable[string, T] =
   ## given locals, select values of the given type into a table
@@ -484,16 +471,13 @@ proc threadName*(core: CoreSpec): string =
   result.add ":"
   result.add $core
 
-proc dumpScore*(p: FProg) =
-  var s = fmt"{p.score} {p.core}/{p.generation}[{p.genome.len}]: "
+proc dumpScore*(p: var FProg) =
+  var s = fmt"{p.score} {p.core}/{p.generation}[{p.ast.len}]: "
   s.add $p
   s.add " <"
   s.add $hash(p.genome)
   s.add ">"
   checkpoint s
-
-proc dumpScore*(fnl: Fennel; p: FProg) {.deprecated: "use dumpScore/1".} =
-  dumpScore p
 
 proc getStats*[T, V](evo: Evolver[T, V]): string =
   ## compose a report of some statistics regarding the vm and population

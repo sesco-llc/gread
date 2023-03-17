@@ -5,7 +5,6 @@ import std/sequtils
 import std/strformat
 import std/strutils
 
-import pkg/frosty/streams as brrr
 import pkg/redis
 
 import gread/programs
@@ -21,9 +20,6 @@ import gread/tournament
 simple redis store/load for programs
 
 ]##
-
-const
-  frostyMagic = "brrr 2"
 
 type
   StoreError* = object of IOError
@@ -180,13 +176,6 @@ proc bestPrograms*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
     except StoreError:
       warn "ignored bad genome from " & $key
 
-proc store*[T](r: var Redis; p: Program[T]; key: string) =
-  ## store a program to a given redis key set
-  var geno = freeze p.genome
-  geno.add frostyMagic
-  p.flags.incl Cached
-  discard r.sadd(key, geno)   # return value is number of elements added
-
 proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
   ## parse a string from redis into a program, if possible
   mixin newProgram
@@ -194,50 +183,29 @@ proc unpack[T](gram: Grammar; s: string): Option[Program[T]] =
   if s.len == 0:
     return none Program[T]
 
-  try:
-    var program: Program[T]
-    if s.endsWith frostyMagic:
-      # it's serialized via frosty
-      var s = s
-      setLen(s, s.len - frostyMagic.len)  # remove the magic
-      var genome: Genome
-      thaw(s, genome)
-      program = unpackGenomeToProgram[T](gram, genome)
-    else:
-      when supportsParsing:
-        # parse it using tree-sitter
-        program = newProgram s
-        program.flags.incl Cached
-      else:
-        # remove extant unsupported keys
-        raise StoreError.newException:
-          "deserialization failure: no tree-sitter available"
-    if program.isInitialized:
-      result = some program
-  except ThawError as e:
-    raise StoreError.newException "deserialization failure: " & e.msg
-
-proc clear*[T](r: var Redis; program: Program[T]; key: string) =
-  ## remove a program from the redis key set
-  var genome = freeze program.genome
-  genome.add frostyMagic
-  program.flags.excl Cached
-  discard r.srem(key, genome)
+  var program: Program[T]
+  when supportsParsing:
+    # parse it using tree-sitter
+    program = newProgram s
+    program.flags.incl Cached
+  else:
+    # remove extant unsupported keys
+    raise StoreError.newException:
+      "deserialization failure: no tree-sitter available"
+  if program.isInitialized:
+    result = some program
 
 proc load*[T](r: var Redis; gram: Grammar; key: string): Option[Program[T]] =
   ## try to fetch a random program from the redis key set
   mixin newProgram
   var s = r.srandmember(key)
-  if s.len < frostyMagic.len:
+  try:
+    result = unpack[T](gram, s)
+  except StoreError as e:
+    warn e.msg
+    warn "rm'ing bad redis value -- did your grammar change?"
+    discard r.srem(key, s)
     result = none Program[T]
-  else:
-    try:
-      result = unpack[T](gram, s)
-    except StoreError as e:
-      warn e.msg
-      warn "rm'ing bad redis value -- did your grammar change?"
-      discard r.srem(key, s)
-      result = none Program[T]
 
 proc newPopulation*[T](r: var Redis; gram: Grammar; key: string;
                        size: int; core = none int): Population[T] =
@@ -275,6 +243,3 @@ iterator trim*[T, V](r: var Redis; evo: var Evolver[T, V]; domain: string): Prog
   for loser in evo.trim():
     clear(r, loser, domain)
     yield loser
-
-proc memoryGraphSize*[T](thing: T): int =
-  freeze(thing).len

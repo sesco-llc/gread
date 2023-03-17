@@ -59,7 +59,7 @@ when isMainModule:
   proc main(work: Work; inputs, outputs: TransportQ[Fennel, LuaValue]) =
     # create a population to monitor new inventions
     let fnl = newFennel()
-    var workerCount = work.clusterSize
+    var workerCount = cores
     var monitor = tab
     monitor.maxPopulation = 2
     var evo: Evolver[Fennel, LuaValue]
@@ -133,10 +133,8 @@ when isMainModule:
       args.rng = some: initRand()
     else:
       args.rng = some: initRand(greadSeed)
-    if cores == 1:
-      args.tableau.sharingRate = 0.0
+    args.core = some nextCore()
     clump.boot(whelp worker(args))
-    clump.redress args
 
   # run the main loop to gatekeep inventions
   let (inputs, outputs) = clump.programQueues()
