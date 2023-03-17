@@ -37,8 +37,8 @@ const
 # define the parameters for the evolvers
 var tab = defaultTableau
 tab -= {UseParsimony, RequireValid}
-tab.seedProgramSize = 500
-tab.seedPopulation = 2000
+tab.seedProgramSize = 50
+tab.seedPopulation = 200
 tab.maxPopulation = tab.seedPopulation
 tab.tournamentSize = max(2, int(tourney * tab.maxPopulation.float))
 tab.sharingRate = 0.006

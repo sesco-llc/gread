@@ -53,8 +53,8 @@ proc crossoverGroup*[T](rng: var Rand;
   template b: T = genomes[1]
   if a.len == 0 or b.len == 0:
     raise Defect.newException "attempt to crossover empty genome"
-  let n = rng.rand(min(a.high, b.high))
-  if n > 0:
+  if a.len > 2 and b.len > 2:  # no point to crossing tiny genomes
+    let n = rng.rand(1..min(a.high-1, b.high-1))
     result.add: a[0..<n] & b[n..b.high]
     result.add: b[0..<n] & a[n..a.high]
 

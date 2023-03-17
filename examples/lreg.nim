@@ -83,9 +83,6 @@ proc score(genome: Genome): float =
     raise Defect.newException "score is nan"
     result = -Inf
 
-proc newGenomeTree(initialSize: Natural): TreePop[Genome] =
-  initTreePop[Genome](initialSize = initialSize)
-
 when isMainModule:
   import pkg/cutelog
 
@@ -119,12 +116,12 @@ when isMainModule:
   proc myMakeRoom[T](evo: var TreeEvolver[T]) =
     while evo.population.len >= evo.tableau.maxPopulation:
       doAssert evo.tableau.tournamentSize > 1
-      var genome = evict(evo.rng, evo.population, max(1, evo.tableau.tournamentSize))
+      var genome = evo.evict(max(1, evo.tableau.tournamentSize))
       cache.del(genome)
 
   proc add[Genome](evo: var TreeEvolver[Genome]; item: sink Genome) =
     evo.myMakeRoom()
-    evo.population.push(score(item), item)
+    evo.population.push(item)
 
   proc terminator[T](evo: var TreeEvolver[T]): bool =
     result = evo.generation >= llsMany
@@ -134,15 +131,16 @@ when isMainModule:
     if result:
       info fmt"terminator terminating evolver {evo.core}"
 
-  proc dumpPopulation(population: TreePop[Genome]) =
+  proc dumpPopulation(evo: TreeEvolver[Genome]) =
     echo "--------------------------------------------------------------"
-    for genome in population.items:
+    for genome in evo.population.items:
       dumpGenome genome
 
   proc leanWorker*(args: Work[Fennel, LuaValue]) {.cps: Continuation.} =
     # you can adjust these weights to change mutation rates
     var operatorWeights = {
       operator("crossover", crossoverGroup[Genome]):                     0.5,
+      operator("asymxover", asymmetricCrossoverGroup[Genome]):           0.5,
       operator(" 1% noise", geNoisy1pt0_Group[Genome]):                  0.5,
     }
 
@@ -160,7 +158,6 @@ when isMainModule:
     var evo: TreeEvolver[Genome]
     evo.initEvolver(args.tableau, rng = prng)
     evo.operators = operatorWeights
-    evo.population = newGenomeTree(evo.tableau.maxPopulation)
     evo.core = args.core
 
     if args.population.isNil:
