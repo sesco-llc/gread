@@ -11,7 +11,6 @@ const
 
 # numeric symbols
 <n-value>          ::= "x"
-<n-value>          ::= "1" | "2" | "4" | "8" | "16"
 
 # n-arity operators upon numeric expressions
 <n-nop>            ::= "+" | "-" | "*" | "/"

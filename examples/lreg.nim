@@ -6,7 +6,6 @@ import std/options
 import std/os
 import std/random
 import std/sets
-import std/sequtils
 import std/strformat
 import std/strutils
 import std/tables
@@ -59,7 +58,6 @@ proc computeScore(genome: Genome): float =
           results[index] = -abs(data[index][1].float - s.toFloat)
         else:
           result = -Inf
-          # might set zombie here if it'd help
           break complete
       result = -ss(results)
       if result.isNaN:
@@ -74,14 +72,13 @@ proc computeScore(genome: Genome): float =
       raise Defect.newException "result is nan"
     cache[genome] = CacheNode(score: result, code: source)
 
-proc score(genome: Genome): float =
+proc score(genome: Genome): Option[float] =
   try:
-    result = cache[genome].score
+    result = some: cache[genome].score
   except KeyError:
-    result = computeScore(genome)
-  if result.isNaN:
+    result = some: computeScore(genome)
+  if result.isSome and get(result).isNaN:
     raise Defect.newException "score is nan"
-    result = -Inf
 
 when isMainModule:
   import pkg/cutelog
@@ -116,7 +113,7 @@ when isMainModule:
   proc myMakeRoom[T](evo: var TreeEvolver[T]) =
     while evo.population.len >= evo.tableau.maxPopulation:
       doAssert evo.tableau.tournamentSize > 1
-      var genome = evo.evict(max(1, evo.tableau.tournamentSize))
+      var genome = evo.evict()
       cache.del(genome)
 
   proc add[Genome](evo: var TreeEvolver[Genome]; item: sink Genome) =
@@ -207,7 +204,7 @@ when isMainModule:
       if finest.isNone or get(finest) != evo.population.best:
         var program = πMap[Fennel](gram, evo.population.best)
         program.generation = gen
-        program.score = score(program.genome)
+        program.score = computeScore(program.genome)
         program.core = evo.core
         if not shared.containsOrIncl(program.ast.hash):
           args.shareOutput(program)
@@ -228,7 +225,7 @@ when isMainModule:
             if fine != evo.population.best:
               inc op.winners
             try:
-              var program = πMap[Fennel](gram, genome)
+              discard πMap[Fennel](gram, genome)
               op.stat.push 1.0
             except ShortGenome:
               op.stat.push -1.0

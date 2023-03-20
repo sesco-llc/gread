@@ -9,7 +9,7 @@ import pkg/adix/stat except Option
 const
   greadWrapping* {.booldefine.} = false
   greadReportOperators* {.booldefine.} = false
-  greadReportOperatorsInterval* {.intdefine.} = 1000
+  greadReportOperatorsInterval* {.intdefine.} = 10000
 
 type
   ShortGenome* = object of ValueError

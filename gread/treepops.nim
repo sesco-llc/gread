@@ -1,55 +1,29 @@
 import std/algorithm
 import std/hashes
-import std/math
 import std/options
 import std/random
 
-import gread/aliasmethod
-import gread/evolver
-import gread/tableau
-import gread/genotype
-
-import trees/avl
-
 import pkg/adix/stat except Option
 
-type
-  PopLike[T] = concept c
-    c.push(T)
-    c.pop() is T
-    c.pop(T)
-    c.min is T
-    c.max is T
-    c.len is Natural
-    #c.high is Natural
-    #c[Natural] is T
-    c.select(Positive) is T
-    c.rank(T) is Positive
-    (T < T) is bool
-    (T == T) is bool
-    T.len is Natural
-    T.score is Option[SomeFloat]
-    for n in c.items:
-      n is T
+import pkg/trees/avl
+export avl
 
-  Parsimony*[T] = object
-    tree: AVLTree[Shim[T], T]
-    parsimony: float
-    lengths: MovingStat[float, uint32]
-    scores: MovingStat[float, uint32]
+import gread/aliasmethod
+import gread/evolver
+import gread/genotype
+import gread/parsimony
+import gread/population
+import gread/tableau
+export parsimony
+
+type
+  TreePop[T] = AVLTree[Shim[T], T]
+
+  TreeParsimony*[T] = object of Parsimony[TreePop[T]]
 
   Shim[T] = object
     score: Option[float]
     data: Hash
-
-proc downscale(s: Option[float]): float =
-  result =
-    if s.isSome:
-      get s
-    else:
-      -Inf
-  if result.isNaN:
-    result = -Inf
 
 proc `<`*[T](a, b: Shim[T]): bool =
   mixin `<`
@@ -58,112 +32,40 @@ proc `<`*[T](a, b: Shim[T]): bool =
 proc `==`*[T](a, b: Shim[T]): bool =
   a.data == b.data
 
-proc covariance(parsimony: Parsimony): float =
+proc score*[T](population: TreePop[T]; item: T): Option[float] =
   mixin score
-  var n = 0
-  for item in parsimony.tree.values:
-    let s = item.score
-    if s.isSome:
-      inc n
-      result += (get(s).float - parsimony.scores.mean) *
-                (item.len.float - parsimony.lengths.mean)
-  doAssert n == parsimony.lengths.n
-  result =
-    if n == 0:
-      NaN
-    else:
-      result / n.float
+  result = item.score
 
-proc sort[T](parsimony: var Parsimony[T]) =
-  var stack = newSeqOfCap[T](parsimony.tree.len)
-  while parsimony.tree.len > 0:
-    let bug = parsimony.tree.max
-    let item = parsimony.tree.pop(bug.key)
-    stack.add item
+proc sort*[T](parsimony: var Parsimony[TreePop[T]]) =
+  var stack = newSeqOfCap[T](parsimony.members.len)
+  while parsimony.members.len > 0:
+    let bug = parsimony.members.max
+    parsimony.members.pop(bug.key)
+    stack.add bug.val
   while stack.len > 0:
     let item = pop stack
     let shim = Shim[T](score: parsimony.score(item), data: item.hash)
-    parsimony.tree.insert(shim, item)
+    parsimony.members.insert(shim, item)
 
-proc recompute(parsimony: var Parsimony) =
-  mixin score
-  reset parsimony.lengths
-  reset parsimony.scores
-  if parsimony.tree.len == 0:
-    parsimony.parsimony = NaN
-  else:
-    for item in parsimony.tree.values:
-      let s = item.score
-      if s.isSome:
-        parsimony.scores.push get(s).float
-        parsimony.lengths.push item.len.float
-    parsimony.parsimony = parsimony.covariance / parsimony.lengths.variance
-    sort parsimony
-
-proc len*(parsimony: Parsimony): Natural =
-  parsimony.tree.len
-
-proc high*(parsimony: Parsimony): Natural =
-  parsimony.tree.len.Natural - 1
-
-proc min*[T](parsimony: Parsimony[T]): T =
-  let bug = parsimony.tree.min
-  result = bug.val.data
-
-proc max*[T](parsimony: Parsimony[T]): T =
-  let bug = parsimony.tree.max
-  result = bug.val.data
-
-proc `[]`*[T](parsimony: Parsimony[T]; index: Natural): T =
-  let bug = parsimony.tree.select(1 + index)
-  result = bug.val.data
-
-proc score*[T](parsimony: Parsimony[T]; item: T): Option[float] =
-  mixin score
-  result = item.score
-  if result.isSome:
-    if not parsimony.parsimony.isNaN:
-      # if parsimony is negative,
-      #    reduce the score of longer programs,
-      # else,
-      #    raise the score of longer programs
-      result = some: get(result) + parsimony.parsimony * item.len.float
-
-proc select*[T](parsimony: Parsimony[T]; rank: Positive): T =
-  let bug = parsimony.tree.select(rank)
-  result = bug.val
-
-proc rank*[T](parsimony: Parsimony[T]; item: T): Positive =
+proc rank*[T](parsimony: TreeParsimony[T]; item: T): Positive =
   let shim = Shim[T](score: parsimony.score(item), data: item.hash)
-  result = parsimony.tree.rank(shim)
+  result = parsimony.members.rank(shim)
 
-iterator items*[T](parsimony: Parsimony[T]): T =
-  for item in parsimony.tree.values:
+iterator items*[T](parsimony: TreeParsimony[T]): T =
+  for item in parsimony.members.values:
     yield item
 
-proc push*[T](parsimony: var Parsimony[T]; item: T) =
-  mixin score
-  var shim = Shim[T](score: item.score, data: item.hash)
-  if parsimony.tree.insert(shim, item):
-    if item.score.isSome:
-      recompute parsimony
+proc insert*[T](population: var TreePop[T]; s: Option[float]; item: T): bool =
+  var shim = Shim[T](score: s, data: item.hash)
+  result = population.insert(shim, item)
 
-proc pop*[T](parsimony: var Parsimony[T]; item: T) =
-  let shim = Shim[T](score: parsimony.score(item), data: item.hash)
-  if parsimony.tree.remove(shim):
-    if shim.score.isSome:
-      recompute parsimony
-
-proc pop*[T](parsimony: var Parsimony[T]): T =
-  let bug = parsimony.tree.min
-  doAssert parsimony.tree.remove(bug.key)
-  if bug.key.score.isSome:
-    recompute parsimony
-  result = bug.val
+proc remove*[T](population: var TreePop[T]; s: Option[float]; item: T): bool =
+  var shim = Shim[T](score: s, data: item.hash)
+  result = population.remove(shim)
 
 type
   TreeEvolver*[T] = object of GenomeEvolver[T]
-    population*: Parsimony[T]
+    population*: TreeParsimony[T]
 
 proc initEvolver*[T](evo: var TreeEvolver[T]; tableau: Tableau; rng: Rand = randState()) =
   ## perform initial setup of the Evolver, binding tableau
@@ -188,8 +90,8 @@ proc evict*[T](evo: var TreeEvolver[T]): T =
     let index = tournament(evo.rng, evo.population.high,
                            evo.tableau.tournamentSize,
                            order = Ascending)
-    let bug = evo.population.tree.select(1 + index)
-    evo.population.tree.pop(bug.key)
+    let bug = evo.population.members.select(1 + index)
+    evo.population.members.pop(bug.key)
     result = bug.val
 
 when false:
@@ -204,11 +106,11 @@ when false:
       population.del(index)
       dec count
 
-proc best*[T](population: Parsimony[T]): T =
-  if population.tree.len == 0:
+proc best*[T](population: TreeParsimony[T]): T =
+  if population.members.len == 0:
     raise ValueError.newException "population is empty"
   else:
-    let bug = population.tree.max
+    let bug = population.members.max
     result = bug.val
 
 proc best*[T](evo: TreeEvolver[T]): T =
@@ -229,16 +131,11 @@ proc makeRoom*[T](evo: var TreeEvolver[T]; count = 1) =
     discard evo.evict()
 
 proc push*[T](evo: var TreeEvolver[T]; s: Option[float]; item: T) =
-  var shim = Shim[T](score: s, data: item.hash)
-  if evo.population.tree.insert(shim, item):
-    if s.isSome:
-      recompute evo.population
+  evo.population.push(s, item)
 
-proc pop*[T](parsimony: var Parsimony[T]; s: Option[float]; item: T) =
-  let shim = Shim[T](score: s, data: item.hash)
-  if parsimony.tree.remove(shim):
-    if shim.score.isSome:
-      recompute parsimony
+proc pop*[T](evo: var TreeEvolver[T]; s: Option[float]; item: T) =
+  evo.population.pop(s, item)
 
-proc sort*[T](evo: var TreeEvolver[T]) =
-  recompute evo.population
+proc add*[T](evo: var TreeEvolver[T]; item: sink T) =
+  evo.makeRoom()
+  evo.population.push(item)

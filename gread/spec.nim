@@ -1,9 +1,6 @@
 import std/math
 import std/options
 import std/strutils
-#import std/tables
-
-import pkg/cps
 
 when defined(greadLeakySet):
   import std/packedsets
