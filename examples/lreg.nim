@@ -14,11 +14,8 @@ import std/times
 import gread
 import gread/fennel except variance
 import gread/genotype
-import gread/aliasmethod
 import gread/audit
 import gread/treepops
-import gread/crossover
-import gread/mutation
 
 import pkg/cps
 import pkg/lunacy
@@ -136,9 +133,9 @@ when isMainModule:
   proc leanWorker*(args: Work[Fennel, LuaValue]) {.cps: Continuation.} =
     # you can adjust these weights to change mutation rates
     var operatorWeights = {
-      operator("crossover", crossoverGroup[Genome]):                     0.5,
-      operator("asymxover", asymmetricCrossoverGroup[Genome]):           0.5,
-      operator(" 1% noise", geNoisy1pt0_Group[Genome]):                  0.5,
+      operator("crossover", crossoverGroup[Genome]):                     0.2,
+      operator("asymxover", asymmetricCrossoverGroup[Genome]):           0.1,
+      operator(" ½% noise", geNoisy0pt5_Group[Genome]):                  0.6,
     }
 
     initGreadTable cache

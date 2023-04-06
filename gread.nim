@@ -12,6 +12,8 @@ import gread/data
 import gread/evolver
 import gread/grammar
 import gread/genotype
+import gread/crossover
+import gread/mutation
 
 export ast
 export fertilizer
@@ -27,6 +29,8 @@ export data
 export evolver
 export grammar
 export genotype
+export crossover
+export mutation
 
 when compileOption"threads":
   import gread/cluster
