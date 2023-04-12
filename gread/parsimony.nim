@@ -17,8 +17,10 @@ import gread/population
 const
   moreParsimony = false
   greadFixedParsimony {.strdefine.} = "nan"
+  greadClampedParsimony {.strdefine.} = "nan"
 
 let fixedParsimony = parseFloat greadFixedParsimony
+let clampedParsimony = abs: parseFloat greadClampedParsimony
 
 when false:
   type
@@ -120,6 +122,8 @@ proc recompute*[T](parsimony: var Parsimony[T]) =
         parsimony.scores.push get(s).float
         parsimony.lengths.push item.len.float
     parsimony.parsimony = parsimony.covariance / parsimony.lengths.variance
+    when greadClampedParsimony != "nan":
+      parsimony.parsimony = clamp(parsimony.parsimony, -clampedParsimony .. clampedParsimony)
     sort parsimony
 
 proc push*[K, V](parsimony: var Parsimony[K]; item: V) =
