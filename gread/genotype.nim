@@ -167,11 +167,16 @@ proc randomGenome*(rng: var Rand; size: int): Genome =
   for i in result.low .. result.high:
     result[i] = rng.rand(int char.high).char
 
-#converter toString*(geno: Genome): string =
-#  string geno
+proc toString*(geno: Genome): string =
+  string geno
 
 proc fromString*(str: string): Genome =
   Genome str
+
+proc toBytes*(genome: Genome): seq[byte] =
+  setLen(result, genome.len)
+  for index in 0..result.high:
+    result[index] = byte genome.string[index]
 
 proc hash*(geno: Genome): Hash =
   hash geno.string
