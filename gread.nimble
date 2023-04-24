@@ -3,7 +3,7 @@ author = "disruptek"
 description = "grammar-evolving algorithm designer"
 license = "GPLv3"
 
-requires "https://github.com/disruptek/lunacy >= 0.0.10 & < 1.0.0"
+requires "https://github.com/disruptek/lunacy >= 0.0.11 & < 1.0.0"
 requires "https://github.com/disruptek/cutelog >= 3.0.0 & < 4.0.0"
 requires "https://github.com/disruptek/grok >= 0.6.3 & < 1.0.0"
 requires "https://github.com/disruptek/insideout"

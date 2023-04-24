@@ -39,6 +39,9 @@ import gread/genotype
 export lunacy
 export stat except Option  # nim bug workaround
 
+const
+  greadTidyTime* {.intdefine.} = 1_000_000
+
 type
   FennelObj = object
     vm: PState
@@ -136,6 +139,9 @@ proc setupVM(vm: PState) =
   const
     flam = """fennel = require("fennel")"""
     sham = """fennel.eval([==[$#]==], {compilerEnv=_G})""" % shims
+  when false:
+    let err = vm.setmode(0, LuaJitModeOn.cint or LuaJitMode.Engine.cint)
+    doAssert err == 1, "error toggling jit"
   vm.openLibs()
   vm.checkLua vm.doString flam:
     vm.checkLua vm.doString sham:
@@ -165,6 +171,10 @@ proc tidyVM*(fnl: Fennel) =
     fnl.vm = newVM()
     #echo fmt"reboot vm in {(getMonoTime() - began).inMilliseconds} ms"
   else:
+    if 1 != fnl.vm.setmode(0, LuaJitModeFlush or LuaJitMode.Engine.cint):
+      warn "error flushing luajit cache"
+    else:
+      debug fmt"cache flush in {(getMonoTime() - began).inMilliseconds} ms"
     fnl.vm.checkLua fnl.vm.gc(GcCollect, 0):
       discard
     debug fmt"gccollect in {(getMonoTime() - began).inMilliseconds} ms"
@@ -359,7 +369,10 @@ proc compileChunk(vm: PState; s: string): string =
     vm.pop(1)
 
 proc compileChunk*(fnl: Fennel; s: string): string =
-  compileChunk(fnl.vm, s)
+  result = compileChunk(fnl.vm, s)
+  inc fnl[].runs
+  if fnl[].runs mod greadTidyTime == 0:
+    fnl.tidyVM()
 
 proc loadChunk(vm: PState; s: string) =
   ## load a chunk `s` as returned by `compileChunk`
@@ -385,7 +398,10 @@ proc evalChunk(vm: PState; s: string; locals: Locals): LuaValue =
   result = vm.popStack(expand=true).value
 
 proc evalChunk*(fnl: Fennel; s: string; locals: Locals): LuaValue =
-  evalChunk(fnl.vm, s, locals)
+  result = evalChunk(fnl.vm, s, locals)
+  inc fnl[].runs
+  if fnl[].runs mod greadTidyTime == 0:
+    fnl.tidyVM()
 
 proc evalChunk(vm: PState; s: string; data: Deque[Locals] | openArray[Locals]): seq[LuaValue] =
   ## a faster map of the chunk `s` across inputs in `data`
@@ -407,7 +423,12 @@ proc evalChunk(vm: PState; s: string; data: Deque[Locals] | openArray[Locals]): 
       vm.popStack(expand=true).value
 
 proc evalChunk*(fnl: Fennel; s: string; data: Deque[Locals] | openArray[Locals]): seq[LuaValue] =
-  evalChunk(fnl.vm, s, data)
+  result = evalChunk(fnl.vm, s, data)
+  # eh close enough
+  for _ in 1..data.len:
+    inc fnl[].runs
+    if fnl[].runs mod greadTidyTime == 0:
+      fnl.tidyVM()
 
 proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
   ## evaluate the string as lua and pop the stack for the result
@@ -418,9 +439,6 @@ proc evaluateLua(vm: PState; s: string; locals: Locals): LuaStack =
     vm.checkLua loadString(vm, s):
       vm.checkLua pcall(vm, 0, MultRet, 0):
         result = popStack vm
-
-const
-  greadTidyTime* {.intdefine.} = 50_000
 
 proc evaluateLua*(fnl: Fennel; code: string; locals: Locals): LuaValue =
   result = LuaValue(kind: TInvalid)
