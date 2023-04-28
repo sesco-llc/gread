@@ -67,7 +67,7 @@ jobs:
           cd project
           nimble --accept develop
           nimble --accept install "https://github.com/disruptek/balls"
-          balls --path="." --define:release --define:danger --mm:arc --backend:c --define:useMalloc
+          balls --path="." --define:lunacyLuaJIT --define:release --define:danger --mm:arc --backend:c --define:useMalloc
 
       # - name: Build docs
       #   if: ${{ matrix.docs }} == 'true'
