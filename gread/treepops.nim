@@ -83,11 +83,12 @@ proc tournament*[T](evo: var TreeEvolver[T]; order = Descending): T =
   tournament(evo, evo.tableau.tournamentSize, order = order)
 
 proc evict*[T](evo: var TreeEvolver[T]): T =
-  if evo.population.len < 1:
+  if evo.population.len <= 1:
     raise ValueError.newException:
-      "cannot run a tournament with empty population"
+      "cannot run a tournament with population <= 1"
   else:
-    let index = tournament(evo.rng, evo.population.high,
+    # don't ever evict the finest program
+    let index = tournament(evo.rng, evo.population.high-1,
                            evo.tableau.tournamentSize,
                            order = Ascending)
     let bug = evo.population.members.select(1 + index)
