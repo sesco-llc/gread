@@ -1,5 +1,6 @@
 import std/logging
 import std/macros
+import std/math
 import std/options
 import std/sequtils
 import std/strformat
@@ -89,7 +90,6 @@ proc load*(r: var Redis; key: ScoredGenomeMapName): Option[Genome] =
 
 proc load*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName): Option[Program[T]] =
   ## try to fetch a random program from the redis sorted set
-  # FIXME: also load the score and assign it to the program
   var genome = load(r, key)
   if genome.isSome:
     result = some unpackGenomeToProgram[T](gram, get genome)
@@ -143,18 +143,17 @@ proc randomPopulation*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
 proc entirePopulation*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
                           core = none int): Population[T] =
   ## select the entire population of programs from the sorted set
-  # FIXME: also load the scores and assign them to the program
-  let genes = r.zrange($key, 0, -1)
-  result = newPopulation[T](size = genes.len, core = core)
-  for gene in genes.items:
+  var genomes = r.zrange($key, 0, -1, withScores = true)
+  result = newPopulation[T](size = genomes.len, core = core)
+  var program: Program[T]
+  for (genome, score) in genomes.items:
     try:
-      let program = unpackGenomeToProgram[T](gram, gene.fromString)
-      # removed; redis cardinality matches population cardinality
-      if false and program in result:
-        notice fmt"rm duplicate ast {program}"
-        clear(r, key, [gene.fromString])
+      program = unpackGenomeToProgram[T](gram, genome.fromString)
+      if score.isNaN:
+        program.zombie = true
       else:
-        result.add program
+        program.score = score
+      result.add program
     except StoreError:
       warn "ignored bad genome from " & $key
 
@@ -168,11 +167,17 @@ proc bestGenomes*(r: var Redis; key: ScoredGenomeMapName; count: Natural = 1): s
 proc bestPrograms*[T](r: var Redis; gram: Grammar; key: ScoredGenomeMapName;
                       count: Natural = 1; core = none int): Population[T] =
   ## retrieve the `count` best programs from a sorted set
-  let genes = bestGenomes(r, key, count)
-  result = newPopulation[T](size = genes.len, core = core)
-  for gene in genes.items:
+  var genomes = r.zrange($key, -int(count), -1, withScores = true)
+  result = newPopulation[T](size = genomes.len, core = core)
+  var program: Program[T]
+  for (genome, score) in genomes.items:
     try:
-      result.add unpackGenomeToProgram[T](gram, gene)
+      program = unpackGenomeToProgram[T](gram, genome.fromString)
+      if score.isNaN:
+        program.zombie = true
+      else:
+        program.score = score
+      result.add program
     except StoreError:
       warn "ignored bad genome from " & $key
 
